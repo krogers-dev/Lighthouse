@@ -215,6 +215,15 @@ if run_case "symlinks appear in the survey"; then
 fi
 
 # ---------------------------------------------------------------------------
+if run_case "oversized files are called out after extraction"; then
+  dest="$WORK/oversize"
+  out="$(unpack "$FIX/oversized.zip" --dest "$dest")"
+  assert_contains "$out" "exceed GitHub's 100MB limit" "warns after extraction, not just in the survey"
+  assert_contains "$out" "assets/model.bin"            "names the offending file"
+  assert_contains "$out" "Git LFS"                     "suggests a remedy"
+fi
+
+# ---------------------------------------------------------------------------
 if run_case "dry run writes nothing"; then
   dest="$WORK/dryrun"
   out="$(unpack "$FIX/typical.zip" --dest "$dest" --dry-run)"

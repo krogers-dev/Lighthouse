@@ -103,6 +103,18 @@ fi
 echo
 echo "==> Unpacked to $DEST"
 echo "    $(find "$DEST" -type f | wc -l) files, $(du -sh "$DEST" | cut -f1) on disk"
+
+# GitHub rejects any single file over 100MB outright, so a push would fail
+# after the commit is already made. Worth naming the files now.
+oversized="$(find "$DEST" -type f -size +100M 2>/dev/null)"
+if [[ -n "$oversized" ]]; then
+  echo
+  echo "!! These files exceed GitHub's 100MB limit and will be rejected on push:"
+  while IFS= read -r f; do
+    printf '     %6s  %s\n' "$(du -h "$f" | cut -f1)" "${f#$DEST/}"
+  done <<<"$oversized"
+  echo "   Track them with Git LFS, or keep them out of the repository."
+fi
 echo
 echo "Restore dependencies with whichever applies:"
 # Lockfiles often sit one or two levels down (server/, web/, api/), not at root.
