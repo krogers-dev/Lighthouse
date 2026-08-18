@@ -35,7 +35,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKIP=(
   node_modules .venv venv __pycache__ .pytest_cache .mypy_cache .ruff_cache
   .tox dist build .next .nuxt .turbo .parcel-cache target .gradle
-  .idea coverage .nyc_output .cache
+  coverage .nyc_output .cache
 )
 
 echo "==> Surveying archive"

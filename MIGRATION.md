@@ -31,7 +31,23 @@ Survey it first if you'd rather look before extracting anything:
 `--dry-run` reads only the zip's central directory, so it reports on the whole
 355 MB in a second or two without writing a byte to disk. You get the top-level
 layout, how much of the archive is rebuildable dependency weight, the detected
-stack, anything matching a credential pattern, and the largest files.
+stack, anything matching a credential pattern, any symlinks (which dangle if
+they point at paths the new machine does not have), and the largest files.
+
+### Finding paths baked in by the old desktop
+
+The single most common reason a migrated project will not start is an absolute
+path from the machine it left. A `.vscode/settings.json` pointing at
+`/Users/you/lighthouse/.venv/bin/python`, a shell script that `cd`s to a home
+directory that no longer exists, a `.env` naming an old cache location.
+
+```bash
+python3 ./scripts/inspect_zip.py ~/Downloads/LighthouseExport_2026-08-17.zip --deep
+```
+
+`--deep` decompresses the small text files in memory and reports every file
+holding such a path, along with which home directories appear. Paths inside
+dependency directories are ignored, since those get rebuilt rather than fixed.
 
 ### What the unpack skips, and why
 
@@ -44,6 +60,11 @@ carrying a vendored `node_modules` is painful forever after.
 The script prints the exact install command to rebuild them, derived from
 whichever lockfiles the export actually contains, including ones nested in
 subdirectories.
+
+Editor configuration (`.vscode/`, `.idea/`) is **not** skipped. It is small, it
+is hand-written, and losing it in a migration is more annoying than carrying it.
+Whether it belongs in the repository is a separate question the generated
+`.gitignore` leaves to you.
 
 If you want the archive extracted verbatim anyway — to diff against the old
 machine, or because something in there is not reproducible — use `--include-all`.
@@ -85,30 +106,44 @@ Check `git status` before the commit, not after the push.
 in `~/.claude`. Restoring it brings across conversation history, project
 settings, custom skills, and installed plugins.
 
-Look before you overwrite:
+Use the restore script rather than unzipping over the top of `~/.claude`:
 
 ```bash
-python3 ./scripts/inspect_zip.py ~/Downloads/ClaudeState_2026-08-17.zip
+# Reports a plan and changes nothing.
+./scripts/restore_claude_state.sh ~/Downloads/ClaudeState_2026-08-17.zip
+
+# Perform it.
+./scripts/restore_claude_state.sh ~/Downloads/ClaudeState_2026-08-17.zip --apply
 ```
 
-If the new desktop already has a `~/.claude`, back it up first — the restore
-should be a merge you control, not a blind overwrite:
+The dry run is the default because a plain unzip gets three things wrong.
+
+**It clobbers existing state.** If the new desktop has already run Claude Code,
+that `~/.claude` holds settings and history of its own. The script backs the
+directory up to `~/.claude.backup-<timestamp>` and merges rather than replaces,
+so local files absent from the archive survive.
+
+**Conversation history is keyed by absolute project path.** Each directory under
+`~/.claude/projects/` is named for the working directory it belongs to, with the
+separators flattened to dashes — this session's is `-home-user-Lighthouse`. If
+the old desktop kept the project at `/Users/you/lighthouse` and the new one puts
+it at `~/code/lighthouse`, the history is present but never matched. The script
+lists every key it finds, marks the ones that do not resolve on this machine,
+and rewrites one on request:
 
 ```bash
-mv ~/.claude ~/.claude.backup-$(date +%Y%m%d)
-unzip ~/Downloads/ClaudeState_2026-08-17.zip -d ~/claude-state-restore
-# inspect ~/claude-state-restore, then move the pieces you want into ~/.claude
+./scripts/restore_claude_state.sh ~/Downloads/ClaudeState_2026-08-17.zip \
+    --remap /Users/you/lighthouse=$HOME/code/lighthouse --apply
 ```
 
-Two cautions:
+Restoring to the same absolute path avoids the problem entirely.
 
-- **Do not commit this archive or its contents to the repository.** Conversation
-  history contains whatever was discussed on the old machine, and
-  `~/.claude/settings.json` and `.credentials.json` can hold API keys.
-- Absolute paths from the old desktop are baked into the project history keys
-  (`~/.claude/projects/` is keyed by working directory). If the new machine puts
-  Lighthouse at a different path, prior sessions will not line up with the new
-  checkout. Restoring to the same absolute path avoids this entirely.
+**Credentials should not be copied between machines.** `.credentials.json` is
+skipped unless you pass `--include-credentials`; sign in on the new machine
+instead.
+
+Do not commit this archive or its contents to the repository. Conversation
+history contains whatever was discussed on the old machine.
 
 ---
 
@@ -138,3 +173,19 @@ Note that the container is ephemeral: anything not committed and pushed is lost
 when the session ends. For a straightforward desktop-to-desktop move, unpacking
 locally on the new machine is simpler and avoids pushing 355 MB through a
 sandbox.
+
+---
+
+## Tests
+
+```bash
+./tests/run_all.sh
+```
+
+101 checks across the three scripts, covering the shapes a real export can
+take: no wrapper directory, several top-level directories, spaces and non-latin
+filenames, symlinks, path-traversal entries, encrypted entries, corrupt and
+empty archives, files over GitHub's size limit, both of Drive's confirmation
+flows, and a state restore that must not clobber existing local state.
+
+Fixtures are generated by `tests/make_fixtures.py` and are not checked in.
