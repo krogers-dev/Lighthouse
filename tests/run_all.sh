@@ -7,7 +7,7 @@ echo "==> Rebuilding fixtures"
 python3 "$TEST_DIR/make_fixtures.py" >/dev/null
 
 rc=0
-for suite in run_tests.sh test_drive_fetch.sh test_restore_state.sh; do
+for suite in run_tests.sh test_drive_fetch.sh test_restore_state.sh test_chunked.sh; do
   printf '\n\033[1m═══ %s ═══\033[0m\n' "$suite"
   "$TEST_DIR/$suite" || rc=1
 done

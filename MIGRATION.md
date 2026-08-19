@@ -147,6 +147,34 @@ history contains whatever was discussed on the old machine.
 
 ---
 
+## Getting the archive to a machine that cannot download it
+
+A cloud session's container reaches GitHub but not Google Drive, and its Drive
+connector cannot carry a 355MB binary. When the archive has to reach such a
+machine anyway, git is the transport that already works. GitHub rejects any
+single file over 100MB, so the archive travels in parts:
+
+```bash
+# On the machine holding the archive
+./scripts/chunked.sh split ~/Downloads/LighthouseExport_2026-08-17.zip transfer/
+git checkout -b transfer-export
+git add transfer && git commit -m "Transfer export" && git push -u origin transfer-export
+
+# On the machine that needs it
+git fetch origin transfer-export && git checkout transfer-export
+./scripts/chunked.sh join transfer/ ~/LighthouseExport.zip
+```
+
+`join` verifies the reassembled file against a SHA-256 recorded at split time,
+so a missing or damaged part is an error rather than a corrupt archive
+discovered later.
+
+Delete the transfer branch once the archive is across. This is a courier, not
+storage — leaving hundreds of megabytes of zip in the history is exactly the
+outcome the rest of this tooling exists to avoid.
+
+---
+
 ## Working with the export from a cloud session
 
 Claude Code sessions on the web run in a sandboxed container with an egress
@@ -182,7 +210,7 @@ sandbox.
 ./tests/run_all.sh
 ```
 
-104 checks across the three scripts, covering the shapes a real export can
+119 checks across the four scripts, covering the shapes a real export can
 take: no wrapper directory, several top-level directories, spaces and non-latin
 filenames, symlinks, path-traversal entries, encrypted entries, corrupt and
 empty archives, files over GitHub's size limit, both of Drive's confirmation
