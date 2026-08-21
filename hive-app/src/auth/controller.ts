@@ -235,6 +235,12 @@ export class AuthController {
     try {
       memberships = await bundle.memberships.listMemberships(session.userId);
     } catch (error) {
+      if (error instanceof QuarantineRequiredError) {
+        // Storage trouble surfacing through the data path is quarantine,
+        // never misclassified as offline (independent review P2-5).
+        this.handleStorageOrFatal(error);
+        return;
+      }
       const code = toSafeError(error).code;
       if (origin === 'boot') {
         // Offline launch: never cached protected content, safe recovery only.

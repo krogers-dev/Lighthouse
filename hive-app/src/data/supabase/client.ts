@@ -38,19 +38,30 @@ export type HiveSupabaseClient = SupabaseClient<Database>;
 
 const STORAGE_KEY = 'hive-session';
 
+/** Once closed (sign-out began, quarantine, fatal), this bundle's session
+ * persistence is over: late library-internal refreshes can neither read
+ * nor re-persist the session, independent of vendor internals
+ * (independent review P2-3). Deletions always pass. */
+export interface SessionWriteGate {
+  open: boolean;
+}
+
 /** Routes the session envelope to the secure adapter; any other key the
  * auth library uses (transient verifiers) stays memory-only. */
-function bridgeStorage(storage: SessionStorage) {
+export function bridgeStorage(storage: SessionStorage, gate: SessionWriteGate) {
   const transient = new Map<string, string>();
   return {
-    getItem: async (key: string): Promise<string | null> =>
-      key === STORAGE_KEY ? storage.read() : (transient.get(key) ?? null),
+    getItem: async (key: string): Promise<string | null> => {
+      if (key !== STORAGE_KEY) return transient.get(key) ?? null;
+      return gate.open ? storage.read() : null;
+    },
     setItem: async (key: string, value: string): Promise<void> => {
-      if (key === STORAGE_KEY) {
-        await storage.write(value);
-      } else {
+      if (key !== STORAGE_KEY) {
         transient.set(key, value);
+        return;
       }
+      if (!gate.open) return;
+      await storage.write(value);
     },
     removeItem: async (key: string): Promise<void> => {
       if (key === STORAGE_KEY) {
@@ -182,10 +193,11 @@ export interface SupabaseBundle extends ClientBundle {
 export function createSupabaseBundle(
   env: EnvironmentConfig,
   storage: SessionStorage,
+  gate: SessionWriteGate = { open: true },
 ): SupabaseBundle {
   const client = createClient<Database>(env.supabaseUrl, env.supabaseClientKey, {
     auth: {
-      storage: bridgeStorage(storage),
+      storage: bridgeStorage(storage, gate),
       storageKey: STORAGE_KEY,
       autoRefreshToken: false,
       persistSession: true,

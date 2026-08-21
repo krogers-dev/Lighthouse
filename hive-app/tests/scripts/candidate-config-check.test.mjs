@@ -52,7 +52,9 @@ test('android API 36, the no-backup plugin, and iOS 16.4 are enforced', () => {
   assert.ok(problems.some((p) => p.includes('16.4')));
 });
 
-const legacyAnon = ['eyJsynthetic1', 'eyJsynthetic2', 'sigsigsig'].join('.');
+const encodePayload = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+const legacyAnon = `${encodePayload({ alg: 'HS256' })}.${encodePayload({ role: 'anon' })}.sigsigsig`;
+const legacyServiceRole = `${encodePayload({ alg: 'HS256' })}.${encodePayload({ role: 'service_role' })}.sigsigsig`;
 
 test('release env rejects loopback, legacy anon keys, and non-publishable keys', () => {
   assert.ok(
@@ -104,4 +106,15 @@ test('development env rejects a legacy key on a non-loopback URL', () => {
       'development',
     ).length > 0,
   );
+});
+
+test('development env rejects a JWT-form service-role key (review P2-1)', () => {
+  const problems = checkEnvValues(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+      EXPO_PUBLIC_SUPABASE_CLIENT_KEY: legacyServiceRole,
+    },
+    'development',
+  );
+  assert.ok(problems.some((p) => p.includes('service-role')));
 });

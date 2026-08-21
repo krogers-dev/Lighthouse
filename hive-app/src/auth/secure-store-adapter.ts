@@ -256,13 +256,18 @@ export class SessionStorageAdapter {
     return this.enqueue(() => this.scrubInternal('delete_failed'));
   }
 
+  /** Scrub deletion order: everything else first, the residue-probe keys
+   * (chunk 0 of each slot, legacy, manifest) last — so any interrupted
+   * scrub always leaves at least one probe key for hasResidue to find
+   * (independent review P2-4). */
   private allKeys(): string[] {
-    const keys = [MANIFEST_KEY, LEGACY_SESSION_KEY];
+    const keys: string[] = [];
     for (const slot of [0, 1] as const) {
-      for (let i = 0; i < MAX_CHUNKS; i++) {
+      for (let i = 1; i < MAX_CHUNKS; i++) {
         keys.push(chunkKey(slot, i));
       }
     }
+    keys.push(chunkKey(0, 0), chunkKey(1, 0), LEGACY_SESSION_KEY, MANIFEST_KEY);
     return keys;
   }
 
@@ -288,8 +293,10 @@ export class SessionStorageAdapter {
   hasResidue(): Promise<boolean> {
     return this.enqueue(async () => {
       // Probe the commit point, the legacy key, and the first chunk of each
-      // slot: every reachable storage state that holds material touches at
-      // least one of these. Unreadable storage counts as residue (fail closed).
+      // slot. Writes touch chunk 0 before anything else and scrubs delete
+      // these probe keys last, so every reachable storage state that holds
+      // material keeps at least one probe key. Unreadable storage counts as
+      // residue (fail closed).
       for (const key of [MANIFEST_KEY, LEGACY_SESSION_KEY, chunkKey(0, 0), chunkKey(1, 0)]) {
         try {
           if ((await this.backend.getItem(key)) !== null) return true;

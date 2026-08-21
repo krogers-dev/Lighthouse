@@ -183,7 +183,9 @@ function transition(state: AuthState, event: AuthEvent): AuthState | null {
         case 'NO_ACCESS':
           return { name: 'signed_out', reason: 'no_access' };
         case 'RETURN_TO_SIGNED_OUT':
-          return { name: 'signed_out', reason: 'signed_out' };
+          // Safe back/cancel exists only before verification is in flight;
+          // during verification a session could land after the UI left.
+          return state.verifying ? null : { name: 'signed_out', reason: 'signed_out' };
         case 'SIGN_OUT_REQUESTED':
           return { name: 'signing_out', reason: event.reason };
         default:

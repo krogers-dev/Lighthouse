@@ -312,3 +312,12 @@ describe('illegal transitions', () => {
     ).toThrow(IllegalTransitionError);
   });
 });
+
+describe('cancel during verification (review P2-7)', () => {
+  it('is illegal once OTP verification is in flight', () => {
+    const verifying = drive(firstFactor, { type: 'OTP_REQUESTED' }, { type: 'OTP_SUBMITTED' });
+    expect(() => devReduce(verifying, { type: 'RETURN_TO_SIGNED_OUT' })).toThrow(
+      IllegalTransitionError,
+    );
+  });
+});

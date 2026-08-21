@@ -17,7 +17,7 @@
  * security/secret-scan-allowlist.json (path + pattern + reason).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -121,15 +121,29 @@ function scanHistory(allowlist) {
 }
 
 function runSecretlint() {
+  // Invoked through the node binary directly: npm/npx exit 1 for their own
+  // bootstrap failures (e.g. devEngines mismatch), which must never be
+  // mistaken for findings (independent review P2-6).
+  const secretlintBin = path.join(appRoot, 'node_modules', 'secretlint', 'bin', 'secretlint.js');
+  if (!existsSync(secretlintBin)) {
+    console.error('secrets:scan: secretlint is not installed (run npm ci)');
+    process.exit(2);
+  }
   const result = spawnSync(
-    'npx',
-    ['--no-install', 'secretlint', '--secretlintrc', '.secretlintrc.json', '**/*'],
+    process.execPath,
+    [secretlintBin, '--secretlintrc', '.secretlintrc.json', '**/*'],
     { cwd: appRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
   );
-  // Exit 0: clean. Exit 1: findings. Anything else: engine failure.
+  // Exit 0: clean. Exit 1 with output: findings. Anything else, or exit 1
+  // with no findings output: engine failure.
   if (result.status !== 0 && result.status !== 1) {
     console.error(result.stderr || result.stdout);
     console.error('secrets:scan: secretlint engine failed to run');
+    process.exit(2);
+  }
+  if (result.status === 1 && !(result.stdout ?? '').trim()) {
+    console.error(result.stderr || '');
+    console.error('secrets:scan: secretlint exited with findings status but produced no report');
     process.exit(2);
   }
   return { clean: result.status === 0, output: result.stdout };

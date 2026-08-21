@@ -517,3 +517,12 @@ describe('storage failure surfaces', () => {
     expect(h.controller.getState().name).toBe('storage_quarantined');
   });
 });
+
+describe('storage failures via the data path (review P2-5)', () => {
+  it('quarantines when membership loading surfaces a storage quarantine error', async () => {
+    const h = makeHarness({ membershipError: new QuarantineRequiredError('corrupt') });
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    expect(h.controller.getState().name).toBe('storage_quarantined');
+  });
+});

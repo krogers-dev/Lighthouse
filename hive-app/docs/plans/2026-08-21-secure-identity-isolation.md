@@ -154,3 +154,25 @@ quarantine escape.
 Follow-ups discovered while executing: expo-build-properties (SDK 57 line)
 no longer exposes `allowBackup`, so `plugins/with-android-no-backup.js`
 sets it directly and the config gate asserts the plugin stays registered.
+
+## Independent review record (2026-08-21)
+
+A read-only adversarial review of the full tree ran after checkpoint D.
+Result: **0 P0, 2 P1, 8 P2** — all addressed the same day:
+
+| Finding | Fix |
+|---|---|
+| P1-1 staff AAL2 enforced client-side only | Migration `20260821120003_staff_reads_require_aal2.sql`: policies grant through a staff membership only with an `aal2` JWT claim (missing claim = aal1, fail closed); pgTAP suite `004_staff_aal2.test.sql` (10 tests, red first) |
+| P1-2 bundle gate skipped binary Hermes payloads; approved-value contract unimplemented | `bundle-inspect.mjs` now string-extracts every binary file (53 in the dev export), pins publishable keys and `*.supabase.co` endpoints to the approved configuration, and documents caret-anchored pattern-source / detector-prefix recognition with tail-length rules |
+| P2-1 JWT-form service-role key passed loopback dev | `src/core/base64.ts` decodes the payload role; only `anon` classifies as a client key (env.ts + candidate-config-check) |
+| P2-2 repositories bypassed the acquisition freeze | Runtime accessor now also requires the `authorized` state |
+| P2-3 storage bridge had no freeze/epoch gate for late refresh writes | Per-bundle `SessionWriteGate` closes permanently on signing_out/quarantine/fatal; doc corrected |
+| P2-4 partial scrub could evade the residue probes | Scrub deletes probe keys last; adapter test proves an interrupted scrub stays detectable |
+| P2-5 boot storage failure misclassified as offline | Quarantine errors from the data path route to `STORAGE_FAILURE` before origin mapping |
+| P2-6 secretlint bootstrap failures read as findings | Direct `node` invocation of the secretlint binary; empty-report exit 1 → engine failure (exit 2) |
+| P2-7 cancel legal during OTP verification | Reducer rejects `RETURN_TO_SIGNED_OUT` while verifying |
+| P2-8 refresh-states doc drift | Doc names `authorized`/`select_scope` explicitly |
+
+Post-fix totals: 233 jest tests (19 suites), 39 script tests, 63 pgTAP
+tests, lint 0 warnings, typecheck clean, export + binary-aware bundle
+inspection clean.

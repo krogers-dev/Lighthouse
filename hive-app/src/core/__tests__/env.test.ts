@@ -1,3 +1,4 @@
+import { base64UrlEncodeAscii } from '../base64';
 import {
   EnvironmentValidationError,
   classifyClientKey,
@@ -153,5 +154,30 @@ describe('isLoopbackUrl', () => {
     expect(isLoopbackUrl('http://10.0.2.2:54321')).toBe(true);
     expect(isLoopbackUrl('https://example-project.supabase.co')).toBe(false);
     expect(isLoopbackUrl('nonsense')).toBe(false);
+  });
+});
+
+describe('JWT-form privileged keys (review P2-1)', () => {
+  const encode = (value: object) => base64UrlEncodeAscii(JSON.stringify(value));
+  const serviceRoleJwt = `${encode({ alg: 'HS256' })}.${encode({ role: 'service_role' })}.sigsigsig`;
+
+  it('rejects a JWT-shaped service-role key even for loopback development', () => {
+    expect(classifyClientKey(serviceRoleJwt)).toBe('secret-shaped');
+    expectProblems(
+      () =>
+        validateEnvironment(
+          {
+            EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+            EXPO_PUBLIC_SUPABASE_CLIENT_KEY: serviceRoleJwt,
+          },
+          'development',
+        ),
+      'secret',
+    );
+  });
+
+  it('still accepts a JWT whose payload role is anon', () => {
+    const anonJwt = `${encode({ alg: 'HS256' })}.${encode({ role: 'anon' })}.sigsigsig`;
+    expect(classifyClientKey(anonJwt)).toBe('legacy-anon');
   });
 });

@@ -41,7 +41,7 @@ in server-controlled tables).
 | BOLA/IDOR by guessed case ID | Deny before content serialization; zero protected fields returned | pgTAP cross-scope tests |
 | Wrong client/entity in route or deep link | Untrusted scope ignored; membership verified server-side; deny | ScopeKey construction rules + repository tests |
 | Missing scope tuple in a query or mutation | Type/test failure — repositories require a ScopeKey; DB columns are NOT NULL | TS types + pgTAP constraints |
-| Stale membership/JWT | Server rechecks current membership (and AAL for sensitive functions) | RLS subqueries evaluate at query time; pgTAP |
+| Stale membership/JWT | Server rechecks current membership at query time; staff-role rows additionally require an `aal2` JWT claim at RLS (a missing claim counts as aal1) | RLS subqueries + pgTAP staff-AAL suite |
 | Client attempts role/boundary change | RLS/grant denial; scope columns immutable by trigger | pgTAP negative tests |
 | Duplicate or replayed mutation | (No client mutations exist in M0) — protected-mutation contract: idempotency key, object version, exact scope, server time, atomic audit receipt | Contract recorded; enforced from Milestone 1 |
 | Stale object version | Conflict, refresh required, no overwrite | Contract recorded; enforced from Milestone 1 |
@@ -56,12 +56,12 @@ in server-controlled tables).
 
 ## Controls in Milestone 0
 
-- **Self-registration disabled**; email OTP with `shouldCreateUser: false`; TOTP MFA; AAL2 required for staff roles before scope binding.
+- **Self-registration disabled**; email OTP with `shouldCreateUser: false`; TOTP MFA. AAL2 for staff is enforced twice: the controller routes staff to MFA before scope binding, and RLS itself denies staff-membership rows to any JWT below `aal2` — a first-factor-only staff token gets nothing even by calling the API directly.
 - **One Supabase client** behind an auth lifecycle controller with an acquisition freeze, auth epoch, and serialized refresh/sign-out/expiry.
 - **Versioned SecureStore adapter**: serialized operations, generation-based two-phase commit for chunked sessions, SHA-256 digest verification, read-back verification of deletions, quarantine on any inconsistency. Keychain accessibility is `WHEN_UNLOCKED_THIS_DEVICE_ONLY` (no cross-device restore).
 - **Install marker** outside the Keychain (app documents file, excluded from Android backup via `allowBackup=false`): Keychain material without a marker means reinstall → scrub before any auth construction.
 - **RLS everywhere**: every exposed table has RLS enabled, per-operation least-privilege policies using membership subqueries, indexed policy columns, and pgTAP denial tests. Privileged functions live in an unexposed schema with fixed `search_path` and revoked PUBLIC execution.
-- **No secrets in the app**: environment validation rejects secret-shaped keys in any variant; a legacy anon key is loopback-development-only and release-rejected by `scripts/candidate-config-check.mjs`.
+- **No secrets in the app**: environment validation rejects secret-shaped keys in any variant, including JWT-form service-role keys (the payload role is decoded and only `anon` passes); a legacy anon key is loopback-development-only and release-rejected by `scripts/candidate-config-check.mjs`. The bundle inspector scans the binary Hermes bundles that actually ship (printable-string extraction), not just web text, and pins discovered publishable keys and Supabase endpoints to the approved configuration.
 - **Data minimization**: no analytics/crash SDK; diagnostics interface is allowlist + redaction and its default sink is inert; no offline sensitive-write queue; TLS/ATS defaults preserved; Android cleartext stays denied (loopback development traffic is the emulator's own loopback).
 
 ## Deliberately not used (per brief)

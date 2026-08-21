@@ -278,3 +278,18 @@ describe('operation serialization', () => {
     expect(await adapter.read()).toBe(SMALL_SESSION);
   });
 });
+
+describe('interrupted scrub keeps residue detectable (review P2-4)', () => {
+  it('a scrub that fails mid-sweep leaves at least one probe key', async () => {
+    const { backend, adapter } = makeAdapter();
+    await adapter.write(BIG_SESSION);
+    // Fail on a non-probe chunk so the sweep dies before the probe keys.
+    const someHighChunk = [...backend.store.keys()].find(
+      (k) => k !== MANIFEST_KEY && !k.endsWith('.c0'),
+    ) as string;
+    backend.failDeleteKeys.add(someHighChunk);
+    await expect(adapter.scrubAll()).rejects.toThrow(QuarantineRequiredError);
+    // The manifest (a probe key) is deleted last, so residue stays visible.
+    expect(await adapter.hasResidue()).toBe(true);
+  });
+});

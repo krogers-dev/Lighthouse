@@ -5,6 +5,7 @@
  * carry only the Supabase URL and an approved public client key; anything
  * secret-shaped is rejected outright, in every build variant.
  */
+import { jwtPayloadRole } from './base64';
 
 export type BuildVariant = 'development' | 'release';
 export type ClientKeyKind = 'publishable' | 'legacy-anon';
@@ -33,6 +34,9 @@ export class EnvironmentValidationError extends Error {
 
 const PUBLISHABLE_KEY_PATTERN = /^sb_publishable_[A-Za-z0-9_-]{10,}$/;
 const JWT_SHAPED_PATTERN = /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+// The regex source below necessarily ships in the bundle; the bundle
+// inspector recognizes caret-anchored pattern sources and bare detector
+// prefixes explicitly (scripts/bundle-inspect.mjs, inspectBinary).
 const SECRET_SHAPED_PATTERNS = [/^sb_secret_/, /service_role/i];
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '10.0.2.2', '::1', '[::1]']);
@@ -49,7 +53,13 @@ export function isLoopbackUrl(rawUrl: string): boolean {
 export function classifyClientKey(key: string): ClientKeyKind | 'secret-shaped' | 'malformed' {
   if (SECRET_SHAPED_PATTERNS.some((p) => p.test(key))) return 'secret-shaped';
   if (PUBLISHABLE_KEY_PATTERN.test(key)) return 'publishable';
-  if (JWT_SHAPED_PATTERN.test(key)) return 'legacy-anon';
+  if (JWT_SHAPED_PATTERN.test(key)) {
+    // A legacy service-role key is also JWT-shaped; its role hides in the
+    // base64 payload, so the raw string never matches the secret patterns
+    // (independent review P2-1). Only role "anon" is a client key.
+    const role = jwtPayloadRole(key);
+    return role === 'anon' ? 'legacy-anon' : 'secret-shaped';
+  }
   return 'malformed';
 }
 

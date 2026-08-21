@@ -29,6 +29,20 @@ const PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]{10,}$/;
 const JWT_SHAPED = /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const LOOPBACK = /^(https?:\/\/)(127\.0\.0\.1|localhost|10\.0\.2\.2|\[::1\])(:\d+)?/;
 
+/** A JWT-shaped key is a client key only when its payload role is "anon";
+ * a legacy service-role key hides its role in the base64 payload
+ * (independent review P2-1). */
+export function jwtRoleIsAnon(key) {
+  const parts = key.split('.');
+  if (parts.length !== 3) return false;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    return payload.role === 'anon';
+  } catch {
+    return false;
+  }
+}
+
 export function checkAppConfig(expo, profile) {
   const problems = [];
   const iosId = expo?.ios?.bundleIdentifier ?? '';
@@ -96,7 +110,11 @@ export function checkEnvValues(env, profile) {
     if (!(LOOPBACK.test(url) || url.startsWith('https://'))) {
       problems.push('development configuration must be loopback or https');
     }
-    if (!(PUBLISHABLE_KEY.test(key) || (JWT_SHAPED.test(key) && LOOPBACK.test(url)))) {
+    if (JWT_SHAPED.test(key) && !jwtRoleIsAnon(key)) {
+      problems.push(
+        'the configured JWT-shaped key is not an anon key (a service-role key must never reach the app)',
+      );
+    } else if (!(PUBLISHABLE_KEY.test(key) || (JWT_SHAPED.test(key) && LOOPBACK.test(url)))) {
       problems.push(
         'development configuration needs a publishable key, or a legacy anon key with a loopback URL',
       );

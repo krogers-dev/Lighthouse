@@ -16,7 +16,11 @@ import {
   type EnvironmentConfig,
 } from '@/core/env';
 import { SafeError } from '@/core/errors';
-import { createSupabaseBundle, type HiveSupabaseClient } from '@/data/supabase/client';
+import {
+  createSupabaseBundle,
+  type HiveSupabaseClient,
+  type SessionWriteGate,
+} from '@/data/supabase/client';
 import { DashboardRepository } from '@/data/supabase/repositories';
 import { ScopedRegistry } from '@/tenancy/clearing';
 
@@ -59,15 +63,19 @@ export function getRuntime(): RuntimeResult {
   const storage: SessionStorage = new SessionStorageAdapter(expoSecureStoreBackend);
   const registry = new ScopedRegistry();
   let currentClient: HiveSupabaseClient | null = null;
+  let currentGate: SessionWriteGate = { open: true };
 
   const controller = new AuthController({
     createBundle: () => {
-      const bundle = createSupabaseBundle(env, storage);
+      const gate: SessionWriteGate = { open: true };
+      currentGate = gate;
+      const bundle = createSupabaseBundle(env, storage, gate);
       currentClient = bundle.client;
       return {
         auth: bundle.auth,
         memberships: bundle.memberships,
         dispose: () => {
+          gate.open = false;
           bundle.dispose();
           currentClient = null;
         },
@@ -81,8 +89,24 @@ export function getRuntime(): RuntimeResult {
     failMode: __DEV__ ? 'throw' : 'closed',
   });
 
+  // The moment sign-out begins (or storage quarantines, or the app goes
+  // fatal), this bundle's session persistence closes for good; a fresh
+  // bundle after sign-out gets a fresh open gate.
+  controller.subscribe((state) => {
+    if (
+      state.name === 'signing_out' ||
+      state.name === 'storage_quarantined' ||
+      state.name === 'fatal'
+    ) {
+      currentGate.open = false;
+    }
+  });
+
   const dashboardRepository = new DashboardRepository(() => {
-    if (!currentClient) {
+    // Protected reads exist only in the authorized state; during sign-out,
+    // quarantine, or after disposal this accessor fails safe (independent
+    // review P2-2).
+    if (!currentClient || controller.getState().name !== 'authorized') {
       throw new SafeError('auth_expired');
     }
     return currentClient;

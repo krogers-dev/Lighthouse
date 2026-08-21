@@ -129,10 +129,16 @@ chunk slots, legacy key), read back and verify absence, then
 ### Foreground/background and refresh
 
 React Native `AppState` drives token refresh: `startAutoRefresh` only in the
-foreground and only in session-holding states; `stopAutoRefresh` in the
-background. Refresh, sign-out, and expiry run on the same serialized queue
-using the Supabase-supported process lock; a refresh completing after the
-epoch changed is discarded by the epoch gate.
+foreground and only in `authorized` or `select_scope` (states holding a
+fully bound session); `stopAutoRefresh` in the background. A user idling on
+the OTP or TOTP screen past expiry fails closed into a fresh sign-in.
+Refresh, sign-out, and expiry run on the same serialized queue using the
+Supabase-supported process lock. Late work from a previous identity is
+stopped twice over: listener events carry the auth epoch and are discarded
+when stale, and each client bundle's storage bridge carries a write gate
+that closes permanently the moment sign-out, quarantine, or fatal begins —
+so a refresh completing late can neither dispatch state nor re-persist or
+re-read the session, regardless of library internals.
 
 ### Expiry
 
