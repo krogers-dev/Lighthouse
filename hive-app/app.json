@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "HIVE Dev",
+    "slug": "hive",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/images/icon.png",
+    "scheme": "hivedev",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#FFFEFA",
+    "ios": {
+      "bundleIdentifier": "com.myhbcfo.hive.development",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.myhbcfo.hive.development",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFEFA",
+        "foregroundImage": "./assets/images/adaptive-icon-foreground.png",
+        "backgroundImage": "./assets/images/adaptive-icon-background.png",
+        "monochromeImage": "./assets/images/adaptive-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": true
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFEFA",
+          "dark": {
+            "backgroundColor": "#182027"
+          }
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.4"
+          },
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "allowBackup": false
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

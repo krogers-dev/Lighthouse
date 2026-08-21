@@ -1,0 +1,25 @@
+{
+  "$comment": "Warning waivers per the HIVE brief: each records owner, reason, expiry, and retest. scripts/audit-gate.mjs enforces expiry so waived findings resurface.",
+  "waivers": [
+    {
+      "advisory": "GHSA-w3rx-r6r6-pgpr",
+      "package": "image-size",
+      "severity": "high",
+      "reason": "Build-time image parsing inside Metro (expo dev chain). DoS-only (infinite loop on crafted ICNS); no confidentiality impact; all images parsed at build time are repo-controlled generated PNGs. No fixed version is published on npm (latest is 2.0.2, advisory covers <=2.0.2).",
+      "owner": "Kody",
+      "approvedOn": "2026-08-21",
+      "expires": "2026-11-21",
+      "retest": "Re-run npm audit at every dependency refresh; remove this waiver as soon as a fixed image-size release ships."
+    },
+    {
+      "advisory": "GHSA-5p2g-fcmc-qvqq",
+      "package": "image-size",
+      "severity": "high",
+      "reason": "Same component and exposure as GHSA-w3rx-r6r6-pgpr (JXL/HEIF parser infinite loops). Build-time only; repo-controlled inputs; no fixed version published.",
+      "owner": "Kody",
+      "approvedOn": "2026-08-21",
+      "expires": "2026-11-21",
+      "retest": "Re-run npm audit at every dependency refresh; remove this waiver as soon as a fixed image-size release ships."
+    }
+  ]
+}
