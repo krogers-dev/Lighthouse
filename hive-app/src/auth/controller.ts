@@ -358,14 +358,12 @@ export class AuthController {
         this.pendingFactorId = factors.verifiedId;
         return;
       }
-      // Abandoned unverified factors from an interrupted setup are removed
-      // best-effort so enrollment stays idempotent.
+      // Every abandoned unverified factor from an interrupted setup is
+      // removed BEFORE creating another. Cleanup failure stops enrollment
+      // (surfaced as a setup failure with retry) rather than accumulating
+      // factors toward the server's per-user limit.
       for (const staleId of factors.unverifiedIds) {
-        try {
-          await bundle.auth.unenrollTotp(staleId);
-        } catch {
-          // Best-effort only; a stale unverified factor grants nothing.
-        }
+        await bundle.auth.unenrollTotp(staleId);
       }
       const enrollment = await bundle.auth.enrollTotp();
       this.pendingFactorId = enrollment.factorId;

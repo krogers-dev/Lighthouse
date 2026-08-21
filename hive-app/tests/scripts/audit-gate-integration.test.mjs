@@ -23,6 +23,8 @@ const HIGH_REPORT = JSON.stringify({
   auditReportVersion: 2,
   vulnerabilities: {
     demo: {
+      name: 'demo',
+      severity: 'high',
       via: [
         {
           severity: 'high',
@@ -69,8 +71,17 @@ const VALID_WAIVER = {
   severity: 'high',
   owner: 'Kody',
   reason: 'synthetic integration-test waiver',
-  approvedOn: '2026-08-01',
+  approvalStatus: 'ratified',
+  proposedOn: '2026-08-01',
+  ratifiedOn: '2026-08-02',
   expires: '2099-01-01',
+  retest: 'Recheck monthly, on lockfile or Expo change, before any RC, and at expiry.',
+};
+
+const PROPOSED_WAIVER = {
+  ...VALID_WAIVER,
+  approvalStatus: 'proposed',
+  ratifiedOn: undefined,
 };
 
 function runGate(mode, report, waivers) {
@@ -94,10 +105,50 @@ test('clean report with no waivers passes', () => {
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('valid waived high finding passes and is reported as waived', () => {
+test('RATIFIED waived high finding passes and is reported as ratified', () => {
   const result = runGate('findings', HIGH_REPORT, [VALID_WAIVER]);
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /waived: GHSA-aaaa-bbbb-cccc/);
+  assert.match(result.stdout, /waived \(ratified 2026-08-02\): GHSA-aaaa-bbbb-cccc/);
+});
+
+test('PROPOSED waiver produces HOLD with exit 3, never approval wording', () => {
+  const result = runGate('findings', HIGH_REPORT, [PROPOSED_WAIVER]);
+  assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stdout, /PROPOSED/);
+  assert.match(result.stdout, /HOLD/);
+  assert.ok(!/waived \(ratified/.test(result.stdout));
+});
+
+test('TAMPERED waiver package fails against the live report', () => {
+  const tampered = { ...VALID_WAIVER, package: 'left-pad' };
+  const result = runGate('findings', HIGH_REPORT, [tampered]);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /does not match the live report/);
+});
+
+test('actual spawn ENOENT (npm missing from PATH) is an engine failure', () => {
+  const emptyDir = mkdtempSync(path.join(tmpdir(), 'hive-empty-path-'));
+  const waiverPath = makeWaivers([]);
+  const result = spawnSync(process.execPath, [gate], {
+    encoding: 'utf8',
+    env: {
+      HOME: process.env.HOME ?? '/root',
+      PATH: emptyDir,
+      HIVE_WAIVERS_PATH: waiverPath,
+    },
+  });
+  assert.equal(result.status, 2, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /could not spawn npm/);
+  assert.match(result.stderr, /ENOENT/);
+});
+
+test('INCONSISTENT summary counts are an engine failure', () => {
+  const inconsistent = JSON.parse(HIGH_REPORT);
+  inconsistent.metadata.vulnerabilities.high = 4;
+  inconsistent.metadata.vulnerabilities.total = 4;
+  const result = runGate('clean', JSON.stringify(inconsistent), []);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /does not reconcile/);
 });
 
 test('valid unwaived high finding fails with exit 1', () => {

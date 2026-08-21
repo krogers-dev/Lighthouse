@@ -1,5 +1,5 @@
 {
-  "$comment": "Warning waivers per the HIVE brief: each records owner, reason, expiry, and retest. scripts/audit-gate.mjs enforces expiry so waived findings resurface.",
+  "$comment": "Warning waivers per the HIVE brief: each records owner, reason, expiry, and retest. approvalStatus is 'proposed' until Kody explicitly ratifies in writing (then it becomes 'ratified' with ratifiedOn). scripts/audit-gate.mjs treats matched-but-proposed waivers as HOLD (exit 3), never as approval; it also verifies each waiver's package and severity against the live audit report and enforces expiry so waived findings resurface.",
   "waivers": [
     {
       "advisory": "GHSA-w3rx-r6r6-pgpr",
@@ -7,9 +7,10 @@
       "severity": "high",
       "reason": "Build-time image parsing inside Metro (expo dev chain). DoS-only (infinite loop on crafted ICNS); no confidentiality impact; all images parsed at build time are repo-controlled generated PNGs. No fixed version is published on npm (latest is 2.0.2, advisory covers <=2.0.2).",
       "owner": "Kody",
-      "approvedOn": "2026-08-21",
+      "approvalStatus": "proposed",
+      "proposedOn": "2026-08-21",
       "expires": "2026-11-21",
-      "retest": "Recheck monthly, on every lockfile or Expo change, before any release candidate, and at expiry; remove this waiver as soon as a fixed image-size release ships. Compensating control: audit:gate rejects tracked ICNS/JXL/HEIF/HEIC assets while this waiver is active."
+      "retest": "Recheck monthly, on every lockfile or Expo change, before any release candidate, and at expiry; remove this waiver as soon as a fixed image-size release ships. Compensating control: audit:gate rejects tracked ICNS/JXL/HEIF/HEIC assets (by extension AND file signature) while this advisory is present."
     },
     {
       "advisory": "GHSA-5p2g-fcmc-qvqq",
@@ -17,9 +18,10 @@
       "severity": "high",
       "reason": "Same component and exposure as GHSA-w3rx-r6r6-pgpr (JXL/HEIF parser infinite loops). Build-time only; repo-controlled inputs; no fixed version published.",
       "owner": "Kody",
-      "approvedOn": "2026-08-21",
+      "approvalStatus": "proposed",
+      "proposedOn": "2026-08-21",
       "expires": "2026-11-21",
-      "retest": "Recheck monthly, on every lockfile or Expo change, before any release candidate, and at expiry; remove this waiver as soon as a fixed image-size release ships. Compensating control: audit:gate rejects tracked ICNS/JXL/HEIF/HEIC assets while this waiver is active."
+      "retest": "Recheck monthly, on every lockfile or Expo change, before any release candidate, and at expiry; remove this waiver as soon as a fixed image-size release ships. Compensating control: audit:gate rejects tracked ICNS/JXL/HEIF/HEIC assets (by extension AND file signature) while this advisory is present."
     }
   ]
 }

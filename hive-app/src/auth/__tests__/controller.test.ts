@@ -67,6 +67,7 @@ class FakeAuthGateway implements AuthGateway {
   totpFactorId: string | null = 'factor-synthetic';
   unverifiedFactorIds: string[] = [];
   enrollError: Error | null = null;
+  unenrollError: Error | null = null;
   enrolled = 0;
   unenrolled: string[] = [];
   requestOtpError: Error | null = null;
@@ -113,7 +114,10 @@ class FakeAuthGateway implements AuthGateway {
     };
   }
   async unenrollTotp(factorId: string): Promise<void> {
+    this.log.push('auth.unenrollTotp');
+    if (this.unenrollError) throw this.unenrollError;
     this.unenrolled.push(factorId);
+    this.unverifiedFactorIds = this.unverifiedFactorIds.filter((id) => id !== factorId);
   }
   async verifyTotp(): Promise<SessionInfo> {
     this.log.push('auth.verifyTotp');
@@ -637,6 +641,76 @@ describe('first-time TOTP enrollment (PM directive P1 item 3)', () => {
     await h.controller.submitTotp('654321');
     expect(h.controller.getState().name).toBe('signed_out');
   });
+
+  it('STOPS enrollment when unverified-factor cleanup fails — never accumulates another factor (RETURN-2)', async () => {
+    const h = makeHarness();
+    h.gateway.totpFactorId = null;
+    h.gateway.unverifiedFactorIds = ['stale-1'];
+    h.gateway.unenrollError = new TypeError('Network request failed');
+    await staffAal1AtMfa(h);
+    // Cleanup failed: no new factor may be created.
+    expect(h.gateway.enrolled).toBe(0);
+    expect(h.controller.getState()).toMatchObject({ name: 'mfa_required', notice: 'network' });
+    // Retry after the failure clears: cleanup completes, then one enroll.
+    h.gateway.unenrollError = null;
+    await h.controller.retryMfaSetup();
+    expect(h.gateway.unenrolled).toEqual(['stale-1']);
+    expect(h.gateway.enrolled).toBe(1);
+  });
+
+  it('repeated cancellation never accumulates factors: each next launch cleans the abandoned one first', async () => {
+    // Three enroll → cancel cycles. The abandoned factor stays unverified
+    // server-side after each cancel; every following launch must remove it
+    // before enrolling, so exactly one live factor ever exists.
+    let abandoned: string[] = [];
+    const cleaned: string[] = [];
+    for (let round = 1; round <= 3; round++) {
+      const h = makeHarness();
+      h.gateway.session = staffSessionAal1;
+      h.gateway.totpFactorId = null;
+      h.gateway.unverifiedFactorIds = abandoned;
+      await h.controller.boot();
+      expect(h.controller.getState().name).toBe('mfa_required');
+      expect(h.gateway.enrolled).toBe(1);
+      cleaned.push(...h.gateway.unenrolled);
+      await h.controller.signOut();
+      expect(h.controller.getState().name).toBe('signed_out');
+      abandoned = ['factor-enrolled-synthetic'];
+    }
+    expect(cleaned).toEqual(['factor-enrolled-synthetic', 'factor-enrolled-synthetic']);
+  });
+
+  it('interrupted enrollment: a relaunch cleans the abandoned factor and enrolls fresh', async () => {
+    const h = makeHarness();
+    h.gateway.totpFactorId = null;
+    await staffAal1AtMfa(h); // enrollment started, app dies here
+    h.gateway.unverifiedFactorIds = ['factor-enrolled-synthetic'];
+    const h2 = makeHarness();
+    h2.gateway.session = staffSessionAal1;
+    h2.gateway.totpFactorId = null;
+    h2.gateway.unverifiedFactorIds = h.gateway.unverifiedFactorIds;
+    await h2.controller.boot();
+    expect(h2.controller.getState().name).toBe('mfa_required');
+    expect(h2.gateway.unenrolled).toEqual(['factor-enrolled-synthetic']);
+    expect(h2.gateway.enrolled).toBe(1);
+  });
+
+  it('factor-limit rejection surfaces as a safe setup notice with retry available', async () => {
+    const h = makeHarness();
+    h.gateway.totpFactorId = null;
+    h.gateway.enrollError = new Error('maximum number of enrolled factors reached');
+    await staffAal1AtMfa(h);
+    const state = h.controller.getState();
+    expect(state.name).toBe('mfa_required');
+    if (state.name === 'mfa_required') {
+      expect(state.notice).toBeTruthy();
+      expect(state.enrollment).toBeUndefined();
+    }
+    // The limit error itself never reaches the UI verbatim; retry exists.
+    h.gateway.enrollError = null;
+    await h.controller.retryMfaSetup();
+    expect(h.gateway.enrolled).toBe(1);
+  });
 });
 
 describe('refresh starts without an AppState event (PM directive P1 item 5)', () => {
@@ -679,5 +753,26 @@ describe('refresh starts without an AppState event (PM directive P1 item 5)', ()
     h.controller.handleAppStateChange('active');
     await h.controller.settle();
     expect(h.log.filter((e) => e === 'auth.startAutoRefresh').length).toBe(startsAfterBoot + 1);
+  });
+
+  it('quarantine stops refresh and foreground events never restart it (RETURN-2 area 5)', async () => {
+    const h = makeHarness({ initialAppStatus: 'active' });
+    h.gateway.session = clientSession;
+    h.storage.failDelete = true;
+    await h.controller.boot();
+    expect(h.controller.getState().name).toBe('authorized');
+    expect(h.log).toContain('auth.startAutoRefresh');
+    await h.controller.signOut(); // deletion fails → storage_quarantined
+    expect(h.controller.getState().name).toBe('storage_quarantined');
+    const startsAtQuarantine = h.log.filter((e) => e === 'auth.startAutoRefresh').length;
+    // Refresh was stopped on the way down and a foreground ping while
+    // quarantined must not bring it back.
+    expect(h.log.filter((e) => e === 'auth.stopAutoRefresh').length).toBeGreaterThan(0);
+    h.controller.handleAppStateChange('active');
+    await h.controller.settle();
+    h.controller.handleAppStateChange('background');
+    h.controller.handleAppStateChange('active');
+    await h.controller.settle();
+    expect(h.log.filter((e) => e === 'auth.startAutoRefresh').length).toBe(startsAtQuarantine);
   });
 });

@@ -1,11 +1,40 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
+import { Linking } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { getRuntime } from '@/app-runtime';
 import { AuthProvider } from '@/auth/provider';
 import { AppText, Notice, Screen } from '@/ui';
+
+/** Development-only QA hook (RETURN-2 area 7): a QA build (dev build with
+ * EXPO_PUBLIC_QA_HOOKS=1) corrupts the stored session on
+ * hivedev://qa/corrupt-storage so the quarantine device flow is
+ * executable. The `__DEV__` guard means release bundles drop the entire
+ * block (Metro dead-code elimination); bundle:inspect proves the marker
+ * string is absent from non-development exports and config:check rejects
+ * the env flag for candidate/release profiles. */
+function useDevQaHooks(): void {
+  React.useEffect(() => {
+    if (!(__DEV__ && process.env.EXPO_PUBLIC_QA_HOOKS === '1')) return undefined;
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const qa = require('@/dev/qa-corrupt-storage') as typeof import('@/dev/qa-corrupt-storage');
+    const secureStore = require('expo-secure-store') as typeof import('expo-secure-store');
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    const backend = {
+      getItem: (key: string) => secureStore.getItemAsync(key),
+      setItem: (key: string, value: string) => secureStore.setItemAsync(key, value),
+      deleteItem: (key: string) => secureStore.deleteItemAsync(key),
+    };
+    const handle = (url: string | null): void => {
+      if (url && qa.isQaCorruptUrl(url)) void qa.corruptStoredSessionForQa(backend);
+    };
+    void Linking.getInitialURL().then(handle);
+    const subscription = Linking.addEventListener('url', (event) => handle(event.url));
+    return () => subscription.remove();
+  }, []);
+}
 
 /** Sanitized application error boundary. Unexpected failures map to a
  * fatal presentation with no internals and no session retry; recovery is
@@ -51,6 +80,7 @@ function ConfigurationFatal({ problems }: { problems: readonly string[] }): Reac
 }
 
 export default function RootLayout(): React.JSX.Element {
+  useDevQaHooks();
   const runtime = getRuntime();
   if (!runtime.ok) {
     return <ConfigurationFatal problems={runtime.problems} />;

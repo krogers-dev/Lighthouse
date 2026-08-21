@@ -57,6 +57,12 @@ export const RELEASE_ONLY_PATTERNS = [
     name: 'development-identifier',
     regex: /com\.myhbcfo\.hive\.development/g,
   },
+  {
+    // The dev-only storage-corruption QA hook embeds this marker exactly
+    // so its absence from any non-development export is provable.
+    name: 'qa-hook-marker',
+    regex: /HIVE_QA_CORRUPT_HOOK/g,
+  },
 ];
 
 /** Scan one text for the given pattern set. Returns findings with the
@@ -90,7 +96,6 @@ export function scanText(text, patterns, filePath = '<memory>') {
  * approval, expiry, and retest recorded. Tracked findings (no blob) are
  * NEVER allowlisted — fix the file instead. */
 const FULL_BLOB_ID = /^[0-9a-f]{40}$/;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function entryKey(entry) {
   return `${entry.blob}:${entry.path}:${entry.pattern}`;
@@ -100,11 +105,14 @@ function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim() !== '';
 }
 
+/** Real calendar dates only: 2026-02-30 and month 13 are rejected, not
+ * rolled over (RETURN-2 area 6). */
 function isIsoDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
   return (
-    typeof value === 'string' &&
-    ISO_DATE.test(value) &&
-    !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
   );
 }
 
@@ -150,17 +158,31 @@ export function validateAllowlist(entries, todayIso) {
     if (typeof entry.reason !== 'string' || entry.reason.trim().length < 10) {
       problems.push(`${label}: reason must be at least 10 characters`);
     }
-    if (!isNonEmptyString(entry.approval)) {
-      problems.push(`${label}: approval is required`);
+    // Approval is a STATE, never free text: 'proposed' entries are valid
+    // but the scan reports HOLD for them (allowlistHolds); 'ratified'
+    // requires the ratification date. A string like "ratification
+    // pending" is not an approval state (RETURN-2 area 6).
+    if (entry.approvalStatus !== 'proposed' && entry.approvalStatus !== 'ratified') {
+      problems.push(`${label}: approvalStatus must be exactly 'proposed' or 'ratified'`);
     }
-    if (!isIsoDate(entry.recordedOn)) {
-      problems.push(`${label}: recordedOn must be an ISO date (YYYY-MM-DD)`);
+    if (!isNonEmptyString(entry.approvalReference)) {
+      problems.push(`${label}: approvalReference is required`);
+    }
+    if (!isIsoDate(entry.proposedOn)) {
+      problems.push(`${label}: proposedOn must be a real calendar date (YYYY-MM-DD)`);
+    }
+    if (entry.approvalStatus === 'ratified') {
+      if (!isIsoDate(entry.ratifiedOn)) {
+        problems.push(`${label}: ratified entries require a real ratifiedOn date`);
+      } else if (isIsoDate(entry.proposedOn) && entry.ratifiedOn < entry.proposedOn) {
+        problems.push(`${label}: ratifiedOn cannot precede proposedOn`);
+      }
     }
     if (!isIsoDate(entry.expiry)) {
-      problems.push(`${label}: expiry must be an ISO date (YYYY-MM-DD)`);
+      problems.push(`${label}: expiry must be a real calendar date (YYYY-MM-DD)`);
     } else {
-      if (isIsoDate(entry.recordedOn) && entry.expiry <= entry.recordedOn) {
-        problems.push(`${label}: expiry must be after recordedOn`);
+      if (isIsoDate(entry.proposedOn) && entry.expiry <= entry.proposedOn) {
+        problems.push(`${label}: expiry must be after proposedOn`);
       }
       if (entry.expiry <= todayIso) {
         problems.push(`${label}: expired on ${entry.expiry} — re-approve or remove`);
@@ -178,6 +200,17 @@ export function validateAllowlist(entries, todayIso) {
   return problems;
 }
 
+/** Entries that are schema-valid but not yet ratified: the scan reports
+ * HOLD for them instead of treating a pending approval as approval. */
+export function allowlistHolds(entries) {
+  return entries
+    .filter((entry) => entry.approvalStatus === 'proposed')
+    .map(
+      (entry) =>
+        `HOLD: history exception ${entryKey(entry)} is PROPOSED (owner ${entry.owner}) awaiting explicit written ratification`,
+    );
+}
+
 /** Reconcile the raw (pre-filter) history findings against the allowlist:
  * returns uncovered findings plus problems for orphaned (unused) entries
  * and occurrence-count drift. Every entry must still match its recorded
@@ -191,9 +224,14 @@ export function reconcileHistoryAllowlist(findings, allowlist) {
   }
   const uncovered = findings.filter((finding) => !isAllowed(finding, allowlist));
   const problems = [];
+  // matchedFindings counts individual historical matches consumed by the
+  // exception ENTRIES — the two numbers are reported separately so a
+  // reader never mistakes 4 entries for 4 matches (RETURN-2 area 8).
+  let matchedFindings = 0;
   for (const entry of allowlist) {
     const key = entryKey(entry);
     const count = counts.get(key) ?? 0;
+    matchedFindings += count;
     if (count === 0) {
       problems.push(`orphaned (unused) history exception: ${key} matches nothing`);
     } else if (count !== entry.expectedCount) {
@@ -202,7 +240,7 @@ export function reconcileHistoryAllowlist(findings, allowlist) {
       );
     }
   }
-  return { uncovered, problems };
+  return { uncovered, problems, matchedFindings };
 }
 
 export function looksBinary(buffer) {

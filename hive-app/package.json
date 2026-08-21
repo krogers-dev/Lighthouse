@@ -36,7 +36,8 @@
     "db:types": "node scripts/db-types.mjs generate",
     "db:types:check": "node scripts/db-types.mjs check",
     "config:check": "node scripts/candidate-config-check.mjs",
-    "bundle:inspect": "node scripts/bundle-inspect.mjs"
+    "bundle:inspect": "node scripts/bundle-inspect.mjs",
+    "maestro:validate": "node scripts/maestro-validate.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.3",

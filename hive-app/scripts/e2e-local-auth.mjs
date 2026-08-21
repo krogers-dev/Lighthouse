@@ -1,39 +1,44 @@
 #!/usr/bin/env node
 /**
- * e2e-local-auth — black-box proof of the executable auth path (P0-1/P0-2).
+ * e2e-local-auth — black-box proof of the executable auth path
+ * (P0-1/P0-2; hardened by the second RETURN directive, areas 1, 4, 5).
  *
  * Runs only against the full local Supabase stack (Docker lane), after
  * `local-supabase.mjs up` and `seed`. Everything is exercised from the
- * outside — GoTrue REST, Mailpit REST, PostgREST — never through app code:
+ * outside — GoTrue REST, Mailpit REST, PostgREST — never through app code
+ * and never through SQL impersonation. Every JWT assertion compares
+ * against the CANONICAL identity definitions
+ * (scripts/lib/synthetic-identities.mjs), not against any live listing.
  *
- *   1. For every login-capable synthetic account: request an email OTP
- *      (shouldCreateUser=false), pull the message from Mailpit, extract the
- *      six-digit token from the body (no link is ever followed), verify it,
- *      and assert the JWT `sub` equals the seeded user id and the session
- *      is AAL1.
- *   2. Negative: an unknown email cannot sign in or create an account.
- *   3. TOTP: enroll a factor for a staff account, compute RFC 6238 codes
- *      locally, challenge+verify to AAL2, then prove repeat login works
- *      against the existing factor.
- *   4. Token refresh: exchange the refresh token and use the new access
- *      token.
- *   5. Direct PostgREST RLS negatives with real JWTs: staff at AAL1 reads
- *      zero protected rows (own membership rows only); AAL2 reads exactly
- *      the membership-covered rows.
+ * Reliability contract (area 5):
+ *  - Mailpit message IDs are snapshotted BEFORE each OTP request; only a
+ *    message that appears AFTER the request is accepted.
+ *  - The accepted message must carry the exact recipient, the exact
+ *    configured subject, and exactly one distinct six-digit token
+ *    (the same token appears in both the text and HTML parts).
+ *  - Refresh tokens are REQUIRED; refresh is executed unconditionally and
+ *    must yield a new access token, a new refresh token, the unchanged
+ *    canonical `sub`, and a retained `aal2` — and the refreshed token is
+ *    what the protected PostgREST assertions use.
  *
- * Usage: HIVE_LOCAL_SUPABASE_URL=… HIVE_LOCAL_SERVICE_KEY=… \
- *        HIVE_LOCAL_CLIENT_KEY=… node scripts/e2e-local-auth.mjs
- * (local-supabase.mjs e2e wires these from `supabase status` in memory.)
+ * Coverage (areas 1 and 4): every seeded account's OTP + JWT-sub binding;
+ * repeated OTP for one user; the unknown-email negative; the full staff
+ * TOTP path; and real-JWT PostgREST evidence for BOTH mixed-role users at
+ * AAL1 (zero rows across all six protected tables, own membership rows
+ * only) and AAL2 (exact permitted reach, zero wrong-scope rows).
+ *
+ * Usage: node scripts/local-supabase.mjs e2e  (wires env in memory).
  */
 import process from 'node:process';
 
-import { SYNTHETIC_IDENTITIES } from './lib/synthetic-identities.mjs';
+import { SCOPE, SYNTHETIC_IDENTITIES } from './lib/synthetic-identities.mjs';
 import { totpCode } from './lib/totp.mjs';
 
 const url = process.env.HIVE_LOCAL_SUPABASE_URL;
 const serviceKey = process.env.HIVE_LOCAL_SERVICE_KEY;
 const clientKey = process.env.HIVE_LOCAL_CLIENT_KEY;
 const mailpitUrl = process.env.HIVE_LOCAL_MAILPIT_URL ?? 'http://127.0.0.1:54324';
+const EXPECTED_SUBJECT = 'Your HIVE sign-in code';
 
 if (!url || !serviceKey || !clientKey) {
   console.error('e2e-local-auth: run through `node scripts/local-supabase.mjs e2e`');
@@ -54,6 +59,7 @@ function check(condition, label) {
     failed += 1;
     console.error(`NOT OK - ${label}`);
   }
+  return Boolean(condition);
 }
 
 async function auth(pathname, options = {}, bearer = clientKey) {
@@ -69,9 +75,15 @@ async function auth(pathname, options = {}, bearer = clientKey) {
   return { status: response.status, body: await response.json().catch(() => ({})) };
 }
 
-async function admin(pathname) {
+async function admin(pathname, options = {}) {
   const response = await fetch(`${url}/auth/v1${pathname}`, {
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+    ...options,
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
   });
   return { status: response.status, body: await response.json().catch(() => ({})) };
 }
@@ -88,165 +100,436 @@ function jwtClaims(token) {
   return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
 }
 
-async function fetchOtpFromMailpit(email) {
-  // Poll: mail delivery is asynchronous.
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const search = await fetch(
-      `${mailpitUrl}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}&limit=1`,
-    );
-    const data = await search.json().catch(() => ({}));
-    const id = data?.messages?.[0]?.ID;
-    if (id) {
-      const message = await fetch(`${mailpitUrl}/api/v1/message/${id}`);
-      const full = await message.json().catch(() => ({}));
-      const body = `${full.Text ?? ''}\n${full.HTML ?? ''}`;
-      const token = /\b(\d{6})\b/.exec(body)?.[1];
-      if (token) return token;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  return null;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ---------------------------------------------------------------------------
+// Mailpit: snapshot-based, exact-message OTP retrieval (area 5).
+// ---------------------------------------------------------------------------
+
+async function mailpitSearch(email) {
+  const response = await fetch(
+    `${mailpitUrl}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}&limit=50`,
+  );
+  const data = await response.json().catch(() => ({}));
+  return Array.isArray(data?.messages) ? data.messages : [];
 }
 
-async function signInWithOtp(email) {
+async function mailpitMessageIds(email) {
+  return new Set((await mailpitSearch(email)).map((m) => m.ID));
+}
+
+/** Accept only a message that did not exist before the request, with the
+ * exact recipient and subject, containing exactly one distinct six-digit
+ * token. Returns { token } or an error marker. */
+async function fetchFreshOtp(email, beforeIds) {
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const messages = await mailpitSearch(email);
+    const fresh = messages.find((m) => !beforeIds.has(m.ID));
+    if (fresh) {
+      const detail = await fetch(`${mailpitUrl}/api/v1/message/${fresh.ID}`);
+      const full = await detail.json().catch(() => ({}));
+      const recipients = (full.To ?? []).map((t) => (t.Address ?? '').toLowerCase());
+      if (!(recipients.length === 1 && recipients[0] === email.toLowerCase())) {
+        return { error: `recipient mismatch: ${JSON.stringify(recipients)}` };
+      }
+      if (full.Subject !== EXPECTED_SUBJECT) {
+        return { error: `subject mismatch: ${JSON.stringify(full.Subject)}` };
+      }
+      const body = `${full.Text ?? ''}\n${full.HTML ?? ''}`;
+      const distinct = [...new Set(body.match(/\b\d{6}\b/g) ?? [])];
+      if (distinct.length !== 1) {
+        return { error: `expected exactly one distinct six-digit token, found ${distinct.length}` };
+      }
+      return { token: distinct[0] };
+    }
+    await sleep(500);
+  }
+  return { error: 'no new message arrived' };
+}
+
+/** Full OTP sign-in for a canonical identity; asserts the JWT sub equals
+ * the canonical definition and the session is AAL1. */
+async function signInWithOtp(identity) {
+  const before = await mailpitMessageIds(identity.email);
   const request = await auth('/otp', {
     method: 'POST',
-    body: JSON.stringify({ email, create_user: false }),
+    body: JSON.stringify({ email: identity.email, create_user: false }),
   });
-  check(request.status === 200, `${email}: OTP request accepted`);
-  const token = await fetchOtpFromMailpit(email);
-  check(token !== null, `${email}: six-digit token found in Mailpit (no link followed)`);
-  if (!token) return null;
+  if (!check(request.status === 200, `${identity.email}: OTP request accepted`)) return null;
+  const otp = await fetchFreshOtp(identity.email, before);
+  if (
+    !check(
+      Boolean(otp.token),
+      `${identity.email}: fresh message with exact recipient/subject and exactly one distinct six-digit token (${otp.error ?? 'ok'})`,
+    )
+  ) {
+    return null;
+  }
   const verify = await auth('/verify', {
     method: 'POST',
-    body: JSON.stringify({ type: 'email', email, token }),
+    body: JSON.stringify({ type: 'email', email: identity.email, token: otp.token }),
   });
-  check(verify.status === 200 && verify.body.access_token, `${email}: token verified to a session`);
+  if (
+    !check(
+      verify.status === 200 && Boolean(verify.body.access_token),
+      `${identity.email}: token verified to a session (no link followed)`,
+    )
+  ) {
+    return null;
+  }
+  const claims = jwtClaims(verify.body.access_token);
+  check(
+    claims.sub === identity.id,
+    `${identity.email}: JWT sub equals the CANONICAL id ${identity.id}`,
+  );
+  check((claims.aal ?? 'aal1') === 'aal1', `${identity.email}: first factor yields AAL1`);
   return verify.body;
 }
 
-const seededByEmail = new Map();
-for (let page = 1; page <= 10; page++) {
-  const listing = await admin(`/admin/users?page=${page}&per_page=100`);
-  for (const user of listing.body?.users ?? []) {
-    if (user.email) seededByEmail.set(user.email.toLowerCase(), user);
+/** Refresh contract (area 5): refresh token REQUIRED; unconditional
+ * exchange; new access + refresh tokens; canonical sub; retained AAL.
+ * Returns the refreshed session — callers use IT for protected reads. */
+async function mandatoryRefresh(session, identity, expectedAal, label) {
+  if (!check(Boolean(session?.refresh_token), `${label}: refresh token present`)) return null;
+  const refreshed = await auth('/token?grant_type=refresh_token', {
+    method: 'POST',
+    body: JSON.stringify({ refresh_token: session.refresh_token }),
+  });
+  if (
+    !check(
+      refreshed.status === 200 && Boolean(refreshed.body?.access_token),
+      `${label}: refresh exchange succeeds`,
+    )
+  ) {
+    return null;
   }
-  if ((listing.body?.users ?? []).length < 100) break;
+  check(
+    refreshed.body.access_token !== session.access_token,
+    `${label}: refresh yields a NEW access token`,
+  );
+  check(
+    Boolean(refreshed.body.refresh_token) && refreshed.body.refresh_token !== session.refresh_token,
+    `${label}: refresh yields a NEW refresh token`,
+  );
+  const claims = jwtClaims(refreshed.body.access_token);
+  check(claims.sub === identity.id, `${label}: refreshed sub is still the canonical id`);
+  check(claims.aal === expectedAal, `${label}: refreshed session retains ${expectedAal}`);
+  return refreshed.body;
 }
 
-// 1. Every login-capable account signs in with a code and the JWT subject
-//    matches the seeded id.
-for (const identity of SYNTHETIC_IDENTITIES) {
-  const seeded = seededByEmail.get(identity.email.toLowerCase());
-  check(Boolean(seeded), `${identity.email}: exists in GoTrue after seeding`);
-  if (!seeded) continue;
-  const session = await signInWithOtp(identity.email);
-  if (!session) continue;
-  const claims = jwtClaims(session.access_token);
-  check(claims.sub === seeded.id, `${identity.email}: JWT sub equals seeded user id`);
-  check((claims.aal ?? 'aal1') === 'aal1', `${identity.email}: first factor yields AAL1`);
-  identity.session = session;
+// ---------------------------------------------------------------------------
+// TOTP helpers (admin cleanup keeps reruns deterministic).
+// ---------------------------------------------------------------------------
+
+async function adminCleanFactors(identity) {
+  const listing = await admin(`/admin/users/${identity.id}/factors`);
+  const factors = Array.isArray(listing.body) ? listing.body : (listing.body?.factors ?? []);
+  for (const factor of factors) {
+    await admin(`/admin/users/${identity.id}/factors/${factor.id}`, { method: 'DELETE' });
+  }
 }
 
-// 2. Unknown email: no sign-in, no account creation.
-const strangerEmail = 'stranger.unknown@example.invalid';
-const stranger = await auth('/otp', {
-  method: 'POST',
-  body: JSON.stringify({ email: strangerEmail, create_user: false }),
-});
-check(stranger.status >= 400, 'unknown email is rejected for OTP');
-const strangerCheck = await admin(`/admin/users?page=1&per_page=100`);
-check(
-  !(strangerCheck.body?.users ?? []).some((u) => (u.email ?? '').toLowerCase() === strangerEmail),
-  'unknown email did not create an account',
-);
-
-// 3. TOTP enrollment for a staff account, then repeat login with the factor.
-const staff = SYNTHETIC_IDENTITIES.find((i) => i.email === 'preparer.pat@example.invalid');
-if (staff?.session) {
-  const access = staff.session.access_token;
+async function enrollAndVerifyTotp(identity, session, label) {
+  const access = session.access_token;
   const enroll = await auth(
     '/factors',
     { method: 'POST', body: JSON.stringify({ factor_type: 'totp', friendly_name: 'e2e' }) },
     access,
   );
-  check(
-    enroll.status === 200 && enroll.body?.totp?.secret,
-    'staff TOTP enrollment returns a secret',
+  if (
+    !check(
+      enroll.status === 200 && Boolean(enroll.body?.totp?.secret),
+      `${label}: TOTP enrollment returns a secret`,
+    )
+  ) {
+    return null;
+  }
+  const factorId = enroll.body.id;
+  const secret = enroll.body.totp.secret;
+  const challenge = await auth(`/factors/${factorId}/challenge`, { method: 'POST' }, access);
+  const verify = await auth(
+    `/factors/${factorId}/verify`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ challenge_id: challenge.body?.id, code: totpCode(secret) }),
+    },
+    access,
   );
-  const factorId = enroll.body?.id;
-  const secret = enroll.body?.totp?.secret;
-  if (factorId && secret) {
-    const challenge = await auth(`/factors/${factorId}/challenge`, { method: 'POST' }, access);
-    const verifyMfa = await auth(
-      `/factors/${factorId}/verify`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ challenge_id: challenge.body?.id, code: totpCode(secret) }),
-      },
-      access,
+  if (
+    !check(
+      verify.status === 200 && Boolean(verify.body?.access_token),
+      `${label}: TOTP verify succeeds`,
+    )
+  ) {
+    return null;
+  }
+  const claims = jwtClaims(verify.body.access_token);
+  check(claims.aal === 'aal2', `${label}: verified session is AAL2`);
+  check(claims.sub === identity.id, `${label}: AAL2 sub is still the canonical id`);
+  return { session: verify.body, factorId, secret };
+}
+
+// ---------------------------------------------------------------------------
+// Scope expectations derived from the canonical seed definitions.
+// ---------------------------------------------------------------------------
+
+const CASES = {
+  a1: 'eeeeeeee-0000-4000-8000-0000000000a1',
+  b1: 'eeeeeeee-0000-4000-8000-0000000000b1',
+  b2: 'eeeeeeee-0000-4000-8000-0000000000b2',
+};
+const PROTECTED_TABLES = [
+  'environments',
+  'clients',
+  'entities',
+  'cases',
+  'case_attention_items',
+  'case_next_actions',
+];
+
+function idsOf(rows) {
+  return new Set((rows ?? []).map((row) => row.id));
+}
+function sameSet(actual, expected) {
+  return actual.size === expected.length && expected.every((id) => actual.has(id));
+}
+
+/** AAL1 for a user holding any staff membership: zero rows from all six
+ * protected tables; exactly the own membership rows (area 4). */
+async function assertStaffAal1(identity, session, expectedRoles) {
+  for (const table of PROTECTED_TABLES) {
+    const result = await rest(`/${table}?select=id`, session.access_token);
+    check(
+      result.status === 200 && Array.isArray(result.body) && result.body.length === 0,
+      `${identity.email} AAL1: zero rows from ${table}`,
     );
-    check(verifyMfa.status === 200 && verifyMfa.body?.access_token, 'TOTP verify succeeds');
-    const aal2Claims = verifyMfa.body?.access_token ? jwtClaims(verifyMfa.body.access_token) : {};
-    check(aal2Claims.aal === 'aal2', 'verified session is AAL2');
-    staff.aal2Session = verifyMfa.body;
+  }
+  const memberships = await rest(
+    '/memberships?select=id,user_id,environment_id,client_id,entity_id,role',
+    session.access_token,
+  );
+  const rows = memberships.body ?? [];
+  check(
+    memberships.status === 200 && rows.length === expectedRoles.length,
+    `${identity.email} AAL1: exactly ${expectedRoles.length} own membership rows`,
+  );
+  check(
+    rows.every((row) => row.user_id === identity.id),
+    `${identity.email} AAL1: every membership row belongs to the canonical id`,
+  );
+  const roles = rows.map((row) => row.role).sort();
+  check(
+    JSON.stringify(roles) === JSON.stringify([...expectedRoles].sort()),
+    `${identity.email} AAL1: membership roles are exactly ${expectedRoles.join('+')}`,
+  );
+}
 
-    // Repeat login against the existing factor: fresh OTP, then verify again.
-    const repeat = await signInWithOtp(staff.email);
-    if (repeat) {
-      const repeatChallenge = await auth(
-        `/factors/${factorId}/challenge`,
-        { method: 'POST' },
-        repeat.access_token,
-      );
-      const repeatVerify = await auth(
-        `/factors/${factorId}/verify`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ challenge_id: repeatChallenge.body?.id, code: totpCode(secret) }),
-        },
-        repeat.access_token,
-      );
-      check(repeatVerify.status === 200, 'repeat login verifies against the existing factor');
-    }
+// ---------------------------------------------------------------------------
+// Run.
+// ---------------------------------------------------------------------------
 
-    // 4. Token refresh on the AAL2 session.
-    if (staff.aal2Session?.refresh_token) {
-      const refreshed = await auth('/token?grant_type=refresh_token', {
-        method: 'POST',
-        body: JSON.stringify({ refresh_token: staff.aal2Session.refresh_token }),
-      });
-      check(refreshed.status === 200 && refreshed.body?.access_token, 'refresh token exchanges');
-      if (refreshed.body?.access_token) {
-        staff.aal2Session = refreshed.body;
+const byEmail = new Map(SYNTHETIC_IDENTITIES.map((identity) => [identity.email, identity]));
+const sessions = new Map();
+
+// 1. Every seeded account signs in; JWT sub === canonical definition.
+for (const identity of SYNTHETIC_IDENTITIES) {
+  const session = await signInWithOtp(identity);
+  if (session) sessions.set(identity.email, session);
+}
+
+// 2. Repeated OTP for the same user: the SECOND request must produce a
+//    new message (snapshot semantics) whose token verifies.
+{
+  const identity = byEmail.get('client.owner@example.invalid');
+  await sleep(1100); // respect auth.email.max_frequency = 1s
+  const again = await signInWithOtp(identity);
+  check(Boolean(again), `${identity.email}: repeated OTP request yields a fresh working code`);
+}
+
+// 3. Unknown email: no sign-in, no account creation.
+{
+  const strangerEmail = 'stranger.unknown@example.invalid';
+  const stranger = await auth('/otp', {
+    method: 'POST',
+    body: JSON.stringify({ email: strangerEmail, create_user: false }),
+  });
+  check(stranger.status >= 400, 'unknown email is rejected for OTP');
+  let found = false;
+  for (let page = 1; page <= 10; page++) {
+    const listing = await admin(`/admin/users?page=${page}&per_page=100`);
+    const users = listing.body?.users ?? [];
+    if (users.some((u) => (u.email ?? '').toLowerCase() === strangerEmail)) found = true;
+    if (users.length < 100) break;
+  }
+  check(!found, 'unknown email did not create an account');
+}
+
+// 4. Full staff path (preparer.pat): enroll, AAL2, MANDATORY refresh, and
+//    protected reads with the REFRESHED token; then repeat login against
+//    the existing factor discovered via GET /factors.
+{
+  const identity = byEmail.get('preparer.pat@example.invalid');
+  await adminCleanFactors(identity);
+  const aal1 = await signInWithOtp(identity);
+  if (aal1) {
+    await assertStaffAal1(identity, aal1, ['preparer', 'preparer']);
+    const enrolled = await enrollAndVerifyTotp(identity, aal1, `${identity.email} enroll`);
+    if (enrolled) {
+      const refreshed = await mandatoryRefresh(
+        enrolled.session,
+        identity,
+        'aal2',
+        `${identity.email} AAL2`,
+      );
+      if (refreshed) {
+        const cases = await rest('/cases?select=id', refreshed.access_token);
+        check(
+          cases.status === 200 && sameSet(idsOf(cases.body), [CASES.a1, CASES.b1]),
+          `${identity.email} AAL2 (refreshed token): cases are exactly A1+B1`,
+        );
+      }
+      // Repeat login: fresh OTP; the verified factor is discovered from
+      // GET /user (the documented factor listing for a session), never
+      // remembered from enrollment.
+      const again = await signInWithOtp(identity);
+      if (again) {
+        const user = await auth('/user', {}, again.access_token);
+        const verified = (user.body?.factors ?? []).find(
+          (f) => f.factor_type === 'totp' && f.status === 'verified',
+        );
+        check(Boolean(verified), `${identity.email}: repeat login finds the verified factor`);
+        if (verified) {
+          const challenge = await auth(
+            `/factors/${verified.id}/challenge`,
+            { method: 'POST' },
+            again.access_token,
+          );
+          const verify = await auth(
+            `/factors/${verified.id}/verify`,
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                challenge_id: challenge.body?.id,
+                code: totpCode(enrolled.secret),
+              }),
+            },
+            again.access_token,
+          );
+          const repeatAal =
+            verify.status === 200 && verify.body?.access_token
+              ? jwtClaims(verify.body.access_token).aal
+              : null;
+          check(
+            repeatAal === 'aal2',
+            `${identity.email}: repeat login reaches AAL2 against the existing factor`,
+          );
+        }
       }
     }
+  }
+}
 
-    // 5. Direct PostgREST RLS: AAL1 staff sees zero protected rows (own
-    //    memberships only); AAL2 sees membership-covered rows.
-    const aal1 = await signInWithOtp(staff.email);
-    if (aal1) {
-      const casesAal1 = await rest('/cases?select=id', aal1.access_token);
-      check(
-        casesAal1.status === 200 && Array.isArray(casesAal1.body) && casesAal1.body.length === 0,
-        'direct PostgREST: staff at AAL1 reads zero cases',
+// 5. Mixed-role users with real JWTs (area 4): AAL1 zero-rows across all
+//    six protected tables + exact own memberships; AAL2 exact reach and
+//    zero wrong-scope rows — all via the refreshed token.
+{
+  const identity = byEmail.get('mixed.cross@example.invalid');
+  await adminCleanFactors(identity);
+  const aal1 = await signInWithOtp(identity);
+  if (aal1) {
+    await assertStaffAal1(identity, aal1, ['client_user', 'preparer']);
+    const enrolled = await enrollAndVerifyTotp(identity, aal1, `${identity.email} enroll`);
+    if (enrolled) {
+      const refreshed = await mandatoryRefresh(
+        enrolled.session,
+        identity,
+        'aal2',
+        `${identity.email} AAL2`,
       );
-      const membershipsAal1 = await rest('/memberships?select=id', aal1.access_token);
-      check(
-        membershipsAal1.status === 200 && (membershipsAal1.body ?? []).length === 2,
-        'direct PostgREST: staff at AAL1 still reads exactly their own membership rows',
-      );
-    }
-    if (staff.aal2Session?.access_token) {
-      const casesAal2 = await rest('/cases?select=id', staff.aal2Session.access_token);
-      check(
-        casesAal2.status === 200 && (casesAal2.body ?? []).length === 2,
-        'direct PostgREST: staff at AAL2 reads exactly the membership-covered cases',
-      );
+      if (refreshed) {
+        const token = refreshed.access_token;
+        const cases = await rest('/cases?select=id', token);
+        check(
+          cases.status === 200 && sameSet(idsOf(cases.body), [CASES.a1, CASES.b1]),
+          `${identity.email} AAL2: cases are exactly the A1 and B1 cases`,
+        );
+        const entities = await rest('/entities?select=id', token);
+        check(
+          entities.status === 200 &&
+            sameSet(idsOf(entities.body), [SCOPE.entityA1, SCOPE.entityB1]),
+          `${identity.email} AAL2: entities are exactly A1 and B1`,
+        );
+        const clients = await rest('/clients?select=id', token);
+        check(
+          clients.status === 200 && sameSet(idsOf(clients.body), [SCOPE.clientA, SCOPE.clientB]),
+          `${identity.email} AAL2: clients are exactly A and B`,
+        );
+        const wrongEntity = await rest(`/cases?select=id&entity_id=eq.${SCOPE.entityB2}`, token);
+        check(
+          wrongEntity.status === 200 && (wrongEntity.body ?? []).length === 0,
+          `${identity.email} AAL2: zero rows for the unrelated entity B2`,
+        );
+        const unrelatedEntity = await rest(`/entities?select=id&id=eq.${SCOPE.entityB2}`, token);
+        check(
+          unrelatedEntity.status === 200 && (unrelatedEntity.body ?? []).length === 0,
+          `${identity.email} AAL2: entity B2 itself stays invisible`,
+        );
+      }
     }
   }
-} else {
-  check(false, 'staff session available for TOTP enrollment');
+}
+{
+  const identity = byEmail.get('mixed.same@example.invalid');
+  await adminCleanFactors(identity);
+  const aal1 = await signInWithOtp(identity);
+  if (aal1) {
+    await assertStaffAal1(identity, aal1, ['client_user', 'reviewer']);
+    const enrolled = await enrollAndVerifyTotp(identity, aal1, `${identity.email} enroll`);
+    if (enrolled) {
+      const refreshed = await mandatoryRefresh(
+        enrolled.session,
+        identity,
+        'aal2',
+        `${identity.email} AAL2`,
+      );
+      if (refreshed) {
+        const token = refreshed.access_token;
+        const cases = await rest('/cases?select=id', token);
+        check(
+          cases.status === 200 && sameSet(idsOf(cases.body), [CASES.a1]),
+          `${identity.email} AAL2: cases are exactly the single A1 case`,
+        );
+        const entities = await rest('/entities?select=id', token);
+        check(
+          entities.status === 200 && sameSet(idsOf(entities.body), [SCOPE.entityA1]),
+          `${identity.email} AAL2: entities are exactly A1`,
+        );
+        const wrongClient = await rest(`/clients?select=id&id=eq.${SCOPE.clientB}`, token);
+        check(
+          wrongClient.status === 200 && (wrongClient.body ?? []).length === 0,
+          `${identity.email} AAL2: zero rows for the unrelated client B`,
+        );
+        const wrongEntityCases = await rest(
+          `/cases?select=id&entity_id=eq.${SCOPE.entityB1}`,
+          token,
+        );
+        check(
+          wrongEntityCases.status === 200 && (wrongEntityCases.body ?? []).length === 0,
+          `${identity.email} AAL2: zero case rows for the unrelated entity B1`,
+        );
+      }
+    }
+  }
+}
+
+// 6. A pure client user's AAL1 refresh also satisfies the refresh
+//    contract (sub retained, aal1 retained) — refresh is not AAL2-only.
+{
+  const identity = byEmail.get('client.owner@example.invalid');
+  const session = sessions.get(identity.email);
+  if (session) {
+    await mandatoryRefresh(session, identity, 'aal1', `${identity.email} AAL1`);
+  }
 }
 
 console.log(`e2e-local-auth: ${passed} passed, ${failed} failed`);

@@ -90,15 +90,25 @@ controller dispatches `MFA_CHALLENGE_REQUIRED` and then prepares the factor
 (`prepareMfaInternal`):
 
 - A **verified TOTP factor exists** → its id becomes the pending factor;
-  the user is asked for a code (verify mode).
-- **No verified factor** (first login) → any stale unverified factors are
-  best-effort unenrolled, `mfa.enroll` (documented supabase-js API) creates
-  a fresh TOTP factor, and `MFA_ENROLLMENT_REQUIRED` carries the QR SVG and
-  manual setup key into view context. The secret exists only in memory and
-  in the authenticator the user scans it into: never stored, never logged,
-  never in diagnostics, and the QA flows never screenshot the setup screen.
-  Setup failure surfaces as `MFA_FAILED` with a retry action
-  (`retryMfaSetup()`); storage trouble routes to quarantine as usual.
+  the user is asked for a code (verify mode). Factors are derived from
+  `listFactors().data.all` filtered by factor type and status — the
+  verified-only `data.totp` collection cannot see unverified factors
+  (`src/auth/mfa-contract.ts`).
+- **No verified factor** (first login) → EVERY stale unverified factor
+  from an interrupted setup is unenrolled first; if that cleanup fails,
+  enrollment STOPS (surfaced as a setup failure with retry) rather than
+  accumulating another factor toward the server's limit. Then `mfa.enroll`
+  (documented supabase-js API) creates a fresh TOTP factor and
+  `MFA_ENROLLMENT_REQUIRED` carries the QR and manual setup key into view
+  context. The QR arrives from supabase-js as a
+  `data:image/svg+xml;utf-8` URI and is decoded and validated
+  (`decodeSupabaseTotpQr`) before any renderer sees it; an undecodable
+  value falls back to the manual setup key alone. The secret exists only
+  in memory and in the authenticator the user scans it into: never
+  stored, never logged, never in diagnostics, and the QA flows never
+  screenshot the setup screen. Setup failure surfaces as `MFA_FAILED`
+  with a retry action (`retryMfaSetup()`); storage trouble routes to
+  quarantine as usual.
 
 `submitTotp(code)` challenges and verifies against the pending factor id;
 success loads memberships → `SCOPES_LOADED` (AAL now aal2). An incorrect

@@ -1,11 +1,12 @@
 appId: com.myhbcfo.hive.development
 name: Subsequent staff login verifies against the existing factor (no second QR)
 # Pre-steps on the runner:
-#   1. mfa-enroll.yaml has run for reviewer.rae@example.invalid (verified
-#      factor exists) and the app was signed out.
-#   2. TOTP_SECRET holds that account's setup key (recorded by the QA
-#      operator at enrollment); totp-helper is running on loopback.
-#   3. OTP_CODE read from Mailpit for reviewer.rae@example.invalid.
+#   1. mfa-enroll.yaml has run for reviewer.rae@example.invalid in the
+#      SAME totp-helper session (the secret lives only in that loopback
+#      process's memory) and the app was signed out.
+#   2. OTP_CODE read from Mailpit for reviewer.rae@example.invalid.
+# No secret enters this flow through any channel: the script asks the
+# helper for the current code by synthetic account label only.
 ---
 - launchApp
 - tapOn:
@@ -24,7 +25,7 @@ name: Subsequent staff login verifies against the existing factor (no second QR)
     id: 'mfa-enroll-qr'
 - assertVisible:
     id: 'mfa-code'
-- runScript: totp-code-from-env.js
+- runScript: totp-code.js
 - tapOn:
     id: 'mfa-code'
 - inputText: ${output.totpCode}

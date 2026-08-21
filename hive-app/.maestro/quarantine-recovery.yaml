@@ -1,11 +1,19 @@
 appId: com.myhbcfo.hive.development
 name: Storage quarantine blocks protected UI; scrub is the only recovery
-# Pre-step on the runner (manual, per platform): invalidate the stored
-# session material while the app is closed so the adapter's verification
-# fails at boot — e.g. remove/re-add the device passcode (iOS Keychain
-# items are WHEN_UNLOCKED_THIS_DEVICE_ONLY) or clear the Keystore entry via
-# the platform test hook. The app was signed in beforehand (sign-in.yaml).
+# Pre-steps on the runner:
+#   1. The installed development build was exported with
+#      EXPO_PUBLIC_QA_HOOKS=1 (QA build). This enables the dev-only
+#      storage-corruption deep link (hivedev://qa/corrupt-storage), which
+#      release configuration forbids (config:check) and bundle inspection
+#      proves absent from non-development exports.
+#   2. The app is signed in (sign-in.yaml).
+# The hook corrupts the stored session manifest; the next launch's
+# verification fails closed into quarantine.
 ---
+- launchApp
+- assertVisible: 'Home'
+- openLink: hivedev://qa/corrupt-storage
+- stopApp
 - launchApp
 # No protected UI and no generic retry: only the scrub action exists.
 - assertNotVisible: 'Home'

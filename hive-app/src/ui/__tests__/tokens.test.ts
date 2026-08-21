@@ -89,7 +89,7 @@ describe('accent rules per surface', () => {
 });
 
 describe('type scale', () => {
-  it('body text does not qualify as large text, so Rose may not carry it', () => {
+  it('body and label sizes never qualify as WCAG large text (no large-text contrast discounts)', () => {
     expect(qualifiesAsLargeText(typeScale.body.fontSize, typeScale.body.fontWeight)).toBe(false);
     expect(qualifiesAsLargeText(typeScale.label.fontSize, typeScale.label.fontWeight)).toBe(false);
   });

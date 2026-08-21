@@ -127,3 +127,10 @@ test('development env rejects a JWT-form service-role key (review P2-1)', () => 
   );
   assert.ok(problems.some((p) => p.includes('service-role')));
 });
+
+test('QA hooks are rejected outside the development profile (RETURN-2)', async () => {
+  const { checkQaHooks } = await import('../../scripts/candidate-config-check.mjs');
+  assert.deepEqual(checkQaHooks({ EXPO_PUBLIC_QA_HOOKS: '1' }, 'development'), []);
+  assert.equal(checkQaHooks({ EXPO_PUBLIC_QA_HOOKS: '1' }, 'release').length, 1);
+  assert.deepEqual(checkQaHooks({}, 'release'), []);
+});

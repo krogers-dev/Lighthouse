@@ -20,6 +20,7 @@ import type {
   SessionInfo,
 } from '@/auth/client-lifecycle';
 import type { SessionStorage } from '@/auth/controller';
+import { decodeSupabaseTotpQr, splitTotpFactors } from '@/auth/mfa-contract';
 import type { EnvironmentConfig } from '@/core/env';
 import { SafeError } from '@/core/errors';
 import {
@@ -119,23 +120,22 @@ function makeAuthGateway(client: HiveSupabaseClient): AuthGateway {
     async listTotpFactors() {
       const { data, error } = await client.auth.mfa.listFactors();
       if (error) throw error;
-      const totp = data?.totp ?? [];
-      return {
-        verifiedId: totp.find((factor) => factor.status === 'verified')?.id ?? null,
-        unverifiedIds: totp
-          .filter((factor) => factor.status !== 'verified')
-          .map((factor) => factor.id),
-      };
+      // Contract note (area 2): data.totp holds VERIFIED totp factors
+      // only; unverified ones appear only in data.all.
+      return splitTotpFactors(data);
     },
     async enrollTotp() {
       const { data, error } = await client.auth.mfa.enroll({ factorType: 'totp' });
       if (error) throw error;
       if (!data?.id || !data.totp?.secret) throw new SafeError('unknown');
       // Memory-only setup material; never persisted, logged, or exported.
+      // qr_code arrives as a data:image/svg+xml;utf-8 URI — decoded and
+      // validated before any renderer sees it; null falls back to the
+      // manual setup key.
       return {
         factorId: data.id,
         secret: data.totp.secret,
-        qrSvg: data.totp.qr_code ?? null,
+        qrSvg: decodeSupabaseTotpQr(data.totp.qr_code),
         uri: data.totp.uri ?? null,
       };
     },

@@ -93,6 +93,17 @@ export function checkAppConfig(expo, profile) {
   return problems;
 }
 
+/** The dev-only QA hooks (storage corruption for the quarantine device
+ * flow) must never be enabled outside the development profile; the
+ * bundle inspector separately proves the hook's marker string is absent
+ * from non-development exports (RETURN-2 area 7). */
+export function checkQaHooks(env, profile) {
+  if (profile !== 'development' && env.EXPO_PUBLIC_QA_HOOKS === '1') {
+    return ['non-development profile must not enable QA hooks (EXPO_PUBLIC_QA_HOOKS)'];
+  }
+  return [];
+}
+
 export function checkEnvValues(env, profile) {
   const problems = [];
   const url = env.EXPO_PUBLIC_SUPABASE_URL ?? '';
@@ -147,18 +158,18 @@ if (isMain) {
     process.exit(1);
   }
   const appJson = JSON.parse(readFileSync(path.join(appRoot, 'app.json'), 'utf8'));
+  const envLocal = loadEnvLocal();
+  const effectiveEnv = {
+    EXPO_PUBLIC_SUPABASE_URL:
+      process.env.EXPO_PUBLIC_SUPABASE_URL ?? envLocal.EXPO_PUBLIC_SUPABASE_URL,
+    EXPO_PUBLIC_SUPABASE_CLIENT_KEY:
+      process.env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY ?? envLocal.EXPO_PUBLIC_SUPABASE_CLIENT_KEY,
+    EXPO_PUBLIC_QA_HOOKS: process.env.EXPO_PUBLIC_QA_HOOKS ?? envLocal.EXPO_PUBLIC_QA_HOOKS,
+  };
   const problems = [
     ...checkAppConfig(appJson.expo, profile),
-    ...checkEnvValues(
-      {
-        EXPO_PUBLIC_SUPABASE_URL:
-          process.env.EXPO_PUBLIC_SUPABASE_URL ?? loadEnvLocal().EXPO_PUBLIC_SUPABASE_URL,
-        EXPO_PUBLIC_SUPABASE_CLIENT_KEY:
-          process.env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY ??
-          loadEnvLocal().EXPO_PUBLIC_SUPABASE_CLIENT_KEY,
-      },
-      profile,
-    ),
+    ...checkEnvValues(effectiveEnv, profile),
+    ...checkQaHooks(effectiveEnv, profile),
   ];
   if (problems.length > 0) {
     for (const p of problems) console.error(`FAIL ${p}`);

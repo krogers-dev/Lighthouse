@@ -1,9 +1,11 @@
-/** Maestro helper script: turn the copied on-screen setup key into the
- * current six-digit TOTP code via the loopback helper
- * (scripts/totp-helper.mjs), which stands in for the human's authenticator
- * app in the device lane. Synthetic QA identities only; loopback only.
- * Runs inside Maestro's GraalJS runtime, which injects these globals: */
-/* global maestro, http, output, json */
-const secret = maestro.copiedText.replace(/\s+/g, '');
-const response = http.get('http://127.0.0.1:8477/code?secret=' + secret);
-output.totpCode = json(response.body).code;
+/** Maestro helper script: current TOTP code for an already-captured
+ * synthetic QA account. The URL carries only the synthetic account label —
+ * the secret stays in the loopback helper process's memory from the
+ * enrollment flow. Runs inside Maestro's GraalJS runtime, which injects
+ * these globals: */
+/* global http, output, json, TOTP_USER */
+const user = typeof TOTP_USER !== 'undefined' ? TOTP_USER : 'reviewer.rae@example.invalid';
+const response = http.get('http://127.0.0.1:8477/code?user=' + encodeURIComponent(user));
+const parsed = json(response.body);
+output.totpCode = parsed.code;
+output.totpWrongCode = parsed.wrongCode;

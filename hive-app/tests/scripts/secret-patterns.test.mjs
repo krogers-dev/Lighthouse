@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import {
   RELEASE_ONLY_PATTERNS,
   SECRET_PATTERNS,
+  allowlistHolds,
   isAllowed,
   looksBinary,
   reconcileHistoryAllowlist,
@@ -64,8 +65,10 @@ function validEntry(overrides = {}) {
     expectedCount: 1,
     owner: 'Kody',
     reason: 'Labeled synthetic historical test value, replaced by runtime concatenation.',
-    approval: 'PM RETURN directive 2026-08-21',
-    recordedOn: '2026-08-21',
+    approvalStatus: 'ratified',
+    approvalReference: 'Synthetic unit-test ratification record',
+    proposedOn: '2026-08-20',
+    ratifiedOn: '2026-08-21',
     expiry: '2026-11-21',
     retest: 'Re-run secrets:scan monthly and at expiry.',
     ...overrides,
@@ -111,9 +114,12 @@ test('validateAllowlist rejects malformed entries field by field', () => {
     [{ expectedCount: undefined }, /expectedCount/],
     [{ owner: '' }, /owner/],
     [{ reason: 'too short' }, /reason/],
-    [{ approval: '' }, /approval/],
-    [{ recordedOn: 'yesterday' }, /recordedOn/],
+    [{ approvalStatus: 'maybe' }, /approvalStatus/],
+    [{ approvalReference: '' }, /approvalReference/],
+    [{ proposedOn: 'yesterday' }, /proposedOn/],
+    [{ proposedOn: '2026-02-30' }, /real calendar date/],
     [{ expiry: 'never' }, /expiry/],
+    [{ expiry: '2026-13-01' }, /real calendar date/],
     [{ retest: '' }, /retest/],
   ];
   for (const [override, expected] of cases) {
@@ -125,14 +131,39 @@ test('validateAllowlist rejects malformed entries field by field', () => {
   }
 });
 
-test('validateAllowlist rejects expired entries and expiry not after recordedOn', () => {
+test('a free-text approval string is not an approval state', () => {
+  const problems = validateAllowlist(
+    [validEntry({ approvalStatus: 'Kody ratification pending per directive' })],
+    TODAY,
+  );
+  assert.ok(problems.some((p) => p.includes('approvalStatus')));
+});
+
+test('ratified entries require a real ratifiedOn no earlier than proposedOn', () => {
+  const missing = validateAllowlist([validEntry({ ratifiedOn: undefined })], TODAY);
+  assert.ok(missing.some((p) => p.includes('ratifiedOn')));
+  const before = validateAllowlist([validEntry({ ratifiedOn: '2026-08-19' })], TODAY);
+  assert.ok(before.some((p) => p.includes('precede')));
+});
+
+test('PROPOSED entries validate but surface as HOLD lines', () => {
+  const proposed = validEntry({ approvalStatus: 'proposed', ratifiedOn: undefined });
+  assert.deepEqual(validateAllowlist([proposed], TODAY), []);
+  const holds = allowlistHolds([proposed]);
+  assert.equal(holds.length, 1);
+  assert.match(holds[0], /PROPOSED/);
+  assert.match(holds[0], /ratification/);
+  assert.deepEqual(allowlistHolds([validEntry()]), []);
+});
+
+test('validateAllowlist rejects expired entries and expiry not after proposedOn', () => {
   const expired = validateAllowlist([validEntry({ expiry: '2026-08-21' })], TODAY);
   assert.ok(expired.some((p) => /expired|not after/.test(p)));
   const inverted = validateAllowlist(
-    [validEntry({ recordedOn: '2026-12-01', expiry: '2026-11-21' })],
+    [validEntry({ proposedOn: '2026-12-01', ratifiedOn: '2026-12-01', expiry: '2026-11-21' })],
     TODAY,
   );
-  assert.ok(inverted.some((p) => /after recordedOn/.test(p)));
+  assert.ok(inverted.some((p) => /after proposedOn/.test(p)));
 });
 
 test('validateAllowlist rejects duplicate (blob, path, pattern) entries', () => {

@@ -19,9 +19,14 @@ export const SCOPE = {
   entityB2: 'bbbbbbbb-2222-4000-8000-000000000002',
 };
 
-/** memberships: [clientKey, entityKey, role] */
+/** Every identity carries one fixed, canonical Auth UUID (second RETURN
+ * directive, area 1). The full-stack seed supplies this id to the Auth
+ * Admin API and fails on any deviation; the SQL pgTAP lane inserts the
+ * identical ids; JWT `sub` values are compared against these definitions
+ * directly. memberships: [clientKey, entityKey, role]. */
 export const SYNTHETIC_IDENTITIES = [
   {
+    id: 'cccccccc-0000-4000-8000-000000000001',
     email: 'client.owner@example.invalid',
     memberships: [
       ['clientA', 'entityA1', 'client_user'],
@@ -29,6 +34,7 @@ export const SYNTHETIC_IDENTITIES = [
     ],
   },
   {
+    id: 'cccccccc-0000-4000-8000-000000000002',
     email: 'intake.beth@example.invalid',
     memberships: [
       ['clientA', 'entityA1', 'intake'],
@@ -38,6 +44,7 @@ export const SYNTHETIC_IDENTITIES = [
     ],
   },
   {
+    id: 'cccccccc-0000-4000-8000-000000000003',
     email: 'preparer.pat@example.invalid',
     memberships: [
       ['clientA', 'entityA1', 'preparer'],
@@ -45,22 +52,27 @@ export const SYNTHETIC_IDENTITIES = [
     ],
   },
   {
+    id: 'cccccccc-0000-4000-8000-000000000004',
     email: 'reviewer.rae@example.invalid',
     memberships: [['clientA', 'entityA1', 'reviewer']],
   },
   {
+    id: 'cccccccc-0000-4000-8000-000000000005',
     email: 'approver.avery@example.invalid',
     memberships: [['clientA', 'entityA1', 'approver']],
   },
   {
+    id: 'cccccccc-0000-4000-8000-000000000006',
     email: 'client.second@example.invalid',
     memberships: [['clientB', 'entityB1', 'client_user']],
   },
   {
+    id: 'cccccccc-0000-4000-8000-000000000007',
     email: 'nomember.norman@example.invalid',
     memberships: [],
   },
   {
+    id: 'cccccccc-0000-4000-8000-000000000008',
     email: 'mixed.cross@example.invalid',
     memberships: [
       ['clientA', 'entityA1', 'client_user'],
@@ -68,6 +80,7 @@ export const SYNTHETIC_IDENTITIES = [
     ],
   },
   {
+    id: 'cccccccc-0000-4000-8000-000000000009',
     email: 'mixed.same@example.invalid',
     memberships: [
       ['clientA', 'entityA1', 'client_user'],
@@ -76,16 +89,15 @@ export const SYNTHETIC_IDENTITIES = [
   },
 ];
 
-export function membershipRows(resolvedIdByEmail) {
+/** Membership rows bound to the canonical ids. Callers must have verified
+ * (via verifyCanonicalUser) that the live Auth users carry exactly these
+ * ids before inserting. */
+export function membershipRows() {
   const rows = [];
   for (const identity of SYNTHETIC_IDENTITIES) {
-    const userId = resolvedIdByEmail.get(identity.email);
-    if (!userId) {
-      throw new Error(`no resolved user id for ${identity.email}`);
-    }
     for (const [clientKey, entityKey, role] of identity.memberships) {
       rows.push({
-        user_id: userId,
+        user_id: identity.id,
         environment_id: SCOPE.environmentId,
         client_id: SCOPE[clientKey],
         entity_id: SCOPE[entityKey],

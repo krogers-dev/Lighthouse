@@ -15,9 +15,12 @@
  *
  * History findings honor only the hardened blob-scoped exception list in
  * security/secret-scan-allowlist.json: full 40-character object id, exact
- * path, pattern, exact expected occurrence count, owner, reason, approval,
- * expiry, and retest. Unused (orphaned), duplicate, malformed, and expired
- * entries fail the gate; tracked files are never allowlisted (P2-10).
+ * path, pattern, exact expected occurrence count, owner, reason, approval
+ * state, expiry, and retest. Unused (orphaned), duplicate, malformed, and
+ * expired entries fail the gate; tracked files are never allowlisted
+ * (P2-10). Entries whose approvalStatus is 'proposed' (not yet ratified
+ * in writing) still reconcile findings but the scan exits 3 (HOLD) — a
+ * pending approval is never treated as approval (RETURN-2 area 6).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -27,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   SECRET_PATTERNS,
+  allowlistHolds,
   looksBinary,
   reconcileHistoryAllowlist,
   scanText,
@@ -200,7 +204,7 @@ const secretlint = runSecretlint();
 const envProblems = checkEnvFiles();
 
 console.log(
-  `secrets:scan: self-test ok; ${tracked.fileCount} tracked files scanned; ${history.blobCount} history blobs scanned; ${effectiveAllowlist.length} history exceptions reconciled; secretlint ${secretlint.clean ? 'clean' : 'FINDINGS'}`,
+  `secrets:scan: self-test ok; ${tracked.fileCount} tracked files scanned; ${history.blobCount} history blobs scanned; ${effectiveAllowlist.length} history-exception entries reconciled covering ${reconciled.matchedFindings} historical matches; secretlint ${secretlint.clean ? 'clean' : 'FINDINGS'}`,
 );
 
 let failed = false;
@@ -234,5 +238,13 @@ for (const problem of envProblems) {
 if (failed) {
   console.error('secrets:scan FAILED');
   process.exit(1);
+}
+const holds = allowlistHolds(effectiveAllowlist);
+if (holds.length > 0) {
+  for (const hold of holds) console.log(hold);
+  console.log(
+    'secrets:scan HOLD — history exceptions are PROPOSED, not ratified; the exception lane stays HOLD until Kody ratifies in writing (exit 3)',
+  );
+  process.exit(3);
 }
 console.log('secrets:scan OK');

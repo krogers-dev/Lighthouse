@@ -158,3 +158,13 @@ test('binary mode: caret-anchored pattern sources are recognized (regex shipping
     [],
   );
 });
+
+test('the QA-hook marker is flagged in non-development profiles only (RETURN-2)', async () => {
+  const { inspectContent } = await import('../../scripts/bundle-inspect.mjs');
+  const approved = { url: 'https://approved.supabase.co', clientKey: 'sb_publishable_synthetic' };
+  const marker = ['HIVE_QA', 'CORRUPT_HOOK'].join('_');
+  const dev = inspectContent(`var x="${marker}"`, 'bundle.js', 'development', approved);
+  assert.ok(!dev.some((f) => f.pattern === 'qa-hook-marker'));
+  const candidate = inspectContent(`var x="${marker}"`, 'bundle.js', 'candidate', approved);
+  assert.ok(candidate.some((f) => f.pattern === 'qa-hook-marker'));
+});
