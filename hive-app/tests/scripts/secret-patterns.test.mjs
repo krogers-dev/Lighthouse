@@ -69,6 +69,8 @@ function validEntry(overrides = {}) {
     approvalReference: 'Synthetic unit-test ratification record',
     proposedOn: '2026-08-20',
     ratifiedOn: '2026-08-21',
+    ratifiedBy: 'Kody',
+    decisionRecordDigest: 'a'.repeat(64),
     expiry: '2026-11-21',
     retest: 'Re-run secrets:scan monthly and at expiry.',
     ...overrides,
@@ -209,4 +211,54 @@ test('reconcileHistoryAllowlist reports unmatched findings as uncovered', () => 
 test('binary detection', () => {
   assert.equal(looksBinary(Buffer.from('plain text')), false);
   assert.equal(looksBinary(Buffer.from([0x89, 0x50, 0x00, 0x47])), true);
+});
+
+// ---------------------------------------------------------------------------
+// RETURN-3 area 3: ratification provenance for history exceptions
+// ---------------------------------------------------------------------------
+
+test('ratified exceptions require approver, clean reference, and decision digest', () => {
+  const base = {
+    approvalStatus: 'ratified',
+    ratifiedOn: '2026-08-21',
+    ratifiedBy: 'Kody',
+    approvalReference: 'Written ratification wording recorded in the decision log',
+    decisionRecordDigest: 'a'.repeat(64),
+  };
+  assert.deepEqual(validateAllowlist([validEntry(base)], TODAY), []);
+  const cases = [
+    [{ ...base, ratifiedBy: undefined }, /ratifiedBy/],
+    [{ ...base, ratifiedBy: '   ' }, /ratifiedBy/],
+    [{ ...base, approvalReference: 'Kody ratification pending' }, /pending/],
+    [{ ...base, decisionRecordDigest: undefined }, /decisionRecordDigest/],
+    [{ ...base, decisionRecordDigest: 'xyz' }, /decisionRecordDigest/],
+  ];
+  for (const [override, expected] of cases) {
+    const problems = validateAllowlist([validEntry(override)], TODAY);
+    assert.ok(
+      problems.some((p) => expected.test(p)),
+      `expected ${expected}; got ${JSON.stringify(problems)}`,
+    );
+  }
+});
+
+test('NEGATIVE: flipping the CURRENT proposed exceptions to ratified without new provenance fails', async () => {
+  const { readFileSync } = await import('node:fs');
+  const real = JSON.parse(
+    readFileSync(new URL('../../security/secret-scan-allowlist.json', import.meta.url)),
+  );
+  const flipped = real.entries.map((e) => ({ ...e, approvalStatus: 'ratified' }));
+  const problems = validateAllowlist(flipped, TODAY);
+  assert.ok(problems.length > 0, 'flip without provenance must fail');
+  assert.ok(problems.some((p) => p.includes('ratifiedBy') || p.includes('ratifiedOn')));
+  // Their references still cite the pending directive — also rejected.
+  const withDates = real.entries.map((e) => ({
+    ...e,
+    approvalStatus: 'ratified',
+    ratifiedOn: '2026-08-21',
+    ratifiedBy: 'Kody',
+    decisionRecordDigest: 'a'.repeat(64),
+  }));
+  const refProblems = validateAllowlist(withDates, TODAY);
+  assert.ok(refProblems.some((p) => p.includes('pending')));
 });

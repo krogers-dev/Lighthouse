@@ -32,6 +32,7 @@
  * (tests/scripts/audit-gate-integration.test.mjs).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { openSync, readSync, closeSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -40,6 +41,8 @@ import { fileURLToPath } from 'node:url';
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const GHSA_PATTERN = /^GHSA(-[a-z0-9]{4}){3}$/;
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+const PENDING_WORDS = /pending|proposed|not\s+approved|not\s+yet\s+given/i;
 const SEVERITIES = ['info', 'low', 'moderate', 'high', 'critical'];
 const SEVERITY_SET = new Set(SEVERITIES);
 
@@ -122,6 +125,41 @@ export function validateAuditReport(report) {
       }
     }
   }
+  // Cross-occurrence consistency (RETURN-3 area 1): the same GHSA may
+  // appear under several nodes, but every occurrence must describe ONE
+  // advisory — one package, one severity, one identity. A conflict means
+  // the report cannot be trusted (and is exactly the shape that once
+  // bypassed the high gate via dedup-before-evaluation).
+  const occurrencesByGhsa = new Map();
+  for (const node of Object.values(report.vulnerabilities)) {
+    if (typeof node !== 'object' || node === null || !Array.isArray(node.via)) continue;
+    for (const via of node.via) {
+      if (typeof via !== 'object' || via === null) continue;
+      const ghsa = (via.url ?? '').split('/').pop() ?? '';
+      if (!ghsa) continue;
+      const occurrences = occurrencesByGhsa.get(ghsa) ?? [];
+      occurrences.push({ name: via.name, severity: via.severity, url: via.url });
+      occurrencesByGhsa.set(ghsa, occurrences);
+    }
+  }
+  for (const [ghsa, occurrences] of occurrencesByGhsa) {
+    const packages = new Set(occurrences.map((o) => o.name));
+    const severities = new Set(occurrences.map((o) => o.severity));
+    const urls = new Set(occurrences.map((o) => o.url));
+    if (packages.size > 1) {
+      problems.push(
+        `conflicting occurrences of ${ghsa}: more than one package (${[...packages].join(', ')})`,
+      );
+    }
+    if (severities.size > 1) {
+      problems.push(
+        `conflicting occurrences of ${ghsa}: more than one severity (${[...severities].join(', ')})`,
+      );
+    }
+    if (urls.size > 1) {
+      problems.push(`conflicting occurrences of ${ghsa}: more than one advisory url`);
+    }
+  }
   // Summary reconciliation: metadata counts affected package NODES per
   // severity (npm's contract); they must equal what the nodes say.
   const summary = report.metadata.vulnerabilities;
@@ -139,7 +177,9 @@ export function validateAuditReport(report) {
       );
     }
   }
-  if (Number.isInteger(summary.total) && summary.total !== total) {
+  if (!Number.isInteger(summary.total) || summary.total < 0) {
+    problems.push('metadata.vulnerabilities.total is required as a non-negative integer');
+  } else if (summary.total !== total) {
     problems.push(
       `metadata.vulnerabilities.total (${summary.total}) does not equal the per-severity sum (${total})`,
     );
@@ -169,8 +209,8 @@ export function validateWaivers(waiverFile, today) {
     if (!SEVERITY_SET.has(waiver.severity)) problems.push(`${label}: invalid severity`);
     if (typeof waiver.owner !== 'string' || waiver.owner.length === 0)
       problems.push(`${label}: missing owner`);
-    if (typeof waiver.reason !== 'string' || waiver.reason.length < 10)
-      problems.push(`${label}: missing or trivial reason`);
+    if (typeof waiver.reason !== 'string' || waiver.reason.trim().length < 10)
+      problems.push(`${label}: missing or trivial reason (whitespace cannot satisfy it)`);
     if (typeof waiver.retest !== 'string' || waiver.retest.trim().length === 0)
       problems.push(`${label}: retest procedure is required and must not be blank`);
     if (waiver.approvalStatus !== 'proposed' && waiver.approvalStatus !== 'ratified') {
@@ -181,10 +221,38 @@ export function validateWaivers(waiverFile, today) {
     if (!isRealIsoDate(waiver.proposedOn ?? ''))
       problems.push(`${label}: proposedOn must be a real calendar date`);
     if (waiver.approvalStatus === 'ratified') {
+      // Ratification provenance (RETURN-3 area 3): a ratified entry
+      // carries WHO approved, WHEN, the exact approval reference, the
+      // decision-record digest, and the lockfile digest the approval
+      // covered. `owner` is the accountable maintainer, never proof of
+      // approval.
+      if (typeof waiver.ratifiedBy !== 'string' || waiver.ratifiedBy.trim().length === 0) {
+        problems.push(`${label}: ratified entries require ratifiedBy (a named approver)`);
+      }
       if (!isRealIsoDate(waiver.ratifiedOn ?? '')) {
         problems.push(`${label}: ratified entries require a real ratifiedOn date`);
       } else if (isRealIsoDate(waiver.proposedOn ?? '') && waiver.ratifiedOn < waiver.proposedOn) {
         problems.push(`${label}: ratifiedOn cannot precede proposedOn`);
+      }
+      if (
+        typeof waiver.approvalReference !== 'string' ||
+        waiver.approvalReference.trim().length === 0
+      ) {
+        problems.push(`${label}: ratified entries require a non-blank approvalReference`);
+      } else if (PENDING_WORDS.test(waiver.approvalReference)) {
+        problems.push(
+          `${label}: approvalReference still reads as pending/proposed — that is not an approval reference`,
+        );
+      }
+      if (!SHA256_HEX.test(waiver.decisionRecordDigest ?? '')) {
+        problems.push(
+          `${label}: ratified entries require decisionRecordDigest (sha256 hex of the decision record)`,
+        );
+      }
+      if (!SHA256_HEX.test(waiver.lockfileSha256 ?? '')) {
+        problems.push(
+          `${label}: ratified entries require lockfileSha256 binding the approval to the dependency evidence`,
+        );
       }
     }
     if (!isRealIsoDate(waiver.expires ?? '')) {
@@ -220,48 +288,60 @@ export function evaluateAudit(auditReport, waiverFile, today) {
   const matchedAdvisories = [];
   const waivers = new Map((waiverFile.waivers ?? []).map((w) => [w.advisory, w]));
   const matchedWaivers = new Set();
-  const seen = new Set();
+  // EVERY occurrence of a GHSA is collected before any deduplication
+  // (RETURN-3 area 1): the once-shipped seen-set skipped later
+  // occurrences, so moderate-first/high-second passed unwaived. Each
+  // unique advisory is then judged once at its WORST observed severity
+  // (conflicting occurrences are already an engine/schema failure in
+  // validateAuditReport; this is defense in depth).
+  const severityRank = { info: 0, low: 1, moderate: 2, high: 3, critical: 4 };
+  const byGhsa = new Map();
   for (const vuln of Object.values(auditReport.vulnerabilities ?? {})) {
     for (const via of vuln.via ?? []) {
       if (typeof via !== 'object' || via === null) continue;
       const ghsa = (via.url ?? '').split('/').pop() ?? '';
-      if (seen.has(ghsa)) continue;
-      seen.add(ghsa);
-      if (via.severity !== 'high' && via.severity !== 'critical') {
-        notes.push(`info: ${via.severity} ${ghsa} (${via.name}) below the high gate`);
-        continue;
+      if (!ghsa) continue;
+      const current = byGhsa.get(ghsa);
+      if (!current || (severityRank[via.severity] ?? 0) > (severityRank[current.severity] ?? 0)) {
+        byGhsa.set(ghsa, { severity: via.severity, name: via.name });
       }
-      const waiver = waivers.get(ghsa);
-      if (!waiver) {
-        failures.push(`unwaived ${via.severity} advisory ${ghsa} (${via.name})`);
-        continue;
-      }
-      // The waiver must describe the advisory as the report sees it:
-      // a package or severity mismatch means the waiver no longer covers
-      // what it claims to cover (drift or tampering) and fails closed.
-      if (waiver.package !== via.name) {
-        failures.push(
-          `waiver ${ghsa} records package "${waiver.package}" but the report says "${via.name}" — waiver does not match the live report`,
-        );
-        continue;
-      }
-      if (waiver.severity !== via.severity) {
-        failures.push(
-          `waiver ${ghsa} records severity "${waiver.severity}" but the report says "${via.severity}" — waiver does not match the live report`,
-        );
-        continue;
-      }
-      matchedWaivers.add(ghsa);
-      matchedAdvisories.push({ ghsa, package: via.name });
-      if (waiver.approvalStatus === 'ratified') {
-        notes.push(
-          `waived (ratified ${waiver.ratifiedOn}): ${ghsa} (${via.name}) by ${waiver.owner} until ${waiver.expires}`,
-        );
-      } else {
-        holds.push(
-          `HOLD: ${via.severity} ${ghsa} (${via.name}) is matched by a PROPOSED waiver (owner ${waiver.owner}, expires ${waiver.expires}) awaiting explicit written ratification`,
-        );
-      }
+    }
+  }
+  for (const [ghsa, worst] of byGhsa) {
+    if (worst.severity !== 'high' && worst.severity !== 'critical') {
+      notes.push(`info: ${worst.severity} ${ghsa} (${worst.name}) below the high gate`);
+      continue;
+    }
+    const waiver = waivers.get(ghsa);
+    if (!waiver) {
+      failures.push(`unwaived ${worst.severity} advisory ${ghsa} (${worst.name})`);
+      continue;
+    }
+    // The waiver must describe the advisory as the report sees it:
+    // a package or severity mismatch means the waiver no longer covers
+    // what it claims to cover (drift or tampering) and fails closed.
+    if (waiver.package !== worst.name) {
+      failures.push(
+        `waiver ${ghsa} records package "${waiver.package}" but the report says "${worst.name}" — waiver does not match the live report`,
+      );
+      continue;
+    }
+    if (waiver.severity !== worst.severity) {
+      failures.push(
+        `waiver ${ghsa} records severity "${waiver.severity}" but the report says "${worst.severity}" — waiver does not match the live report`,
+      );
+      continue;
+    }
+    matchedWaivers.add(ghsa);
+    matchedAdvisories.push({ ghsa, package: worst.name });
+    if (waiver.approvalStatus === 'ratified') {
+      notes.push(
+        `waived (ratified ${waiver.ratifiedOn}): ${ghsa} (${worst.name}) by ${waiver.owner} until ${waiver.expires}`,
+      );
+    } else {
+      holds.push(
+        `HOLD: ${worst.severity} ${ghsa} (${worst.name}) is matched by a PROPOSED waiver (owner ${waiver.owner}, expires ${waiver.expires}) awaiting explicit written ratification`,
+      );
     }
   }
   // Orphaned waivers prove the advisory is no longer present: the entry
@@ -272,50 +352,88 @@ export function evaluateAudit(auditReport, waiverFile, today) {
     }
   }
   void today; // dates already enforced by validateWaivers
-  return { failures, holds, notes, matchedAdvisories, advisoryCount: seen.size };
+  return { failures, holds, notes, matchedAdvisories, advisoryCount: byGhsa.size };
 }
 
 /** File-signature detection for the parsers the image-size advisories
- * cover. Returns 'icns' | 'jxl' | 'heif' | null for the first bytes of a
- * file (16 bytes suffice for all three). */
+ * cover (RETURN-3 area 2: advisory-derived shapes). Detects:
+ *  - ICNS containers ('icns' magic);
+ *  - JXL: bare codestream (FF 0A) and the ISO-BMFF 'JXL ' signature box
+ *    REGARDLESS of the 4-byte box size — the advisory's exploit shape is
+ *    a zero-size box (00 00 00 00 'JXL ') meaning "extends to EOF";
+ *  - HEIF/AVIF families: any 'ftyp' box (any size field, zero included)
+ *    whose major brand OR any compatible brand visible in the head is in
+ *    the family.
+ * Returns 'icns' | 'jxl' | 'heif' | 'avif' | null. Hand it at least 64
+ * bytes so compatible-brand lists are visible. */
+const HEIF_BRANDS = new Set([
+  'heic',
+  'heix',
+  'hevc',
+  'hevx',
+  'heim',
+  'heis',
+  'hevm',
+  'hevs',
+  'mif1',
+  'msf1',
+  'heif',
+]);
+const AVIF_BRANDS = new Set(['avif', 'avis', 'avci', 'avcs']);
+
 export function detectProhibitedAssetPayload(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 4) return null;
   if (buffer.subarray(0, 4).toString('latin1') === 'icns') return 'icns';
-  // JXL: bare codestream FF 0A, or the ISO-BMFF container signature.
+  // JXL: bare codestream FF 0A.
   if (buffer[0] === 0xff && buffer[1] === 0x0a) return 'jxl';
-  const jxlContainer = Buffer.from([0, 0, 0, 0x0c, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a]);
-  if (buffer.length >= 12 && buffer.subarray(0, 12).equals(jxlContainer)) return 'jxl';
-  // HEIF/HEIC: ISO-BMFF ftyp with a HEIF-family brand.
-  if (buffer.length >= 12 && buffer.subarray(4, 8).toString('latin1') === 'ftyp') {
-    const brand = buffer.subarray(8, 12).toString('latin1');
-    if (
-      [
-        'heic',
-        'heix',
-        'hevc',
-        'hevx',
-        'heim',
-        'heis',
-        'hevm',
-        'hevs',
-        'mif1',
-        'msf1',
-        'heif',
-      ].includes(brand)
-    ) {
-      return 'heif';
+  if (buffer.length >= 8) {
+    const boxType = buffer.subarray(4, 8).toString('latin1');
+    // JXL container signature box, whatever its size field says.
+    if (boxType === 'JXL ') return 'jxl';
+    // HEIF/AVIF: 'ftyp' box, any size field. Check the major brand and
+    // every compatible brand visible in the head (compatible brands
+    // follow the 4-byte minor version at offset 16, in 4-byte cells).
+    if (boxType === 'ftyp' && buffer.length >= 12) {
+      const brands = [buffer.subarray(8, 12).toString('latin1')];
+      for (let offset = 16; offset + 4 <= buffer.length; offset += 4) {
+        brands.push(buffer.subarray(offset, offset + 4).toString('latin1'));
+      }
+      if (brands.some((brand) => AVIF_BRANDS.has(brand))) return 'avif';
+      if (brands.some((brand) => HEIF_BRANDS.has(brand))) return 'heif';
     }
   }
   return null;
 }
 
-const PROHIBITED_ASSET_EXTENSIONS = new Set(['.icns', '.jxl', '.heif', '.heic']);
+const PROHIBITED_ASSET_EXTENSIONS = new Set(['.icns', '.jxl', '.heif', '.heic', '.avif']);
+/** Extensions that read as build images: while the control is active,
+ * every such file must be on the positive allowlist AND match its
+ * approved signature — a renamed crafted payload fails either way. */
+const IMAGE_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.bmp',
+  '.ico',
+  '.tiff',
+  '.tif',
+]);
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+/** Positive allowlist: HIVE build images are PNGs, full stop. */
+const APPROVED_IMAGE_SIGNATURES = new Map([['.png', PNG_SIGNATURE]]);
 
-/** Compensating control (P2-11, hardened): while any advisory MATCHED IN
- * THE LIVE REPORT affects image-size, the vulnerable parsers must have
- * nothing to parse — no tracked file may carry a prohibited extension OR
- * a prohibited file signature (readHead returns the first bytes of a
- * file, or null when unreadable — unreadable fails closed). */
+/** Compensating control (P2-11; RETURN-3 area 2): while any advisory
+ * MATCHED IN THE LIVE REPORT affects image-size, the vulnerable parsers
+ * must have nothing to parse. Three fail-closed layers:
+ *  1. no tracked file may carry a prohibited extension;
+ *  2. no tracked file of ANY extension may carry a prohibited signature;
+ *  3. positive allowlist — every file with an image extension must use an
+ *     APPROVED extension (.png) and match that extension's approved
+ *     signature exactly.
+ * readHead returns the first bytes of a file (64 recommended) or null
+ * when unreadable; unreadable fails closed. */
 export function checkProhibitedAssets(matchedAdvisories, trackedFiles, readHead) {
   const active = matchedAdvisories.some((advisory) => advisory.package === 'image-size');
   if (!active) return [];
@@ -337,6 +455,37 @@ export function checkProhibitedAssets(matchedAdvisories, trackedFiles, readHead)
     if (kind) {
       failures.push(
         `prohibited asset while image-size is vulnerable: ${file} (${kind} file signature despite its extension)`,
+      );
+      continue;
+    }
+    if (IMAGE_EXTENSIONS.has(extension)) {
+      const approved = APPROVED_IMAGE_SIGNATURES.get(extension);
+      if (!approved) {
+        failures.push(
+          `build image ${file} does not use an approved safe extension while image-size is vulnerable (approved: ${[...APPROVED_IMAGE_SIGNATURES.keys()].join(', ')})`,
+        );
+        continue;
+      }
+      if (head.length < approved.length || !head.subarray(0, approved.length).equals(approved)) {
+        failures.push(
+          `build image ${file} does not carry its extension's approved signature while image-size is vulnerable`,
+        );
+      }
+    }
+  }
+  return failures;
+}
+
+/** A ratified waiver approves a SPECIFIC dependency state: its
+ * lockfileSha256 must equal the current lockfile digest, or the material
+ * changed after approval and the approval no longer covers it. */
+export function checkWaiverBindings(waivers, currentLockfileSha256) {
+  const failures = [];
+  for (const waiver of waivers) {
+    if (waiver.approvalStatus !== 'ratified') continue;
+    if (waiver.lockfileSha256 !== currentLockfileSha256) {
+      failures.push(
+        `ratified waiver ${waiver.advisory} is bound to a different lockfile digest — the dependency evidence changed after approval; re-approval required`,
       );
     }
   }
@@ -416,6 +565,16 @@ if (isMain) {
     waiverFile,
     today,
   );
+  // Ratified approvals are bound to the dependency evidence they covered.
+  let lockfileSha256;
+  try {
+    lockfileSha256 = createHash('sha256')
+      .update(readFileSync(path.join(appRoot, 'package-lock.json')))
+      .digest('hex');
+  } catch {
+    engineFail('package-lock.json unreadable — cannot verify waiver bindings');
+  }
+  failures.push(...checkWaiverBindings(waiverFile.waivers ?? [], lockfileSha256));
   // Advisory SOURCES and affected package NODES are different counts —
   // npm's metadata tallies nodes; keep the two visibly distinct.
   console.log(
@@ -432,8 +591,8 @@ if (isMain) {
   const readHead = (file) => {
     try {
       const fd = openSync(path.join(appRoot, file), 'r');
-      const buffer = Buffer.alloc(16);
-      const bytes = readSync(fd, buffer, 0, 16, 0);
+      const buffer = Buffer.alloc(64);
+      const bytes = readSync(fd, buffer, 0, 64, 0);
       closeSync(fd);
       return buffer.subarray(0, bytes);
     } catch {

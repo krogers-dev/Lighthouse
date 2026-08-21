@@ -124,7 +124,7 @@ function up() {
   console.log(`local-supabase: wrote .env.local (${parsed.keyKind} key, loopback URL)`);
 }
 
-function runHarness(scriptName) {
+function runHarness(scriptName, extraEnv = {}) {
   const { parsed, raw } = readStatus();
   const data = JSON.parse(raw);
   const serviceKey = data.SERVICE_ROLE_KEY ?? data.service_role_key ?? data.SECRET_KEY;
@@ -141,6 +141,7 @@ function runHarness(scriptName) {
       HIVE_LOCAL_SUPABASE_URL: parsed.url,
       HIVE_LOCAL_SERVICE_KEY: serviceKey,
       HIVE_LOCAL_CLIENT_KEY: parsed.clientKey,
+      ...extraEnv,
     },
   });
   if (child.status !== 0) {
@@ -156,6 +157,15 @@ function seed() {
  * unknown-email negative, TOTP enrollment, refresh, PostgREST negatives. */
 function e2e() {
   runHarness('e2e-local-auth.mjs');
+}
+
+/** Checked loopback factor reset for one synthetic account — the
+ * pre-step for a repeatable Maestro enrollment flow (RETURN-3 area 5). */
+function resetTotp(email) {
+  if (!email) {
+    fail('usage: local-supabase.mjs reset-totp <synthetic-email>');
+  }
+  runHarness('reset-totp.mjs', { HIVE_RESET_TOTP_EMAIL: email });
 }
 
 function stop() {
@@ -184,10 +194,13 @@ if (isMain) {
     case 'e2e':
       e2e();
       break;
+    case 'reset-totp':
+      resetTotp(process.argv[3]);
+      break;
     case 'stop':
       stop();
       break;
     default:
-      fail('usage: local-supabase.mjs <up|status|seed|e2e|stop>');
+      fail('usage: local-supabase.mjs <up|status|seed|e2e|reset-totp|stop>');
   }
 }

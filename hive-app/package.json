@@ -37,7 +37,8 @@
     "db:types:check": "node scripts/db-types.mjs check",
     "config:check": "node scripts/candidate-config-check.mjs",
     "bundle:inspect": "node scripts/bundle-inspect.mjs",
-    "maestro:validate": "node scripts/maestro-validate.mjs"
+    "maestro:validate": "node scripts/maestro-validate.mjs",
+    "bundle:inspect:candidate": "node scripts/bundle-inspect.mjs --profile candidate"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.3",
@@ -76,6 +77,7 @@
     "prettier": "3.9.6",
     "secretlint": "13.0.4",
     "supabase": "2.115.0",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "yaml": "2.9.0"
   }
 }

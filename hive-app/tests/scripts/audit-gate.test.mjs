@@ -52,6 +52,10 @@ function makeWaiver(overrides = {}) {
     approvalStatus: 'ratified',
     proposedOn: '2026-08-01',
     ratifiedOn: '2026-08-02',
+    ratifiedBy: 'Kody',
+    approvalReference: 'Written ratification wording of 2026-08-02, recorded in decision log',
+    decisionRecordDigest: 'a'.repeat(64),
+    lockfileSha256: 'a'.repeat(64),
     expires: '2026-12-01',
     retest: 'Recheck monthly, on lockfile or Expo change, before any RC, and at expiry.',
     ...overrides,
@@ -290,6 +294,9 @@ test('prohibited assets derive from the matched advisories, not waiver labels', 
 });
 
 test('prohibited extensions are rejected case-insensitively', () => {
+  // icon.png carries a genuine PNG head so only the three prohibited
+  // extensions fail (the positive allowlist covers .png separately).
+  const pngHead = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   const files = [
     'assets/images/icon.png',
     'assets/photos/sample.JXL',
@@ -297,7 +304,9 @@ test('prohibited extensions are rejected case-insensitively', () => {
     'assets/photos/live.heic',
     'docs/notes.md',
   ];
-  const failures = checkProhibitedAssets(IMAGE_SIZE_MATCH, files, noHead);
+  const failures = checkProhibitedAssets(IMAGE_SIZE_MATCH, files, (f) =>
+    f.endsWith('.png') ? pngHead : noHead(),
+  );
   assert.equal(failures.length, 3);
 });
 
@@ -350,4 +359,285 @@ test('detectProhibitedAssetPayload classifies signatures exactly', () => {
     null,
   );
   assert.equal(detectProhibitedAssetPayload(Buffer.alloc(2)), null);
+});
+
+// ---------------------------------------------------------------------------
+// RETURN-3 area 1: GHSA occurrence consistency and dedup-order bypass
+// ---------------------------------------------------------------------------
+
+function twoNodeReport(firstSeverity, secondSeverity, options = {}) {
+  const ghsa = 'GHSA-test-0001-aaaa';
+  const secondName = options.secondName ?? 'demo';
+  return {
+    auditReportVersion: 2,
+    vulnerabilities: {
+      'a-first': {
+        name: 'a-first',
+        severity: firstSeverity,
+        via: [
+          {
+            severity: firstSeverity,
+            url: `https://github.com/advisories/${ghsa}`,
+            name: 'demo',
+          },
+        ],
+      },
+      'b-second': {
+        name: 'b-second',
+        severity: secondSeverity,
+        via: [
+          {
+            severity: secondSeverity,
+            url: `https://github.com/advisories/${ghsa}`,
+            name: secondName,
+          },
+        ],
+      },
+    },
+    metadata: {
+      vulnerabilities: {
+        info: 0,
+        low: 0,
+        moderate: [firstSeverity, secondSeverity].filter((s) => s === 'moderate').length,
+        high: [firstSeverity, secondSeverity].filter((s) => s === 'high').length,
+        critical: 0,
+        total: 2,
+      },
+    },
+  };
+}
+
+test('BYPASS REGRESSION: moderate-first/high-second same GHSA cannot pass unwaived', () => {
+  const report = twoNodeReport('moderate', 'high');
+  // Conflicting severities for one GHSA are a schema/engine failure...
+  const problems = validateAuditReport(report);
+  assert.ok(
+    problems.some((p) => p.includes('conflicting')),
+    `expected a conflicting-occurrence problem; got ${JSON.stringify(problems)}`,
+  );
+  // ...and even if evaluation ran, the high occurrence must not be skipped.
+  const { failures } = evaluateAudit(report, { waivers: [] }, '2026-08-21');
+  assert.ok(
+    failures.some((f) => f.includes('GHSA-test-0001-aaaa')),
+    `expected the high occurrence to fail; got ${JSON.stringify(failures)}`,
+  );
+});
+
+test('BYPASS REGRESSION: high-first/moderate-second same GHSA still fails unwaived', () => {
+  const report = twoNodeReport('high', 'moderate');
+  assert.ok(validateAuditReport(report).some((p) => p.includes('conflicting')));
+  const { failures } = evaluateAudit(report, { waivers: [] }, '2026-08-21');
+  assert.ok(failures.some((f) => f.includes('GHSA-test-0001-aaaa')));
+});
+
+test('package-conflict for one GHSA is a schema failure', () => {
+  const report = twoNodeReport('high', 'high', { secondName: 'other-package' });
+  assert.ok(
+    validateAuditReport(report).some((p) => p.includes('conflicting') && p.includes('package')),
+  );
+});
+
+test('consistent duplicate occurrences of one GHSA validate and evaluate once', () => {
+  const report = twoNodeReport('high', 'high');
+  assert.deepEqual(validateAuditReport(report), []);
+  const { failures } = evaluateAudit(report, { waivers: [] }, '2026-08-21');
+  assert.equal(failures.filter((f) => f.includes('GHSA-test-0001-aaaa')).length, 1);
+});
+
+test('metadata.vulnerabilities.total is required as a nonnegative integer', () => {
+  const missingTotal = structuredClone(EMPTY_REPORT);
+  delete missingTotal.metadata.vulnerabilities.total;
+  assert.ok(validateAuditReport(missingTotal).some((p) => p.includes('total')));
+  const negativeTotal = structuredClone(EMPTY_REPORT);
+  negativeTotal.metadata.vulnerabilities.total = -1;
+  assert.ok(validateAuditReport(negativeTotal).some((p) => p.includes('total')));
+});
+
+// ---------------------------------------------------------------------------
+// RETURN-3 area 2: advisory-derived fixtures and the positive allowlist
+// ---------------------------------------------------------------------------
+
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+function bmff(sizeBytes, boxType, brand, rest = Buffer.alloc(0)) {
+  return Buffer.concat([
+    Buffer.from(sizeBytes),
+    Buffer.from(boxType, 'latin1'),
+    Buffer.from(brand, 'latin1'),
+    rest,
+  ]);
+}
+
+test('ADVISORY FIXTURE: zero-size JXL box (00 00 00 00 "JXL ") is detected', () => {
+  const payload = Buffer.concat([
+    Buffer.from([0, 0, 0, 0]),
+    Buffer.from('JXL ', 'latin1'),
+    Buffer.from([0x0d, 0x0a, 0x87, 0x0a]),
+  ]);
+  assert.equal(detectProhibitedAssetPayload(payload), 'jxl');
+});
+
+test('ADVISORY FIXTURE: zero-size ftyp with AVIF-family brands is detected', () => {
+  for (const brand of ['avif', 'avis', 'avci', 'avcs']) {
+    const payload = bmff([0, 0, 0, 0], 'ftyp', brand, Buffer.alloc(8));
+    assert.equal(detectProhibitedAssetPayload(payload), 'avif', `brand ${brand}`);
+  }
+});
+
+test('HEIF-family brands are detected with zero-size boxes too', () => {
+  for (const brand of ['heic', 'heif', 'mif1', 'msf1']) {
+    const payload = bmff([0, 0, 0, 0], 'ftyp', brand, Buffer.alloc(8));
+    assert.equal(detectProhibitedAssetPayload(payload), 'heif', `brand ${brand}`);
+  }
+});
+
+test('COMPATIBLE-brand-only files are detected (major brand innocent)', () => {
+  // major brand 'isom', minor version, compatible brands list contains avif.
+  const payload = bmff(
+    [0, 0, 0, 32],
+    'ftyp',
+    'isom',
+    Buffer.concat([Buffer.alloc(4), Buffer.from('isomavifmif1', 'latin1')]),
+  );
+  assert.equal(detectProhibitedAssetPayload(payload), 'avif');
+});
+
+test('POSITIVE ALLOWLIST: a renamed crafted payload under .png fails', () => {
+  const heads = new Map([
+    ['assets/images/icon.png', PNG_MAGIC],
+    ['assets/images/renamed.png', bmff([0, 0, 0, 0], 'ftyp', 'avif', Buffer.alloc(8))],
+  ]);
+  const failures = checkProhibitedAssets(IMAGE_SIZE_MATCH, [...heads.keys()], (f) => heads.get(f));
+  assert.equal(failures.length, 1);
+  assert.ok(failures[0].includes('renamed.png'));
+});
+
+test('POSITIVE ALLOWLIST: an image extension whose signature is not its approved magic fails', () => {
+  // Not a prohibited signature — just NOT the PNG magic its extension claims.
+  const heads = new Map([['assets/images/junk.png', Buffer.from('GIF89a??????', 'latin1')]]);
+  const failures = checkProhibitedAssets(IMAGE_SIZE_MATCH, [...heads.keys()], (f) => heads.get(f));
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /approved signature/);
+});
+
+test('POSITIVE ALLOWLIST: unapproved image extensions fail while the control is active', () => {
+  const heads = new Map([['assets/images/photo.jpg', Buffer.from([0xff, 0xd8, 0xff, 0xe0])]]);
+  const failures = checkProhibitedAssets(IMAGE_SIZE_MATCH, [...heads.keys()], (f) => heads.get(f));
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /approved safe extension/);
+});
+
+test('POSITIVE ALLOWLIST: genuine PNGs under .png pass', () => {
+  const heads = new Map([
+    ['assets/images/icon.png', PNG_MAGIC],
+    ['docs/notes.md', Buffer.from('# notes', 'latin1')],
+  ]);
+  assert.deepEqual(
+    checkProhibitedAssets(IMAGE_SIZE_MATCH, [...heads.keys()], (f) => heads.get(f)),
+    [],
+  );
+});
+
+// ---------------------------------------------------------------------------
+// RETURN-3 area 3: ratification provenance
+// ---------------------------------------------------------------------------
+
+const SHA64 = 'a'.repeat(64);
+
+function provenancedWaiver(overrides = {}) {
+  return makeWaiver({
+    ratifiedBy: 'Kody',
+    approvalReference: 'Written ratification wording of 2026-08-02, recorded in decision log',
+    decisionRecordDigest: SHA64,
+    lockfileSha256: SHA64,
+    ...overrides,
+  });
+}
+
+test('a fully provenanced ratified waiver validates', () => {
+  assert.deepEqual(validateWaivers({ waivers: [provenancedWaiver()] }, '2026-08-21'), []);
+});
+
+test('ratified waivers REQUIRE approver, reference, decision digest, and lockfile binding', () => {
+  const cases = [
+    [{ ratifiedBy: undefined }, /ratifiedBy/],
+    [{ ratifiedBy: '   ' }, /ratifiedBy/],
+    [{ approvalReference: undefined }, /approvalReference/],
+    [{ approvalReference: '   ' }, /approvalReference/],
+    [{ decisionRecordDigest: undefined }, /decisionRecordDigest/],
+    [{ decisionRecordDigest: 'abc' }, /decisionRecordDigest/],
+    [{ lockfileSha256: undefined }, /lockfileSha256/],
+    [{ lockfileSha256: 'zz' }, /lockfileSha256/],
+  ];
+  for (const [override, expected] of cases) {
+    const problems = validateWaivers({ waivers: [provenancedWaiver(override)] }, '2026-08-21');
+    assert.ok(
+      problems.some((p) => expected.test(p)),
+      `expected ${expected} for ${JSON.stringify(override)}; got ${JSON.stringify(problems)}`,
+    );
+  }
+});
+
+test('owner alone is never proof of approval', () => {
+  // owner present, ratifiedBy missing: must fail.
+  const problems = validateWaivers(
+    { waivers: [provenancedWaiver({ ratifiedBy: undefined, owner: 'Kody' })] },
+    '2026-08-21',
+  );
+  assert.ok(problems.some((p) => p.includes('ratifiedBy')));
+});
+
+test('ratified references containing pending-style wording are rejected', () => {
+  for (const bad of [
+    'ratification pending',
+    'PROPOSED per directive',
+    'not approved yet',
+    'approval not yet given',
+  ]) {
+    const problems = validateWaivers(
+      { waivers: [provenancedWaiver({ approvalReference: bad })] },
+      '2026-08-21',
+    );
+    assert.ok(
+      problems.some((p) => p.includes('approvalReference')),
+      `expected rejection for reference ${JSON.stringify(bad)}`,
+    );
+  }
+});
+
+test('whitespace cannot satisfy reason or retest', () => {
+  const blankReason = validateWaivers(
+    { waivers: [provenancedWaiver({ reason: '          x' })] },
+    '2026-08-21',
+  );
+  assert.ok(blankReason.some((p) => p.includes('reason')));
+});
+
+test('NEGATIVE: flipping the CURRENT proposed waivers to ratified without new provenance fails', async () => {
+  const { readFileSync } = await import('node:fs');
+  const real = JSON.parse(readFileSync(new URL('../../security/waivers.json', import.meta.url)));
+  const flipped = {
+    waivers: real.waivers.map((w) => ({ ...w, approvalStatus: 'ratified' })),
+  };
+  const problems = validateWaivers(flipped, '2026-08-21');
+  assert.ok(problems.length > 0, 'flipping without provenance must fail');
+  assert.ok(problems.some((p) => p.includes('ratifiedBy') || p.includes('ratifiedOn')));
+});
+
+test('ratified waivers are BOUND to the approved lockfile digest', async () => {
+  const { checkWaiverBindings } = await import('../../scripts/audit-gate.mjs');
+  const current = SHA64;
+  const other = 'b'.repeat(64);
+  assert.deepEqual(checkWaiverBindings([provenancedWaiver()], current), []);
+  const failures = checkWaiverBindings([provenancedWaiver({ lockfileSha256: other })], current);
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /lockfile/);
+  // Proposed entries carry no binding yet: nothing to check.
+  assert.deepEqual(
+    checkWaiverBindings(
+      [makeWaiver({ approvalStatus: 'proposed', ratifiedOn: undefined })],
+      current,
+    ),
+    [],
+  );
 });

@@ -3,16 +3,23 @@ name: Storage quarantine blocks protected UI; scrub is the only recovery
 # Pre-steps on the runner:
 #   1. The installed development build was exported with
 #      EXPO_PUBLIC_QA_HOOKS=1 (QA build). This enables the dev-only
-#      storage-corruption deep link (hivedev://qa/corrupt-storage), which
-#      release configuration forbids (config:check) and bundle inspection
-#      proves absent from non-development exports.
+#      storage-corruption deep link (hivedev://qa/corrupt-storage, parsed
+#      by exact scheme/host/path), which release configuration forbids
+#      (config:check) and bundle inspection proves absent from
+#      non-development exports (bundle:inspect:candidate).
 #   2. The app is signed in (sign-in.yaml).
-# The hook corrupts the stored session manifest; the next launch's
-# verification fails closed into quarantine.
+# The hook corrupts the stored session manifest and then renders a
+# QA-only acknowledgment; the flow WAITS for that acknowledgment before
+# stopping the app, so the corruption write cannot be cut short.
 ---
 - launchApp
 - assertVisible: 'Home'
 - openLink: hivedev://qa/corrupt-storage
+# Wait for the completion acknowledgment before killing the app.
+- extendedWaitUntil:
+    visible:
+      id: 'qa-corrupt-ack'
+    timeout: 10000
 - stopApp
 - launchApp
 # No protected UI and no generic retry: only the scrub action exists.

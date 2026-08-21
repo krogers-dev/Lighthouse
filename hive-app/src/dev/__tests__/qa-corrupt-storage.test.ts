@@ -24,9 +24,16 @@ class MemoryBackend implements SecureStoreBackend {
 }
 
 describe('dev-only QA storage-corruption hook', () => {
-  it('recognizes exactly the QA deep-link path', () => {
+  it('recognizes exactly the QA deep link by scheme, host, and path — no substrings', () => {
     expect(isQaCorruptUrl('hivedev://qa/corrupt-storage')).toBe(true);
     expect(isQaCorruptUrl('hivedev://dashboard')).toBe(false);
+    // Substring attacks must never trigger the hook (RETURN-3 area 8).
+    expect(isQaCorruptUrl('https://evil.example/qa/corrupt-storage')).toBe(false);
+    expect(isQaCorruptUrl('hivedev://qa/corrupt-storage-extra')).toBe(false);
+    expect(isQaCorruptUrl('hivedev://qa/corrupt-storage/nested')).toBe(false);
+    expect(isQaCorruptUrl('hivedev://other/corrupt-storage')).toBe(false);
+    expect(isQaCorruptUrl('hivedev://qa/corrupt-storage?x=1')).toBe(true);
+    expect(isQaCorruptUrl('not a url at all')).toBe(false);
   });
 
   it('makes a previously valid stored session quarantine on the next read', async () => {

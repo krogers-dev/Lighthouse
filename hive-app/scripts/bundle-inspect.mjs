@@ -113,6 +113,22 @@ export function checkApprovedValues(text, filePath, approved) {
   return findings;
 }
 
+/** Which release-only patterns apply per profile (RETURN-3 area 7):
+ *  - development: none (the dev export legitimately carries loopback
+ *    endpoints and development identifiers);
+ *  - candidate: the AUTHORIZED SYNTHETIC candidate lane — a real
+ *    production-mode export built WITHOUT production identifiers or
+ *    credentials, so dev-config values are expected; what it must prove
+ *    is the absence of the dev-only QA hook (qa-hook-marker);
+ *  - release (and anything unknown): every release-only pattern. */
+export function patternsForProfile(profile) {
+  if (profile === 'development') return [];
+  if (profile === 'candidate') {
+    return RELEASE_ONLY_PATTERNS.filter((pattern) => pattern.name === 'qa-hook-marker');
+  }
+  return RELEASE_ONLY_PATTERNS;
+}
+
 export function inspectContent(rawText, filePath, profile, approved) {
   let text = rawText;
   for (const constant of KNOWN_LIBRARY_CONSTANTS) {
@@ -122,9 +138,11 @@ export function inspectContent(rawText, filePath, profile, approved) {
     (f) => f.pattern !== 'generic-secret-env',
   );
   findings.push(...checkApprovedValues(text, filePath, approved));
-  if (profile !== 'development') {
-    findings.push(...scanText(text, RELEASE_ONLY_PATTERNS, filePath));
-  } else {
+  findings.push(...scanText(text, patternsForProfile(profile), filePath));
+  if (profile !== 'release') {
+    // Development and the synthetic candidate legitimately carry loopback
+    // endpoints — but only the approved one. Any OTHER loopback endpoint
+    // is still a finding in every profile.
     const urlPattern = /https?:\/\/(?:127\.0\.0\.1|localhost|10\.0\.2\.2)(?::\d+)?/g;
     let match;
     while ((match = urlPattern.exec(text)) !== null) {
@@ -197,18 +215,30 @@ if (isMain) {
     ? process.argv[process.argv.indexOf('--profile') + 1]
     : 'development';
   if (profile === 'release') {
+    // Release inspection needs the approved production configuration
+    // (identifiers, endpoints) that does not exist yet: explicit HOLD.
+    // The executable non-development lane is --profile candidate.
     console.error(
-      'bundle:inspect: release-profile inspection is HOLD until approved public configuration exists',
+      'bundle:inspect: HOLD — release-profile inspection requires approved public configuration; run --profile candidate for the authorized synthetic lane (exit 3)',
     );
-    process.exit(1);
+    process.exit(3);
   }
-  const distDir = path.join(appRoot, 'dist');
+  if (profile !== 'development' && profile !== 'candidate') {
+    console.error(`bundle:inspect: unknown profile ${JSON.stringify(profile)}`);
+    process.exit(2);
+  }
+  const distDir = process.env.HIVE_BUNDLE_DIST ?? path.join(appRoot, 'dist');
   let files;
   try {
     files = collectFiles(distDir);
   } catch {
-    console.error('bundle:inspect: no dist/ export found — run expo export first');
-    process.exit(1);
+    console.error('bundle:inspect: no export found at ' + distDir + ' — run expo export first');
+    process.exit(2);
+  }
+  if (files.length === 0) {
+    // Nothing scanned proves nothing: refuse to short-circuit to success.
+    console.error(`bundle:inspect ENGINE FAILURE: zero files found under ${distDir}`);
+    process.exit(2);
   }
   const approved = loadApproved();
   const findings = [];
@@ -226,8 +256,13 @@ if (isMain) {
     }
   }
   console.log(
-    `bundle:inspect: ${textCount} text and ${binaryCount} binary files scanned in dist/ (${profile} profile)`,
+    `bundle:inspect: ${textCount} text and ${binaryCount} binary files scanned in ${path.relative(appRoot, distDir) || distDir} (${profile} profile)`,
   );
+  if (profile === 'candidate') {
+    console.log(
+      'bundle:inspect: candidate lane — synthetic candidate carries development config by design; enforcing zero QA-hook markers across all scanned output',
+    );
+  }
   if (findings.length > 0) {
     for (const f of findings) console.error(`FAIL ${f.file}:${f.line} ${f.pattern}`);
     console.error('bundle:inspect FAILED');

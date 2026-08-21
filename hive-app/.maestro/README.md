@@ -42,10 +42,32 @@ targets, and banned secret channels across every flow.
    overwrites the clipboard. The secret never travels through CLI
    arguments, environment variables, URL parameters, persisted clipboard,
    logs, screenshots, or operator notes; later flows fetch codes by the
-   synthetic account label only. Wrong-code attempts use a code DERIVED
-   from the real one, never a constant.
-5. `expired-session.yaml` has its documented server-side revocation
+   synthetic account label only. Wrong-code attempts use a code that is
+   guaranteed wrong across the previous, current, and next accepted time
+   windows, never a constant.
+5. Before `mfa-enroll.yaml`, reset the reviewer's factors with the
+   checked loopback command (seeding does NOT clear factors):
+   `node scripts/local-supabase.mjs reset-totp reviewer.rae@example.invalid`.
+   It fails unless the listing, every deletion, and a zero-factor
+   readback all succeed, so enrollment is repeatable after previous
+   successful and failed runs.
+6. `expired-session.yaml` has its documented server-side revocation
    pre-step in the flow header.
+
+## Artifact hygiene for the enrollment flow (mandatory)
+
+Maestro captures screenshots on failure, and the setup screen shows the
+QR and setup key. Therefore, for `mfa-enroll.yaml`:
+
+1. Run with a restricted TEMPORARY artifact directory:
+   `maestro test --debug-output <private tmp dir> …` — never the shared
+   evidence folder.
+2. After the run — success or failure — revoke the disposable factor
+   (re-run `reset-totp` if the run failed mid-enrollment), then scrub
+   the temporary artifact directory.
+3. Copy evidence for retention only AFTER the scrub, and retained
+   evidence begins at the post-setup assertions — no retained artifact
+   may contain the QR or setup key.
 
 ## Device evidence to capture (beyond flow output)
 

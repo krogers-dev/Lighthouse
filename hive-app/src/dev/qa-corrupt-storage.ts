@@ -20,11 +20,26 @@ import { MANIFEST_KEY, type SecureStoreBackend } from '@/auth/secure-store-adapt
 
 export const QA_CORRUPT_HOOK_MARKER = 'HIVE_QA_CORRUPT_HOOK';
 
-/** Deep-link path the dev QA hook listens for: hivedev://qa/corrupt-storage */
-export const QA_CORRUPT_URL_PATH = 'qa/corrupt-storage';
+/** The one exact QA deep link: hivedev://qa/corrupt-storage */
+export const QA_CORRUPT_SCHEME = 'hivedev:';
+export const QA_CORRUPT_HOST = 'qa';
+export const QA_CORRUPT_PATHNAME = '/corrupt-storage';
 
+/** Exact scheme, host, and path (RETURN-3 area 8) — parsed, never
+ * substring-matched, so `https://evil/qa/corrupt-storage` and
+ * `hivedev://qa/corrupt-storage-extra` never trigger the hook. */
 export function isQaCorruptUrl(url: string): boolean {
-  return url.includes(QA_CORRUPT_URL_PATH);
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  return (
+    parsed.protocol === QA_CORRUPT_SCHEME &&
+    parsed.hostname === QA_CORRUPT_HOST &&
+    parsed.pathname === QA_CORRUPT_PATHNAME
+  );
 }
 
 export async function corruptStoredSessionForQa(backend: SecureStoreBackend): Promise<void> {

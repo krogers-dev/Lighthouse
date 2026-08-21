@@ -10,7 +10,8 @@
       "approvalStatus": "proposed",
       "proposedOn": "2026-08-21",
       "expires": "2026-11-21",
-      "retest": "Recheck monthly, on every lockfile or Expo change, before any release candidate, and at expiry; remove this waiver as soon as a fixed image-size release ships. Compensating control: audit:gate rejects tracked ICNS/JXL/HEIF/HEIC assets (by extension AND file signature) while this advisory is present."
+      "retest": "Recheck monthly, on every lockfile or Expo change, before any release candidate, and at expiry; remove this waiver as soon as a fixed image-size release ships. Compensating control: audit:gate rejects tracked ICNS/JXL/HEIF/HEIC assets (by extension AND file signature) while this advisory is present.",
+      "approvalReference": "Proposed under the PM RETURN directives of 2026-08-21; Kody has not yet ratified"
     },
     {
       "advisory": "GHSA-5p2g-fcmc-qvqq",
@@ -21,7 +22,8 @@
       "approvalStatus": "proposed",
       "proposedOn": "2026-08-21",
       "expires": "2026-11-21",
-      "retest": "Recheck monthly, on every lockfile or Expo change, before any release candidate, and at expiry; remove this waiver as soon as a fixed image-size release ships. Compensating control: audit:gate rejects tracked ICNS/JXL/HEIF/HEIC assets (by extension AND file signature) while this advisory is present."
+      "retest": "Recheck monthly, on every lockfile or Expo change, before any release candidate, and at expiry; remove this waiver as soon as a fixed image-size release ships. Compensating control: audit:gate rejects tracked ICNS/JXL/HEIF/HEIC assets (by extension AND file signature) while this advisory is present.",
+      "approvalReference": "Proposed under the PM RETURN directives of 2026-08-21; Kody has not yet ratified"
     }
   ]
 }

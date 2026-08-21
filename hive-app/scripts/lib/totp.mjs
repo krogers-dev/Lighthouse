@@ -21,6 +21,65 @@ export function base32Decode(input) {
   return Buffer.from(out);
 }
 
+/** Strict canonical RFC 4648 Base32 (RETURN-3 area 8): rejects — rather
+ * than skipping — any character outside A-Z2-7, wrong total length (must
+ * be a multiple of 8 with padding), padding in illegal positions or
+ * amounts (only 0, 1, 3, 4, or 6 '=' at the very end), and non-zero
+ * unused tail bits (non-canonical encodings). Returns the decoded bytes
+ * or null. */
+export function strictBase32Decode(input) {
+  if (typeof input !== 'string' || input.length === 0) return null;
+  const normalized = input.toUpperCase();
+  if (!/^[A-Z2-7]+={0,6}$/.test(normalized)) return null;
+  const padIndex = normalized.indexOf('=');
+  const body = padIndex === -1 ? normalized : normalized.slice(0, padIndex);
+  const padding = padIndex === -1 ? 0 : normalized.length - padIndex;
+  if (![0, 1, 3, 4, 6].includes(padding)) return null;
+  if (padding > 0 && (body.length + padding) % 8 !== 0) return null;
+  const remainder = body.length % 8;
+  // Legal unpadded remainders and the padding each implies.
+  const paddingForRemainder = { 0: 0, 2: 6, 4: 4, 5: 3, 7: 1 };
+  if (!(remainder in paddingForRemainder)) return null;
+  if (padding > 0 && padding !== paddingForRemainder[remainder]) return null;
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = 0;
+  let value = 0;
+  const out = [];
+  for (const char of body) {
+    value = (value << 5) | alphabet.indexOf(char);
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      out.push((value >> bits) & 0xff);
+    }
+  }
+  // Canonical encodings zero every unused tail bit.
+  if (bits > 0 && (value & ((1 << bits) - 1)) !== 0) return null;
+  return Buffer.from(out);
+}
+
+/** Codes for the previous, current, and next time windows — the set a
+ * server with adjacent-window tolerance would accept. */
+export function totpWindowCodes(secretBase32, atMs = Date.now(), stepSeconds = 30) {
+  const stepMs = stepSeconds * 1000;
+  return [
+    totpCode(secretBase32, atMs - stepMs, stepSeconds),
+    totpCode(secretBase32, atMs, stepSeconds),
+    totpCode(secretBase32, atMs + stepMs, stepSeconds),
+  ];
+}
+
+/** A six-digit code guaranteed wrong under adjacent-window tolerance: it
+ * differs from the previous, current, AND next accepted codes. */
+export function guaranteedWrongCode(secretBase32, atMs = Date.now(), stepSeconds = 30) {
+  const accepted = new Set(totpWindowCodes(secretBase32, atMs, stepSeconds));
+  let candidate = (Number(totpCode(secretBase32, atMs, stepSeconds)) + 1) % 1_000_000;
+  while (accepted.has(String(candidate).padStart(6, '0'))) {
+    candidate = (candidate + 1) % 1_000_000;
+  }
+  return String(candidate).padStart(6, '0');
+}
+
 export function totpCode(secretBase32, atMs = Date.now(), stepSeconds = 30, digits = 6) {
   const counter = Math.floor(atMs / 1000 / stepSeconds);
   const message = Buffer.alloc(8);

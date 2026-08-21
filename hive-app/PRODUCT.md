@@ -113,6 +113,14 @@ checkpoint, milestone, release candidate, or production release.
   public web route exist. This is recorded here as a release dependency for
   the store-release milestone; the Milestone 0 settings screen exposes
   sign-out and account-access information only.
+- **Hosted OTP email template (Supabase change of June 3, 2026):** HIVE's
+  sign-in email must deliver the six-digit `{{ .Token }}` via a customized
+  template. New Free-tier Supabase projects using the default email
+  provider can no longer customize email templates, so hosted staging and
+  release require a Pro-plan project or a controlled custom SMTP
+  provider, followed by black-box proof (Mailpit-style capture against
+  the hosted stack) that the delivered email contains the six-digit OTP.
+  Release HOLD dependency; the local pinned stack is unaffected.
 - Store identifiers, privacy answers, financial-features declaration,
   export compliance, reviewer accounts, and all items in the brief's
   "Decisions Claude must HOLD instead of guessing" list remain HOLD.

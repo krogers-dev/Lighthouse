@@ -25,8 +25,20 @@ export function verifyCanonicalUser(user, identity) {
   if (normalizedEmail(user.email) !== normalizedEmail(identity.email)) {
     problems.push(`email ${user.email ?? '(missing)'} does not match ${identity.email}`);
   }
-  if (!user.email_confirmed_at && !user.confirmed_at) {
-    problems.push('email is not confirmed');
+  // email_confirmed_at SPECIFICALLY (RETURN-3 area 4): the generic
+  // confirmed_at can represent phone confirmation and proves nothing
+  // about the email factor this identity signs in with.
+  if (!user.email_confirmed_at) {
+    problems.push('email_confirmed_at is not set — the email itself is not confirmed');
+  }
+  if (user.role !== 'authenticated') {
+    problems.push(`role ${JSON.stringify(user.role)} is not exactly "authenticated"`);
+  }
+  if (user.aud !== 'authenticated') {
+    problems.push(`aud ${JSON.stringify(user.aud)} is not exactly "authenticated"`);
+  }
+  if (user.is_anonymous === true) {
+    problems.push('user is anonymous — canonical identities are never anonymous');
   }
   const identities = Array.isArray(user.identities) ? user.identities : [];
   const emailIdentities = identities.filter((entry) => entry?.provider === 'email');

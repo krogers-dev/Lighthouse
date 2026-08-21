@@ -56,13 +56,24 @@ insert into public.case_attention_items (id, environment_id, client_id, entity_i
   ('ffffffff-0000-4000-8000-0000000000a1', '11111111-0000-4000-8000-000000000001',
    'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-1111-4000-8000-000000000001',
    'eeeeeeee-0000-4000-8000-0000000000a1',
-   'One statement is still needed to complete the records (Synthetic)');
+   'One statement is still needed to complete the records (Synthetic)'),
+  -- Out-of-scope fixture (RETURN-3 area 6): lives in client B / entity B1
+  -- so cross-scope isolation of attention items is a REAL negative.
+  ('ffffffff-0000-4000-8000-0000000000b1', '11111111-0000-4000-8000-000000000001',
+   'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-1111-4000-8000-000000000001',
+   'eeeeeeee-0000-4000-8000-0000000000b1',
+   'Quarterly checklist item outstanding (Synthetic)');
 
 insert into public.case_next_actions (id, environment_id, client_id, entity_id, case_id, summary, owner_role) values
   ('ffffffff-1111-4000-8000-0000000000a1', '11111111-0000-4000-8000-000000000001',
    'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-1111-4000-8000-000000000001',
    'eeeeeeee-0000-4000-8000-0000000000a1',
-   'Provide the missing statement when convenient (Synthetic)', 'client_user');
+   'Provide the missing statement when convenient (Synthetic)', 'client_user'),
+  -- Out-of-scope fixture (RETURN-3 area 6), client B / entity B1.
+  ('ffffffff-1111-4000-8000-0000000000b1', '11111111-0000-4000-8000-000000000001',
+   'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-1111-4000-8000-000000000001',
+   'eeeeeeee-0000-4000-8000-0000000000b1',
+   'Prepare the quarterly review packet (Synthetic)', 'preparer');
 
 -- A representative privileged audit receipt via the server-side writer.
 select app_private.append_audit(

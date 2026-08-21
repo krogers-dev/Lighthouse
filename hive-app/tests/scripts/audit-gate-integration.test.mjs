@@ -4,7 +4,8 @@
  * finding, and valid unwaived finding. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -65,6 +66,12 @@ function makeWaivers(waivers) {
   return file;
 }
 
+// Ratified waivers are bound to the CURRENT lockfile digest — computed
+// here exactly as the gate computes it.
+const REAL_LOCKFILE_SHA256 = createHash('sha256')
+  .update(readFileSync(path.join(appRoot, 'package-lock.json')))
+  .digest('hex');
+
 const VALID_WAIVER = {
   advisory: 'GHSA-aaaa-bbbb-cccc',
   package: 'demo',
@@ -74,6 +81,10 @@ const VALID_WAIVER = {
   approvalStatus: 'ratified',
   proposedOn: '2026-08-01',
   ratifiedOn: '2026-08-02',
+  ratifiedBy: 'Kody',
+  approvalReference: 'Synthetic written ratification record for integration tests',
+  decisionRecordDigest: 'a'.repeat(64),
+  lockfileSha256: REAL_LOCKFILE_SHA256,
   expires: '2099-01-01',
   retest: 'Recheck monthly, on lockfile or Expo change, before any RC, and at expiry.',
 };
@@ -228,4 +239,11 @@ test('malformed waiver fields fail', () => {
   assert.equal(result.status, 1);
   assert.match(result.stderr, /malformed advisory id/);
   assert.match(result.stderr, /missing owner/);
+});
+
+test('a ratified waiver bound to a DIFFERENT lockfile digest fails (re-approval required)', () => {
+  const stale = { ...VALID_WAIVER, lockfileSha256: 'b'.repeat(64) };
+  const result = runGate('findings', HIGH_REPORT, [stale]);
+  assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /different lockfile digest/);
 });

@@ -31,6 +31,7 @@
  */
 import process from 'node:process';
 
+import { cleanAllFactors } from './lib/admin-factors.mjs';
 import { SCOPE, SYNTHETIC_IDENTITIES } from './lib/synthetic-identities.mjs';
 import { totpCode } from './lib/totp.mjs';
 
@@ -221,12 +222,18 @@ async function mandatoryRefresh(session, identity, expectedAal, label) {
 // TOTP helpers (admin cleanup keeps reruns deterministic).
 // ---------------------------------------------------------------------------
 
+/** Fail-closed factor cleanup (RETURN-3 area 5): the listing must
+ * succeed, every deletion must succeed, and a final readback must prove
+ * zero factors remain before any enrollment begins. */
 async function adminCleanFactors(identity) {
-  const listing = await admin(`/admin/users/${identity.id}/factors`);
-  const factors = Array.isArray(listing.body) ? listing.body : (listing.body?.factors ?? []);
-  for (const factor of factors) {
-    await admin(`/admin/users/${identity.id}/factors/${factor.id}`, { method: 'DELETE' });
+  const { problems, deleted } = await cleanAllFactors(admin, identity);
+  for (const problem of problems) {
+    check(false, `${identity.email}: factor cleanup — ${problem}`);
   }
+  return check(
+    problems.length === 0,
+    `${identity.email}: factor-clean before enrollment (${deleted} deleted, readback zero)`,
+  );
 }
 
 async function enrollAndVerifyTotp(identity, session, label) {
@@ -278,6 +285,35 @@ const CASES = {
   b1: 'eeeeeeee-0000-4000-8000-0000000000b1',
   b2: 'eeeeeeee-0000-4000-8000-0000000000b2',
 };
+const ATTENTION = {
+  a1: 'ffffffff-0000-4000-8000-0000000000a1',
+  b1: 'ffffffff-0000-4000-8000-0000000000b1',
+};
+const NEXT_ACTIONS = {
+  a1: 'ffffffff-1111-4000-8000-0000000000a1',
+  b1: 'ffffffff-1111-4000-8000-0000000000b1',
+};
+/** Exact AAL2 reach per scope set, covering ALL SIX protected tables
+ * (RETURN-3 area 6). The B-side attention/next-action rows exist
+ * specifically so the missing ids here are real negatives. */
+const REACH = {
+  aOnly: {
+    environments: [SCOPE.environmentId],
+    clients: [SCOPE.clientA],
+    entities: [SCOPE.entityA1],
+    cases: [CASES.a1],
+    case_attention_items: [ATTENTION.a1],
+    case_next_actions: [NEXT_ACTIONS.a1],
+  },
+  aAndB1: {
+    environments: [SCOPE.environmentId],
+    clients: [SCOPE.clientA, SCOPE.clientB],
+    entities: [SCOPE.entityA1, SCOPE.entityB1],
+    cases: [CASES.a1, CASES.b1],
+    case_attention_items: [ATTENTION.a1, ATTENTION.b1],
+    case_next_actions: [NEXT_ACTIONS.a1, NEXT_ACTIONS.b1],
+  },
+};
 const PROTECTED_TABLES = [
   'environments',
   'clients',
@@ -296,7 +332,7 @@ function sameSet(actual, expected) {
 
 /** AAL1 for a user holding any staff membership: zero rows from all six
  * protected tables; exactly the own membership rows (area 4). */
-async function assertStaffAal1(identity, session, expectedRoles) {
+async function assertStaffAal1(identity, session) {
   for (const table of PROTECTED_TABLES) {
     const result = await rest(`/${table}?select=id`, session.access_token);
     check(
@@ -309,19 +345,31 @@ async function assertStaffAal1(identity, session, expectedRoles) {
     session.access_token,
   );
   const rows = memberships.body ?? [];
+  // Complete canonical tuples (RETURN-3 area 6): environment, client,
+  // entity, role, AND canonical user id — from the identity definition.
+  const tupleOf = (row) =>
+    [row.user_id, row.environment_id, row.client_id, row.entity_id, row.role].join(':');
+  const expectedTuples = identity.memberships
+    .map(([clientKey, entityKey, role]) =>
+      [identity.id, SCOPE.environmentId, SCOPE[clientKey], SCOPE[entityKey], role].join(':'),
+    )
+    .sort();
+  const actualTuples = rows.map(tupleOf).sort();
   check(
-    memberships.status === 200 && rows.length === expectedRoles.length,
-    `${identity.email} AAL1: exactly ${expectedRoles.length} own membership rows`,
+    memberships.status === 200 && JSON.stringify(actualTuples) === JSON.stringify(expectedTuples),
+    `${identity.email} AAL1: membership rows are exactly the canonical tuples (${expectedTuples.length})`,
   );
-  check(
-    rows.every((row) => row.user_id === identity.id),
-    `${identity.email} AAL1: every membership row belongs to the canonical id`,
-  );
-  const roles = rows.map((row) => row.role).sort();
-  check(
-    JSON.stringify(roles) === JSON.stringify([...expectedRoles].sort()),
-    `${identity.email} AAL1: membership roles are exactly ${expectedRoles.join('+')}`,
-  );
+}
+
+/** Exact ID sets across ALL SIX protected tables with the given token. */
+async function assertExactReach(identity, accessToken, reach, label) {
+  for (const table of PROTECTED_TABLES) {
+    const result = await rest(`/${table}?select=id`, accessToken);
+    check(
+      result.status === 200 && sameSet(idsOf(result.body), reach[table]),
+      `${identity.email} ${label}: ${table} ids are exactly {${reach[table].join(', ')}}`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -372,7 +420,7 @@ for (const identity of SYNTHETIC_IDENTITIES) {
   await adminCleanFactors(identity);
   const aal1 = await signInWithOtp(identity);
   if (aal1) {
-    await assertStaffAal1(identity, aal1, ['preparer', 'preparer']);
+    await assertStaffAal1(identity, aal1);
     const enrolled = await enrollAndVerifyTotp(identity, aal1, `${identity.email} enroll`);
     if (enrolled) {
       const refreshed = await mandatoryRefresh(
@@ -382,10 +430,11 @@ for (const identity of SYNTHETIC_IDENTITIES) {
         `${identity.email} AAL2`,
       );
       if (refreshed) {
-        const cases = await rest('/cases?select=id', refreshed.access_token);
-        check(
-          cases.status === 200 && sameSet(idsOf(cases.body), [CASES.a1, CASES.b1]),
-          `${identity.email} AAL2 (refreshed token): cases are exactly A1+B1`,
+        await assertExactReach(
+          identity,
+          refreshed.access_token,
+          REACH.aAndB1,
+          'AAL2 (refreshed token)',
         );
       }
       // Repeat login: fresh OTP; the verified factor is discovered from
@@ -437,7 +486,7 @@ for (const identity of SYNTHETIC_IDENTITIES) {
   await adminCleanFactors(identity);
   const aal1 = await signInWithOtp(identity);
   if (aal1) {
-    await assertStaffAal1(identity, aal1, ['client_user', 'preparer']);
+    await assertStaffAal1(identity, aal1);
     const enrolled = await enrollAndVerifyTotp(identity, aal1, `${identity.email} enroll`);
     if (enrolled) {
       const refreshed = await mandatoryRefresh(
@@ -448,22 +497,7 @@ for (const identity of SYNTHETIC_IDENTITIES) {
       );
       if (refreshed) {
         const token = refreshed.access_token;
-        const cases = await rest('/cases?select=id', token);
-        check(
-          cases.status === 200 && sameSet(idsOf(cases.body), [CASES.a1, CASES.b1]),
-          `${identity.email} AAL2: cases are exactly the A1 and B1 cases`,
-        );
-        const entities = await rest('/entities?select=id', token);
-        check(
-          entities.status === 200 &&
-            sameSet(idsOf(entities.body), [SCOPE.entityA1, SCOPE.entityB1]),
-          `${identity.email} AAL2: entities are exactly A1 and B1`,
-        );
-        const clients = await rest('/clients?select=id', token);
-        check(
-          clients.status === 200 && sameSet(idsOf(clients.body), [SCOPE.clientA, SCOPE.clientB]),
-          `${identity.email} AAL2: clients are exactly A and B`,
-        );
+        await assertExactReach(identity, token, REACH.aAndB1, 'AAL2');
         const wrongEntity = await rest(`/cases?select=id&entity_id=eq.${SCOPE.entityB2}`, token);
         check(
           wrongEntity.status === 200 && (wrongEntity.body ?? []).length === 0,
@@ -483,7 +517,7 @@ for (const identity of SYNTHETIC_IDENTITIES) {
   await adminCleanFactors(identity);
   const aal1 = await signInWithOtp(identity);
   if (aal1) {
-    await assertStaffAal1(identity, aal1, ['client_user', 'reviewer']);
+    await assertStaffAal1(identity, aal1);
     const enrolled = await enrollAndVerifyTotp(identity, aal1, `${identity.email} enroll`);
     if (enrolled) {
       const refreshed = await mandatoryRefresh(
@@ -494,16 +528,7 @@ for (const identity of SYNTHETIC_IDENTITIES) {
       );
       if (refreshed) {
         const token = refreshed.access_token;
-        const cases = await rest('/cases?select=id', token);
-        check(
-          cases.status === 200 && sameSet(idsOf(cases.body), [CASES.a1]),
-          `${identity.email} AAL2: cases are exactly the single A1 case`,
-        );
-        const entities = await rest('/entities?select=id', token);
-        check(
-          entities.status === 200 && sameSet(idsOf(entities.body), [SCOPE.entityA1]),
-          `${identity.email} AAL2: entities are exactly A1`,
-        );
+        await assertExactReach(identity, token, REACH.aOnly, 'AAL2');
         const wrongClient = await rest(`/clients?select=id&id=eq.${SCOPE.clientB}`, token);
         check(
           wrongClient.status === 200 && (wrongClient.body ?? []).length === 0,

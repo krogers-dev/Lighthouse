@@ -8,14 +8,18 @@ import { getRuntime } from '@/app-runtime';
 import { AuthProvider } from '@/auth/provider';
 import { AppText, Notice, Screen } from '@/ui';
 
-/** Development-only QA hook (RETURN-2 area 7): a QA build (dev build with
- * EXPO_PUBLIC_QA_HOOKS=1) corrupts the stored session on
- * hivedev://qa/corrupt-storage so the quarantine device flow is
- * executable. The `__DEV__` guard means release bundles drop the entire
- * block (Metro dead-code elimination); bundle:inspect proves the marker
- * string is absent from non-development exports and config:check rejects
- * the env flag for candidate/release profiles. */
-function useDevQaHooks(): void {
+/** Development-only QA hook (RETURN-2 area 7; RETURN-3 area 8): a QA
+ * build (dev build with EXPO_PUBLIC_QA_HOOKS=1) corrupts the stored
+ * session on the exact deep link hivedev://qa/corrupt-storage so the
+ * quarantine device flow is executable, and returns true once the
+ * corruption write has COMPLETED so Maestro can wait for the on-screen
+ * acknowledgment before stopping the app. The `__DEV__` guard means
+ * release bundles drop the entire block (Metro dead-code elimination);
+ * bundle:inspect proves the marker string is absent from non-development
+ * exports and config:check rejects the env flag for candidate/release
+ * profiles. */
+function useDevQaHooks(): boolean {
+  const [corrupted, setCorrupted] = React.useState(false);
   React.useEffect(() => {
     if (!(__DEV__ && process.env.EXPO_PUBLIC_QA_HOOKS === '1')) return undefined;
     /* eslint-disable @typescript-eslint/no-require-imports */
@@ -28,12 +32,15 @@ function useDevQaHooks(): void {
       deleteItem: (key: string) => secureStore.deleteItemAsync(key),
     };
     const handle = (url: string | null): void => {
-      if (url && qa.isQaCorruptUrl(url)) void qa.corruptStoredSessionForQa(backend);
+      if (url && qa.isQaCorruptUrl(url)) {
+        void qa.corruptStoredSessionForQa(backend).then(() => setCorrupted(true));
+      }
     };
     void Linking.getInitialURL().then(handle);
     const subscription = Linking.addEventListener('url', (event) => handle(event.url));
     return () => subscription.remove();
   }, []);
+  return corrupted;
 }
 
 /** Sanitized application error boundary. Unexpected failures map to a
@@ -80,7 +87,7 @@ function ConfigurationFatal({ problems }: { problems: readonly string[] }): Reac
 }
 
 export default function RootLayout(): React.JSX.Element {
-  useDevQaHooks();
+  const qaCorrupted = useDevQaHooks();
   const runtime = getRuntime();
   if (!runtime.ok) {
     return <ConfigurationFatal problems={runtime.problems} />;
@@ -91,6 +98,15 @@ export default function RootLayout(): React.JSX.Element {
         <StatusBar style="auto" />
         {/* Frequent navigation is not animated (motion contract). */}
         <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
+        {/* QA-only completion acknowledgment (RETURN-3 area 8): rendered
+            only in QA dev builds after the corruption write completes, so
+            the Maestro flow waits for it before stopping the app. The
+            whole expression is dead code in release bundles (__DEV__). */}
+        {__DEV__ && process.env.EXPO_PUBLIC_QA_HOOKS === '1' && qaCorrupted ? (
+          <AppText variant="caption" testID="qa-corrupt-ack" accessibilityLabel="QA acknowledgment">
+            QA: stored session corrupted
+          </AppText>
+        ) : null}
       </AuthProvider>
     </SafeAreaProvider>
   );

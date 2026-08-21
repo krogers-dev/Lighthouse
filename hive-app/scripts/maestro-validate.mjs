@@ -1,23 +1,28 @@
 #!/usr/bin/env node
 /**
  * maestro:validate — structural validation of every Maestro flow before
- * any hardware run is scheduled (second RETURN directive, area 7).
+ * any hardware run is scheduled (RETURN-3 area 8: parsed with a real
+ * YAML parser — the pinned `yaml` dev dependency — so malformed YAML
+ * fails instead of slipping past a line scanner).
  *
- * Deliberately line-oriented (no YAML dependency): flows here are flat
- * step lists. Checks, per flow file:
- *  - the exact development appId and the `---` document separator;
- *  - every top-level step uses a known Maestro command;
+ * Checks per flow file:
+ *  - the file parses as exactly two YAML documents (header, steps);
+ *  - the header carries the exact development appId;
+ *  - the steps document is a list where every step is a known Maestro
+ *    command (bare string or single-key map);
  *  - every `id:` selector references a testID that exists in app/ or src/;
  *  - every runScript target exists in .maestro/;
  *  - banned patterns: any TOTP_SECRET channel, a secret in a URL query,
  *    and the nondeterministic constant '000000' as an input.
- * Helper .js files are checked for the URL-secret ban too.
+ * Helper .js files are checked for the URL-secret and TOTP_SECRET bans.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+
+import YAML from 'yaml';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -34,6 +39,7 @@ export const KNOWN_COMMANDS = new Set([
   'openLink',
   'back',
   'setAirplaneMode',
+  'extendedWaitUntil',
 ]);
 
 const EXPECTED_APP_ID = 'com.myhbcfo.hive.development';
@@ -56,34 +62,78 @@ export function collectTestIds(root = appRoot) {
   return ids;
 }
 
-/** Validate one flow file's text. Returns human-readable problems. */
+function walkSelectors(node, visit) {
+  if (Array.isArray(node)) {
+    for (const item of node) walkSelectors(item, visit);
+    return;
+  }
+  if (typeof node === 'object' && node !== null) {
+    for (const [key, value] of Object.entries(node)) {
+      visit(key, value);
+      walkSelectors(value, visit);
+    }
+  }
+}
+
+/** Validate one flow file's text with a real YAML parse. */
 export function validateFlowText(text, { fileName, knownTestIds, scriptFiles }) {
   const problems = [];
   const label = fileName;
-  if (!new RegExp(`^appId:\\s*${EXPECTED_APP_ID}\\s*$`, 'm').test(text)) {
+  const documents = YAML.parseAllDocuments(text, { prettyErrors: true });
+  for (const document of documents) {
+    for (const error of document.errors) {
+      problems.push(`${label}: YAML parse error — ${error.message.split('\n')[0]}`);
+    }
+  }
+  if (problems.length > 0) return problems;
+  if (documents.length !== 2) {
+    problems.push(
+      `${label}: expected exactly two YAML documents (header, steps); found ${documents.length}`,
+    );
+    return problems;
+  }
+  const header = documents[0].toJS();
+  const steps = documents[1].toJS();
+  if (typeof header !== 'object' || header === null || header.appId !== EXPECTED_APP_ID) {
     problems.push(`${label}: missing or wrong appId (expected ${EXPECTED_APP_ID})`);
   }
-  if (!/^---$/m.test(text)) {
-    problems.push(`${label}: missing the --- document separator`);
+  if (!Array.isArray(steps)) {
+    problems.push(`${label}: the steps document must be a list`);
+    return problems;
   }
-  for (const line of text.split('\n')) {
-    const step = /^- ([A-Za-z]+)\s*:?/.exec(line);
-    if (step && !KNOWN_COMMANDS.has(step[1])) {
-      problems.push(`${label}: unknown Maestro command "${step[1]}"`);
+  for (const [index, step] of steps.entries()) {
+    const where = `${label} step ${index + 1}`;
+    let command;
+    let payload;
+    if (typeof step === 'string') {
+      command = step;
+    } else if (typeof step === 'object' && step !== null && Object.keys(step).length === 1) {
+      [command] = Object.keys(step);
+      payload = step[command];
+    } else {
+      problems.push(`${where}: a step must be a bare command or a single-command map`);
+      continue;
     }
-    const id = /^\s+id:\s*['"]([^'"]+)['"]\s*$/.exec(line);
-    if (id && !knownTestIds.has(id[1])) {
-      problems.push(`${label}: selector id "${id[1]}" matches no testID in app/ or src/`);
+    if (!KNOWN_COMMANDS.has(command)) {
+      problems.push(`${where}: unknown Maestro command "${command}"`);
+      continue;
     }
-    const script = /^- runScript:\s*(\S+)\s*$/.exec(line);
-    if (script && !scriptFiles.has(script[1])) {
-      problems.push(`${label}: runScript target "${script[1]}" does not exist in .maestro/`);
+    if (command === 'runScript') {
+      const target = typeof payload === 'string' ? payload : payload?.file;
+      if (typeof target !== 'string' || !scriptFiles.has(target)) {
+        problems.push(`${where}: runScript target "${target}" does not exist in .maestro/`);
+      }
     }
-    if (/inputText:\s*['"]?000000['"]?\s*$/.test(line)) {
+    if (command === 'inputText' && payload === '000000') {
       problems.push(
-        `${label}: '000000' is a nondeterministic wrong code — derive the wrong code from the real one`,
+        `${where}: '000000' is a nondeterministic wrong code — derive the wrong code from the real one`,
       );
     }
+    walkSelectors(payload, (key, value) => {
+      if (key === 'id' && typeof value === 'string' && !knownTestIds.has(value)) {
+        problems.push(`${where}: selector id "${value}" matches no testID in app/ or src/`);
+      }
+    });
   }
   if (/TOTP_SECRET/.test(text)) {
     problems.push(`${label}: TOTP_SECRET channel is banned — secrets stay in the helper's memory`);
@@ -124,7 +174,9 @@ export function validateAllFlows(root = appRoot) {
 const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
 if (isMain) {
   const { problems, flowCount, scriptCount } = validateAllFlows();
-  console.log(`maestro:validate: ${flowCount} flows, ${scriptCount} helper scripts checked`);
+  console.log(
+    `maestro:validate: ${flowCount} flows, ${scriptCount} helper scripts checked (real YAML parse)`,
+  );
   if (problems.length > 0) {
     for (const problem of problems) console.error(`FAIL ${problem}`);
     console.error('maestro:validate FAILED');

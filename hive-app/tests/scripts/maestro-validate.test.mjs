@@ -28,12 +28,33 @@ test('a well-formed flow validates cleanly', () => {
   assert.deepEqual(validateFlowText(VALID_FLOW, context), []);
 });
 
-test('wrong appId, missing separator, and unknown commands are flagged', () => {
-  const bad = `appId: com.other.app\n- launchApp\n- swipeUpMagic: {}\n`;
+test('MALFORMED YAML is rejected by the real parser', () => {
+  const bad = `appId: com.myhbcfo.hive.development\n---\n- tapOn:\n   id: 'x'\n  broken indentation: [unclosed\n`;
   const problems = validateFlowText(bad, context);
-  assert.ok(problems.some((p) => p.includes('appId')));
-  assert.ok(problems.some((p) => p.includes('separator')));
-  assert.ok(problems.some((p) => p.includes('swipeUpMagic')));
+  assert.ok(
+    problems.some((p) => p.includes('YAML parse error')),
+    JSON.stringify(problems),
+  );
+});
+
+test('wrong appId, wrong document count, and unknown commands are flagged', () => {
+  const wrongApp = `appId: com.other.app\n---\n- launchApp\n`;
+  assert.ok(validateFlowText(wrongApp, context).some((p) => p.includes('appId')));
+  const oneDoc = `appId: com.myhbcfo.hive.development\n`;
+  assert.ok(
+    validateFlowText(oneDoc, context).some((p) => p.includes('exactly two YAML documents')),
+  );
+  const unknown = `appId: com.myhbcfo.hive.development\n---\n- swipeUpMagic\n`;
+  assert.ok(validateFlowText(unknown, context).some((p) => p.includes('swipeUpMagic')));
+});
+
+test('multi-key step maps are rejected (silent step fusion)', () => {
+  const fused = `appId: com.myhbcfo.hive.development\n---\n- tapOn: 'Email'\n  inputText: 'x'\n`;
+  const problems = validateFlowText(fused, context);
+  assert.ok(
+    problems.some((p) => p.includes('single-command map') || p.includes('YAML parse error')),
+    JSON.stringify(problems),
+  );
 });
 
 test('unknown testIDs and missing runScript targets are flagged', () => {

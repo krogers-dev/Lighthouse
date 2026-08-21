@@ -110,3 +110,37 @@ test('every synthetic identity has a well-formed unique canonical id', () => {
     assert.match(identity.email, /@example\.invalid$/);
   }
 });
+
+// ---------------------------------------------------------------------------
+// RETURN-3 area 4: stricter canonical verification
+// ---------------------------------------------------------------------------
+
+test('phone-confirmed but email-unconfirmed is rejected (generic confirmed_at is not enough)', () => {
+  const user = gotrueUser({
+    email_confirmed_at: null,
+    confirmed_at: '2026-08-21T00:00:00.000000Z',
+    phone_confirmed_at: '2026-08-21T00:00:00.000000Z',
+  });
+  const problems = verifyCanonicalUser(user, canonical);
+  assert.ok(
+    problems.some((p) => p.includes('email_confirmed_at')),
+    `expected email_confirmed_at rejection; got ${JSON.stringify(problems)}`,
+  );
+});
+
+test('non-authenticated role is rejected (service_role negative)', () => {
+  const problems = verifyCanonicalUser(gotrueUser({ role: 'service_role' }), canonical);
+  assert.ok(problems.some((p) => p.includes('role')));
+});
+
+test('non-authenticated aud is rejected', () => {
+  const problems = verifyCanonicalUser(gotrueUser({ aud: 'admin' }), canonical);
+  assert.ok(problems.some((p) => p.includes('aud')));
+});
+
+test('anonymous users are rejected', () => {
+  const problems = verifyCanonicalUser(gotrueUser({ is_anonymous: true }), canonical);
+  assert.ok(problems.some((p) => p.includes('anonymous')));
+  // Absent or false is fine.
+  assert.deepEqual(verifyCanonicalUser(gotrueUser({ is_anonymous: false }), canonical), []);
+});

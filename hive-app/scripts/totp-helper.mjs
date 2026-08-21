@@ -28,29 +28,22 @@
 import { createServer } from 'node:http';
 import process from 'node:process';
 
-import { base32Decode, totpCode } from './lib/totp.mjs';
+import { guaranteedWrongCode, strictBase32Decode, totpCode } from './lib/totp.mjs';
 
 const PORT = Number(process.env.HIVE_TOTP_HELPER_PORT ?? 8477);
-const STRICT_BASE32 = /^[A-Z2-7]+=*$/;
 
 /** In-memory only: account label -> secret. Never serialized anywhere. */
 const secretsByUser = new Map();
 
+/** Strict canonical Base32 only (RETURN-3 area 8): alphabet, padding
+ * amount and position, decoded length, and zero unused tail bits are all
+ * enforced by strictBase32Decode; anything else is rejected without
+ * being echoed. */
 function validateSecret(raw) {
   const secret = typeof raw === 'string' ? raw.replace(/\s+/g, '').toUpperCase() : '';
-  if (secret.length < 16 || !STRICT_BASE32.test(secret)) return null;
-  try {
-    base32Decode(secret);
-  } catch {
-    return null;
-  }
+  const decoded = strictBase32Decode(secret);
+  if (decoded === null || decoded.length < 10) return null;
   return secret;
-}
-
-/** A code guaranteed wrong for this window: the real code plus one,
- * modulo the six-digit space (never the nondeterministic '000000'). */
-function derivedWrongCode(code) {
-  return String((Number(code) + 1) % 1_000_000).padStart(6, '0');
 }
 
 function json(response, status, payload) {
@@ -58,9 +51,11 @@ function json(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
+/** wrongCode is guaranteed wrong even under adjacent-window tolerance:
+ * it differs from the previous, current, AND next accepted codes. */
 function codesFor(secret) {
-  const code = totpCode(secret, Date.now());
-  return { code, wrongCode: derivedWrongCode(code) };
+  const now = Date.now();
+  return { code: totpCode(secret, now), wrongCode: guaranteedWrongCode(secret, now) };
 }
 
 const server = createServer((request, response) => {

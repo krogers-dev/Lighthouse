@@ -156,7 +156,7 @@ export function validateAllowlist(entries, todayIso) {
       problems.push(`${label}: owner is required`);
     }
     if (typeof entry.reason !== 'string' || entry.reason.trim().length < 10) {
-      problems.push(`${label}: reason must be at least 10 characters`);
+      problems.push(`${label}: reason must be at least 10 non-whitespace-padded characters`);
     }
     // Approval is a STATE, never free text: 'proposed' entries are valid
     // but the scan reports HOLD for them (allowlistHolds); 'ratified'
@@ -172,10 +172,29 @@ export function validateAllowlist(entries, todayIso) {
       problems.push(`${label}: proposedOn must be a real calendar date (YYYY-MM-DD)`);
     }
     if (entry.approvalStatus === 'ratified') {
+      // Ratification provenance (RETURN-3 area 3): named approver, date,
+      // a reference that no longer reads as pending, and the digest of
+      // the decision record. `owner` is never proof of approval.
+      if (!isNonEmptyString(entry.ratifiedBy)) {
+        problems.push(`${label}: ratified entries require ratifiedBy (a named approver)`);
+      }
       if (!isIsoDate(entry.ratifiedOn)) {
         problems.push(`${label}: ratified entries require a real ratifiedOn date`);
       } else if (isIsoDate(entry.proposedOn) && entry.ratifiedOn < entry.proposedOn) {
         problems.push(`${label}: ratifiedOn cannot precede proposedOn`);
+      }
+      if (
+        isNonEmptyString(entry.approvalReference) &&
+        /pending|proposed|not\s+approved|not\s+yet\s+given/i.test(entry.approvalReference)
+      ) {
+        problems.push(
+          `${label}: approvalReference still reads as pending/proposed — that is not an approval reference`,
+        );
+      }
+      if (!/^[0-9a-f]{64}$/.test(entry.decisionRecordDigest ?? '')) {
+        problems.push(
+          `${label}: ratified entries require decisionRecordDigest (sha256 hex of the decision record)`,
+        );
       }
     }
     if (!isIsoDate(entry.expiry)) {
