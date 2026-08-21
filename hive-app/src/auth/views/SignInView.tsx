@@ -45,7 +45,9 @@ export function SignInView({
       {signedOutReason ? (
         <Notice tone="info" title={REASON_COPY[signedOutReason]} testID="signed-out-reason" />
       ) : null}
-      {notice ? <Notice tone="danger" title={userMessageFor(notice)} testID="sign-in-notice" /> : null}
+      {notice ? (
+        <Notice tone="danger" title={userMessageFor(notice)} testID="sign-in-notice" />
+      ) : null}
       <TextField
         label="Email"
         value={email}

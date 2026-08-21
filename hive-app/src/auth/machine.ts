@@ -11,13 +11,10 @@ import type { MembershipId } from '@/core/ids';
 import { scopeKeyFromMembership, type ScopeKey } from '@/tenancy/scope-key';
 import type { Actor, Membership } from '@/tenancy/types';
 
+import type { TotpEnrollment } from './client-lifecycle';
+
 export type SignedOutReason =
-  | 'initial'
-  | 'signed_out'
-  | 'expired'
-  | 'scrubbed'
-  | 'no_access'
-  | 'offline';
+  'initial' | 'signed_out' | 'expired' | 'scrubbed' | 'no_access' | 'offline';
 
 export type SignOutReason = 'user' | 'expired' | 'identity_switch';
 
@@ -31,7 +28,14 @@ export type AuthState =
       verifying: boolean;
       notice?: SafeErrorCode;
     }
-  | { name: 'mfa_required'; verifying: boolean; notice?: SafeErrorCode }
+  | {
+      name: 'mfa_required';
+      verifying: boolean;
+      notice?: SafeErrorCode;
+      /** Present only during first-time enrollment: QR/secret shown once,
+       * memory-only, cleared on verification, sign-out, or quarantine. */
+      enrollment?: TotpEnrollment;
+    }
   | { name: 'select_scope'; actor: Actor; memberships: readonly Membership[] }
   | {
       name: 'authorized';
@@ -57,6 +61,7 @@ export type AuthEvent =
   | { type: 'OTP_REQUEST_FAILED'; code: SafeErrorCode }
   | { type: 'OTP_SUBMITTED' }
   | { type: 'FIRST_FACTOR_FAILED'; code: SafeErrorCode }
+  | { type: 'MFA_ENROLLMENT_REQUIRED'; enrollment: TotpEnrollment }
   | { type: 'MFA_SUBMITTED' }
   | { type: 'MFA_FAILED'; code: SafeErrorCode }
   | { type: 'SCOPE_SELECTED'; membershipId: MembershipId }
@@ -193,10 +198,17 @@ function transition(state: AuthState, event: AuthEvent): AuthState | null {
       }
     case 'mfa_required':
       switch (event.type) {
+        case 'MFA_ENROLLMENT_REQUIRED':
+          // First-time setup: no verified factor exists yet.
+          return state.verifying
+            ? null
+            : { name: 'mfa_required', verifying: false, enrollment: event.enrollment };
         case 'MFA_SUBMITTED':
-          return { name: 'mfa_required', verifying: true };
+          return { ...state, verifying: true, notice: undefined };
         case 'MFA_FAILED':
-          return state.verifying ? { name: 'mfa_required', verifying: false, notice: event.code } : null;
+          // Also legal outside verification: factor discovery/enrollment
+          // setup failures surface here as a safe notice.
+          return { ...state, verifying: false, notice: event.code };
         case 'SCOPES_LOADED':
           return state.verifying ? scopesLoaded(event.actor, event.memberships) : null;
         case 'NO_ACCESS':
@@ -209,9 +221,7 @@ function transition(state: AuthState, event: AuthEvent): AuthState | null {
     case 'select_scope':
       switch (event.type) {
         case 'SCOPE_SELECTED': {
-          const membership = state.memberships.find(
-            (m) => m.membershipId === event.membershipId,
-          );
+          const membership = state.memberships.find((m) => m.membershipId === event.membershipId);
           if (!membership) {
             // Forged or stale membership id: illegal, never a bind.
             return null;

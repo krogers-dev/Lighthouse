@@ -2,10 +2,7 @@
  * and native-module mocks; tests live beside sources and in tests/. */
 module.exports = {
   preset: 'jest-expo',
-  testMatch: [
-    '<rootDir>/src/**/__tests__/**/*.test.ts?(x)',
-    '<rootDir>/tests/**/*.test.ts?(x)',
-  ],
+  testMatch: ['<rootDir>/src/**/__tests__/**/*.test.ts?(x)', '<rootDir>/tests/**/*.test.ts?(x)'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },

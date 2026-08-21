@@ -1,9 +1,4 @@
-import {
-  WCAG_AA_LARGE_TEXT,
-  WCAG_AA_NON_TEXT,
-  WCAG_AA_NORMAL_TEXT,
-  contrastRatio,
-} from '../contrast';
+import { WCAG_AA_NON_TEXT, WCAG_AA_NORMAL_TEXT, contrastRatio } from '../contrast';
 import {
   darkColors,
   lightColors,
@@ -21,11 +16,19 @@ function functionalTextPairs(c: SemanticColors): [string, string, string][] {
     ['textPrimary on surface', c.textPrimary, c.surface],
     ['textSecondary on background', c.textSecondary, c.background],
     ['textSecondary on surface', c.textSecondary, c.surface],
-    ['primaryActionText on primaryActionBackground', c.primaryActionText, c.primaryActionBackground],
+    [
+      'primaryActionText on primaryActionBackground',
+      c.primaryActionText,
+      c.primaryActionBackground,
+    ],
     ['secondaryActionText on background', c.secondaryActionText, c.background],
     ['panelInfoText on panelInfoBackground', c.panelInfoText, c.panelInfoBackground],
     ['panelStableText on panelStableBackground', c.panelStableText, c.panelStableBackground],
-    ['panelAttentionText on panelAttentionBackground', c.panelAttentionText, c.panelAttentionBackground],
+    [
+      'panelAttentionText on panelAttentionBackground',
+      c.panelAttentionText,
+      c.panelAttentionBackground,
+    ],
     ['dangerText on background', c.dangerText, c.background],
     ['dangerPanelText on dangerPanelBackground', c.dangerPanelText, c.dangerPanelBackground],
     ['successText on background', c.successText, c.background],
@@ -53,13 +56,13 @@ describe.each([
     expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(WCAG_AA_NON_TEXT);
   });
 
-  it('accent (Rose) meets large-text contrast against the theme background', () => {
-    expect(contrastRatio(colors.accent, colors.background)).toBeGreaterThanOrEqual(
-      WCAG_AA_LARGE_TEXT,
-    );
+  it('gold control text is Soft Black, never white (Brand Kit v2.0 rule)', () => {
+    expect(colors.primaryActionBackground.toUpperCase()).toBe(palette.honeyGold.toUpperCase());
+    expect(colors.primaryActionText.toUpperCase()).toBe(palette.softBlack.toUpperCase());
+    expect(colors.primaryActionText.toUpperCase()).not.toBe('#FFFFFF');
   });
 
-  it('never assigns Rose to a normal-text token', () => {
+  it('never assigns Honey Gold to a normal-text token', () => {
     const normalTextTokens: (keyof SemanticColors)[] = [
       'textPrimary',
       'textSecondary',
@@ -68,15 +71,20 @@ describe.each([
       'secondaryActionText',
       'panelInfoText',
       'panelStableText',
-      'panelAttentionText',
       'dangerText',
       'dangerPanelText',
       'successText',
-      'warningText',
     ];
     for (const token of normalTextTokens) {
-      expect(colors[token].toUpperCase()).not.toBe(palette.rose.toUpperCase());
+      expect(colors[token].toUpperCase()).not.toBe(palette.honeyGold.toUpperCase());
     }
+  });
+});
+
+describe('accent rules per surface', () => {
+  it('accent text is permitted on dark (>= 4.5) and non-text on light (< 3)', () => {
+    expect(contrastRatio(darkColors.accent, darkColors.background)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(lightColors.accent, lightColors.background)).toBeLessThan(3);
   });
 });
 

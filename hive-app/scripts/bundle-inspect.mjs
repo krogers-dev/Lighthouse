@@ -86,7 +86,13 @@ export function checkApprovedValues(text, filePath, approved) {
   while ((match = PUBLISHABLE_SHAPE.exec(text)) !== null) {
     if (!approved.clientKey || match[0] !== approved.clientKey) {
       findings.push(
-        findingAt('unapproved-publishable-key', filePath, text, match.index, '[publishable-shaped key differing from the approved client key]'),
+        findingAt(
+          'unapproved-publishable-key',
+          filePath,
+          text,
+          match.index,
+          '[publishable-shaped key differing from the approved client key]',
+        ),
       );
     }
   }
@@ -94,7 +100,13 @@ export function checkApprovedValues(text, filePath, approved) {
   while ((match = SUPABASE_ENDPOINT.exec(text)) !== null) {
     if (!approved.url || !match[0].startsWith(approved.url)) {
       findings.push(
-        findingAt('unapproved-supabase-endpoint', filePath, text, match.index, '[supabase endpoint differing from the approved URL]'),
+        findingAt(
+          'unapproved-supabase-endpoint',
+          filePath,
+          text,
+          match.index,
+          '[supabase endpoint differing from the approved URL]',
+        ),
       );
     }
   }

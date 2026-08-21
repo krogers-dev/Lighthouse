@@ -249,6 +249,13 @@ otp_expiry = 3600
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
 
+# HIVE signs in with a six-digit emailed code (invite-only OTP). The
+# default magic-link template carries only a link, so the template is
+# overridden to deliver {{ .Token }} (P0-1).
+[auth.email.template.magic_link]
+subject = "Your HIVE sign-in code"
+content_path = "./supabase/templates/magic_link.html"
+
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
 # enabled = true

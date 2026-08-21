@@ -17,7 +17,10 @@ export default function SignInRoute(): React.JSX.Element {
       <SignInView
         busy={false}
         signedOutReason={
-          reason === 'expired' || reason === 'scrubbed' || reason === 'no_access' || reason === 'offline'
+          reason === 'expired' ||
+          reason === 'scrubbed' ||
+          reason === 'no_access' ||
+          reason === 'offline'
             ? reason
             : undefined
         }

@@ -37,7 +37,10 @@ export function scopeKeyEquals(a: ScopeKey, b: ScopeKey): boolean {
   );
 }
 
-/** Cache/registry key material only — never storage, never navigation. */
+/** Cache/registry key material only — never storage, never navigation.
+ * Includes membershipId: two memberships can share the same
+ * environment/client/entity (different roles), and request identity and
+ * cancellation keys must distinguish them (P2-9). */
 export function scopeKeyToken(key: ScopeKey): string {
-  return `${key.environmentId}:${key.clientId}:${key.entityId}`;
+  return `${key.environmentId}:${key.clientId}:${key.entityId}:${key.membershipId}`;
 }

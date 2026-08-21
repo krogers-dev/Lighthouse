@@ -39,11 +39,7 @@ function StateBlock({
   testID,
 }: StateBlockProps): React.JSX.Element {
   return (
-    <View
-      style={styles.block}
-      testID={testID}
-      accessibilityLiveRegion={live ? 'polite' : 'none'}
-    >
+    <View style={styles.block} testID={testID} accessibilityLiveRegion={live ? 'polite' : 'none'}>
       {leading}
       <AppText variant="heading" align="center">
         {title}
@@ -90,7 +86,13 @@ export function EmptyState({
   testID?: string;
 }): React.JSX.Element {
   return (
-    <StateBlock title={title} body={body} actionLabel={actionLabel} onAction={onAction} testID={testID} />
+    <StateBlock
+      title={title}
+      body={body}
+      actionLabel={actionLabel}
+      onAction={onAction}
+      testID={testID}
+    />
   );
 }
 

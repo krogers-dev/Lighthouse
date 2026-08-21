@@ -11,18 +11,18 @@ the backend, driven locally through the pinned CLI.
 
 ## Pinned versions (verified against the npm registry 2026-08-21)
 
-| Component | Version | Why this exact pin |
-|---|---|---|
-| Node | 22.23.2 (`.node-version`, `engines`, `devEngines`) | Brief-verified baseline; downloaded from nodejs.org with SHA-256 verification |
-| npm | 10.9.8 (`packageManager`) | The npm bundled with that exact Node distribution |
-| create-expo-app | 4.0.0 (integrity `sha512-bZX0CuE6ZdJWKZUtJRnZYt6t1tbU6o/tHjffhZTJnpR2no+GncxQ2Okvc4+AyCBMx4Za2G85szrbAicgo4Qz9w==`) | Resolved once from npm metadata; run as `create-expo-app@4.0.0 hive-app --template default@sdk-57 --no-install --no-agents-md` |
-| expo | 57.0.11 | Brief-verified baseline (template generated `~57.0.15`; the verified 57.0.11 pin was kept deliberately) |
-| react-native | 0.86.2 | Brief-verified baseline |
-| react / react-dom | 19.2.3 | Brief-verified baseline; react-dom matches react |
-| @supabase/supabase-js | 2.112.3 | Brief-verified baseline |
-| supabase (CLI) | 2.115.0 (exact dev dependency) | Brief-verified baseline; invoked via `npx --no-install` |
-| expo-doctor | 1.20.2 (exact dev dependency) | Current stable at pin time |
-| typescript | 6.0.3 | Template's line, pinned exact |
+| Component             | Version                                                                                                             | Why this exact pin                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Node                  | 22.23.2 (`.node-version`, `engines`, `devEngines`)                                                                  | Brief-verified baseline; downloaded from nodejs.org with SHA-256 verification                                                  |
+| npm                   | 10.9.8 (`packageManager`)                                                                                           | The npm bundled with that exact Node distribution                                                                              |
+| create-expo-app       | 4.0.0 (integrity `sha512-bZX0CuE6ZdJWKZUtJRnZYt6t1tbU6o/tHjffhZTJnpR2no+GncxQ2Okvc4+AyCBMx4Za2G85szrbAicgo4Qz9w==`) | Resolved once from npm metadata; run as `create-expo-app@4.0.0 hive-app --template default@sdk-57 --no-install --no-agents-md` |
+| expo                  | 57.0.11                                                                                                             | Brief-verified baseline (template generated `~57.0.15`; the verified 57.0.11 pin was kept deliberately)                        |
+| react-native          | 0.86.2                                                                                                              | Brief-verified baseline                                                                                                        |
+| react / react-dom     | 19.2.3                                                                                                              | Brief-verified baseline; react-dom matches react                                                                               |
+| @supabase/supabase-js | 2.112.3                                                                                                             | Brief-verified baseline                                                                                                        |
+| supabase (CLI)        | 2.115.0 (exact dev dependency)                                                                                      | Brief-verified baseline; invoked via `npx --no-install`                                                                        |
+| expo-doctor           | 1.20.2 (exact dev dependency)                                                                                       | Current stable at pin time                                                                                                     |
+| typescript            | 6.0.3                                                                                                               | Template's line, pinned exact                                                                                                  |
 
 Remaining dependencies are the SDK 57 template's own set resolved to exact
 versions inside the template's ranges, plus the additions below. All ranges
@@ -31,16 +31,23 @@ and `npm ci` is the only install path after the initial resolution.
 
 ## Additions beyond the template (dependency rule applied)
 
-| Dependency | Outcome it serves | Why nothing installed suffices | Native surface added |
-|---|---|---|---|
-| expo-secure-store 15.0.8 | Session material in Keychain/Keystore | RN core has no secure storage | Keychain/Keystore usage (config plugin, no new permissions) |
-| expo-file-system 19.0.24 | Non-sensitive install marker outside the Keychain | SecureStore must not hold the marker (its purpose is to *not* survive with the Keychain) | App-scoped storage only |
-| expo-build-properties 1.0.10 | Pin iOS deployment target 16.4, Android target/compile SDK 36, `allowBackup=false` | app.json alone cannot set these | None (build-time config plugin) |
-| @supabase/supabase-js 2.112.3 | Auth + PostgREST client | — | None (JS) |
-| jest 29.7.0, jest-expo 57.0.4, @testing-library/react-native 14.0.1, @types/jest 29.5.14 | Red-green unit/component tests | — | Dev-only |
-| eslint 9.39.5, eslint-config-expo 57.0.1, eslint-import-resolver-typescript 3.10.1, prettier 3.9.6 | Lint/format gates | — | Dev-only |
-| secretlint 13.0.4 + preset-recommend 13.0.4 | Pinned, checksum-verified (npm lockfile SSRI integrity) secret scanner engine inside the secret gate | Home-rolled patterns alone are weaker; a downloaded binary would bypass lockfile verification | Dev-only |
-| supabase 2.115.0 | Local database stack, migrations, pgTAP, type generation | — | Dev-only |
+_Corrected 2026-08-21 (PM RETURN directive P2-12): the first three rows
+originally recorded pre-SDK-57-renumbering versions (15.0.8 / 19.0.24 /
+1.0.10) noted during initial resolution; the pins actually installed and
+verified by `expo-doctor` are the SDK 57 renumbered releases below. The
+`react-native-svg` row was added when TOTP enrollment (P1-3) landed._
+
+| Dependency                                                                                         | Outcome it serves                                                                                      | Why nothing installed suffices                                                                       | Native surface added                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| expo-secure-store 57.0.1                                                                           | Session material in Keychain/Keystore                                                                  | RN core has no secure storage                                                                        | Keychain/Keystore usage (config plugin, no new permissions)                                                                                                                                                                      |
+| expo-file-system 57.0.5                                                                            | Non-sensitive install marker outside the Keychain                                                      | SecureStore must not hold the marker (its purpose is to _not_ survive with the Keychain)             | App-scoped storage only                                                                                                                                                                                                          |
+| expo-build-properties 57.0.13                                                                      | Pin iOS deployment target 16.4, Android target/compile SDK 36                                          | app.json alone cannot set these                                                                      | None (build-time config plugin). This release dropped its `allowBackup` switch, so `android:allowBackup="false"` is forced by the repo-local plugin `plugins/with-android-no-backup.js`, verified against the generated manifest |
+| react-native-svg 15.15.4                                                                           | Renders the TOTP enrollment QR (`SvgXml`) from supabase-js's inline SVG — memory-only, never persisted | No installed dependency renders SVG; a raster fallback would require writing the otpauth URI to disk | SVG rendering view (SDK 57's bundled native module version; no new permissions)                                                                                                                                                  |
+| @supabase/supabase-js 2.112.3                                                                      | Auth + PostgREST client                                                                                | —                                                                                                    | None (JS)                                                                                                                                                                                                                        |
+| jest 29.7.0, jest-expo 57.0.4, @testing-library/react-native 14.0.1, @types/jest 29.5.14           | Red-green unit/component tests                                                                         | —                                                                                                    | Dev-only                                                                                                                                                                                                                         |
+| eslint 9.39.5, eslint-config-expo 57.0.1, eslint-import-resolver-typescript 3.10.1, prettier 3.9.6 | Lint/format gates                                                                                      | —                                                                                                    | Dev-only                                                                                                                                                                                                                         |
+| secretlint 13.0.4 + preset-recommend 13.0.4                                                        | Pinned, checksum-verified (npm lockfile SSRI integrity) secret scanner engine inside the secret gate   | Home-rolled patterns alone are weaker; a downloaded binary would bypass lockfile verification        | Dev-only                                                                                                                                                                                                                         |
+| supabase 2.115.0                                                                                   | Local database stack, migrations, pgTAP, type generation                                               | —                                                                                                    | Dev-only                                                                                                                                                                                                                         |
 
 ## Rejected alternatives
 

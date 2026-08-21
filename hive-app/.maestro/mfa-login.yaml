@@ -1,0 +1,33 @@
+appId: com.myhbcfo.hive.development
+name: Subsequent staff login verifies against the existing factor (no second QR)
+# Pre-steps on the runner:
+#   1. mfa-enroll.yaml has run for reviewer.rae@example.invalid (verified
+#      factor exists) and the app was signed out.
+#   2. TOTP_SECRET holds that account's setup key (recorded by the QA
+#      operator at enrollment); totp-helper is running on loopback.
+#   3. OTP_CODE read from Mailpit for reviewer.rae@example.invalid.
+---
+- launchApp
+- tapOn:
+    id: 'sign-in-email'
+- inputText: 'reviewer.rae@example.invalid'
+- tapOn:
+    id: 'sign-in-submit'
+- assertVisible: 'Enter your sign-in code'
+- tapOn:
+    id: 'otp-code'
+- inputText: ${OTP_CODE}
+- tapOn:
+    id: 'otp-submit'
+# Verify mode only: an already-enrolled account must never see a second QR.
+- assertNotVisible:
+    id: 'mfa-enroll-qr'
+- assertVisible:
+    id: 'mfa-code'
+- runScript: totp-code-from-env.js
+- tapOn:
+    id: 'mfa-code'
+- inputText: ${output.totpCode}
+- tapOn:
+    id: 'mfa-submit'
+- assertVisible: 'Home'

@@ -1,4 +1,9 @@
-import { membershipA1, membershipA2 } from '@/auth/__tests__/fixtures';
+import {
+  membershipA1,
+  membershipA2,
+  membershipMixedClient,
+  membershipMixedReviewer,
+} from '@/auth/__tests__/fixtures';
 
 import { ScopedRegistry } from '../clearing';
 import { scopeKeyEquals, scopeKeyFromMembership, scopeKeyToken } from '../scope-key';
@@ -26,6 +31,18 @@ describe('ScopeKey', () => {
     expect(scopeKeyEquals(a, b)).toBe(true);
     expect(scopeKeyEquals(a, c)).toBe(false);
     expect(scopeKeyToken(a)).not.toBe(scopeKeyToken(c));
+  });
+
+  it('tokens distinguish memberships even on the same entity (P2-9)', () => {
+    // mixed.same mirror: identical environment/client/entity, different
+    // membership. Request/cancellation identity must include membershipId,
+    // or two same-entity memberships would share cache and request keys.
+    const client = scopeKeyFromMembership(membershipMixedClient);
+    const reviewer = scopeKeyFromMembership(membershipMixedReviewer);
+    expect(client.entityId).toBe(reviewer.entityId);
+    expect(scopeKeyEquals(client, reviewer)).toBe(false);
+    expect(scopeKeyToken(client)).not.toBe(scopeKeyToken(reviewer));
+    expect(scopeKeyToken(client)).toContain(membershipMixedClient.membershipId);
   });
 });
 

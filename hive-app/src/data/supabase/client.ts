@@ -116,11 +116,32 @@ function makeAuthGateway(client: HiveSupabaseClient): AuthGateway {
       if (error) throw error;
       return requireSessionInfo(await toSessionInfo(client, data.session));
     },
-    async listTotpFactorId(): Promise<string | null> {
+    async listTotpFactors() {
       const { data, error } = await client.auth.mfa.listFactors();
       if (error) throw error;
-      const verified = data?.totp?.find((factor) => factor.status === 'verified');
-      return verified?.id ?? null;
+      const totp = data?.totp ?? [];
+      return {
+        verifiedId: totp.find((factor) => factor.status === 'verified')?.id ?? null,
+        unverifiedIds: totp
+          .filter((factor) => factor.status !== 'verified')
+          .map((factor) => factor.id),
+      };
+    },
+    async enrollTotp() {
+      const { data, error } = await client.auth.mfa.enroll({ factorType: 'totp' });
+      if (error) throw error;
+      if (!data?.id || !data.totp?.secret) throw new SafeError('unknown');
+      // Memory-only setup material; never persisted, logged, or exported.
+      return {
+        factorId: data.id,
+        secret: data.totp.secret,
+        qrSvg: data.totp.qr_code ?? null,
+        uri: data.totp.uri ?? null,
+      };
+    },
+    async unenrollTotp(factorId: string): Promise<void> {
+      const { error } = await client.auth.mfa.unenroll({ factorId });
+      if (error) throw error;
     },
     async verifyTotp(factorId: string, code: string): Promise<SessionInfo> {
       const { error } = await client.auth.mfa.challengeAndVerify({ factorId, code });

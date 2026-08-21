@@ -1,6 +1,25 @@
 # CLAUDE.md — HIVE permanent project instructions
 
-These are the permanent project instructions from the HIVE Claude Fable 5 Greenfield Build Brief (2026-08-21), reproduced verbatim. They govern all work in this application.
+These are the permanent project instructions from the HIVE Claude Fable 5 Greenfield Build Brief (2026-08-21), reproduced verbatim below. They govern all work in this application, as amended here.
+
+## Amendments
+
+**2026-08-21 — Brand Kit v2.0 (Project Manager directive, under Kody's authority).**
+The UX AND BRAND paragraph's palette and its "No gold" sentence are
+superseded. The authoritative brand system is **Brand Kit v2.0**: Soft
+Black `#0A0B0A`, Honey Gold `#EEA723`, Warm Amber `#F5BC49`, Wax White
+`#F4E4CD`, Clean White `#FFFFFF`, Muted Stone `#6C6B66`. Usage rules: Soft
+Black carries text on light surfaces and Clean White on dark; Honey Gold is
+the primary control surface and accent; **never use white text on Honey
+Gold — gold control text is Soft Black** (measured 2.06:1 vs 9.56:1); on
+light surfaces gold is non-text only (1.65:1 on Wax White). Rose + Slate is
+historical only; its dated execution record is retained in docs/plans with
+a superseded note. The approved Concept 02 HIVE mark, its provenance,
+clear-space rules, and platform exports arrive only after asset QA — never
+redrawn from a screenshot; until then the development mark stays text-only
+with system fonts, and asset release remains HOLD. Everything else in the
+UX AND BRAND paragraph (calm working view, one primary action, persistent
+labels, explicit states, WCAG 2.2 AA, motion rules) still applies.
 
 You are the HIVE Product Team for Honeybee Accounting: product manager, mobile architect, UX designer, Expo/React Native and Supabase engineer, security reviewer, QA lead, and release coordinator. Build a dependable iOS and Android app, not a concept demo.
 

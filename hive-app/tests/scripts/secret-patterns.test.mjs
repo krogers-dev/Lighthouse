@@ -6,7 +6,9 @@ import {
   SECRET_PATTERNS,
   isAllowed,
   looksBinary,
+  reconcileHistoryAllowlist,
   scanText,
+  validateAllowlist,
 } from '../../scripts/lib/secret-patterns.mjs';
 
 // All secret-shaped inputs are assembled at runtime (never literals).
@@ -47,20 +49,130 @@ test('release-only patterns catch loopback and development identifiers', () => {
   assert.ok(patterns.includes('development-identifier'));
 });
 
-test('allowlist matches tracked findings by path+pattern only', () => {
-  const entry = { path: 'src/a.ts', pattern: 'jwt-shaped-token', reason: 'synthetic' };
-  assert.ok(isAllowed({ file: 'src/a.ts', pattern: 'jwt-shaped-token' }, [entry]));
-  assert.ok(!isAllowed({ file: 'src/b.ts', pattern: 'jwt-shaped-token' }, [entry]));
-  assert.ok(!isAllowed({ file: 'src/a.ts', pattern: 'supabase-secret-key' }, [entry]));
-  // A history finding (with blob) is never covered by a path-only entry.
-  assert.ok(!isAllowed({ file: 'src/a.ts', pattern: 'jwt-shaped-token', blob: 'abc123' }, [entry]));
+// ---------------------------------------------------------------------------
+// History-exception gate (P2-10 hardened)
+// ---------------------------------------------------------------------------
+
+const BLOB_A = 'a'.repeat(40);
+const BLOB_B = 'b'.repeat(40);
+
+function validEntry(overrides = {}) {
+  return {
+    blob: BLOB_A,
+    path: 'hive-app/src/x.test.ts',
+    pattern: 'jwt-shaped-token',
+    expectedCount: 1,
+    owner: 'Kody',
+    reason: 'Labeled synthetic historical test value, replaced by runtime concatenation.',
+    approval: 'PM RETURN directive 2026-08-21',
+    recordedOn: '2026-08-21',
+    expiry: '2026-11-21',
+    retest: 'Re-run secrets:scan monthly and at expiry.',
+    ...overrides,
+  };
+}
+
+const TODAY = '2026-08-21';
+
+test('tracked findings (no blob) are never allowlisted', () => {
+  // Hardened rule: current files must be fixed, not excepted.
+  const entry = validEntry();
+  assert.ok(!isAllowed({ file: 'hive-app/src/x.test.ts', pattern: 'jwt-shaped-token' }, [entry]));
 });
 
-test('blob-scoped allowlist entries cover exactly one historical object', () => {
-  const entry = { blob: 'abc123', pattern: 'jwt-shaped-token', reason: 'synthetic history' };
-  assert.ok(isAllowed({ file: 'any', pattern: 'jwt-shaped-token', blob: 'abc123def' }, [entry]));
-  assert.ok(!isAllowed({ file: 'any', pattern: 'jwt-shaped-token', blob: 'ffff' }, [entry]));
-  assert.ok(!isAllowed({ file: 'any', pattern: 'jwt-shaped-token' }, [entry]));
+test('history exceptions require the exact (blob, path, pattern) triple', () => {
+  const entry = validEntry();
+  const finding = {
+    file: `history:${BLOB_A.slice(0, 12)}:hive-app/src/x.test.ts`,
+    blob: BLOB_A,
+    blobPath: 'hive-app/src/x.test.ts',
+    pattern: 'jwt-shaped-token',
+  };
+  assert.ok(isAllowed(finding, [entry]));
+  // A prefix of the blob id no longer matches — full 40-hex equality only.
+  assert.ok(!isAllowed({ ...finding, blob: BLOB_A.slice(0, 12) }, [entry]));
+  assert.ok(!isAllowed({ ...finding, blob: BLOB_B }, [entry]));
+  assert.ok(!isAllowed({ ...finding, blobPath: 'hive-app/src/other.ts' }, [entry]));
+  assert.ok(!isAllowed({ ...finding, pattern: 'supabase-secret-key' }, [entry]));
+});
+
+test('validateAllowlist accepts a fully specified entry', () => {
+  assert.deepEqual(validateAllowlist([validEntry()], TODAY), []);
+});
+
+test('validateAllowlist rejects malformed entries field by field', () => {
+  const cases = [
+    [{ blob: BLOB_A.slice(0, 12) }, /full 40-character/],
+    [{ blob: BLOB_A.toUpperCase() }, /full 40-character/],
+    [{ path: '' }, /path/],
+    [{ pattern: 'not-a-real-pattern' }, /pattern/],
+    [{ expectedCount: 0 }, /expectedCount/],
+    [{ expectedCount: 1.5 }, /expectedCount/],
+    [{ expectedCount: undefined }, /expectedCount/],
+    [{ owner: '' }, /owner/],
+    [{ reason: 'too short' }, /reason/],
+    [{ approval: '' }, /approval/],
+    [{ recordedOn: 'yesterday' }, /recordedOn/],
+    [{ expiry: 'never' }, /expiry/],
+    [{ retest: '' }, /retest/],
+  ];
+  for (const [override, expected] of cases) {
+    const problems = validateAllowlist([validEntry(override)], TODAY);
+    assert.ok(
+      problems.some((p) => expected.test(p)),
+      `expected a problem matching ${expected} for ${JSON.stringify(override)}; got ${JSON.stringify(problems)}`,
+    );
+  }
+});
+
+test('validateAllowlist rejects expired entries and expiry not after recordedOn', () => {
+  const expired = validateAllowlist([validEntry({ expiry: '2026-08-21' })], TODAY);
+  assert.ok(expired.some((p) => /expired|not after/.test(p)));
+  const inverted = validateAllowlist(
+    [validEntry({ recordedOn: '2026-12-01', expiry: '2026-11-21' })],
+    TODAY,
+  );
+  assert.ok(inverted.some((p) => /after recordedOn/.test(p)));
+});
+
+test('validateAllowlist rejects duplicate (blob, path, pattern) entries', () => {
+  const problems = validateAllowlist([validEntry(), validEntry()], TODAY);
+  assert.ok(problems.some((p) => /duplicate/.test(p)));
+});
+
+test('reconcileHistoryAllowlist covers exact counts and flags drift', () => {
+  const finding = {
+    file: `history:${BLOB_A.slice(0, 12)}:hive-app/src/x.test.ts`,
+    blob: BLOB_A,
+    blobPath: 'hive-app/src/x.test.ts',
+    pattern: 'jwt-shaped-token',
+  };
+  // Exact expected count: covered, no problems.
+  const ok = reconcileHistoryAllowlist([finding], [validEntry()]);
+  assert.deepEqual(ok.uncovered, []);
+  assert.deepEqual(ok.problems, []);
+  // More occurrences than recorded: count drift fails the gate.
+  const drift = reconcileHistoryAllowlist([finding, { ...finding }], [validEntry()]);
+  assert.ok(drift.problems.some((p) => /expected 1.*found 2/.test(p)));
+});
+
+test('reconcileHistoryAllowlist rejects orphaned (unused) entries', () => {
+  // An entry whose blob/pattern no longer matches anything is dead policy
+  // and must fail loudly instead of lingering.
+  const { problems } = reconcileHistoryAllowlist([], [validEntry()]);
+  assert.ok(problems.some((p) => /orphan/.test(p)));
+});
+
+test('reconcileHistoryAllowlist reports unmatched findings as uncovered', () => {
+  const finding = {
+    file: `history:${BLOB_B.slice(0, 12)}:hive-app/src/y.ts`,
+    blob: BLOB_B,
+    blobPath: 'hive-app/src/y.ts',
+    pattern: 'supabase-secret-key',
+  };
+  const { uncovered } = reconcileHistoryAllowlist([finding], [validEntry()]);
+  assert.equal(uncovered.length, 1);
+  assert.equal(uncovered[0]?.blob, BLOB_B);
 });
 
 test('binary detection', () => {

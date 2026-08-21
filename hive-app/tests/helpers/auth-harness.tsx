@@ -51,7 +51,14 @@ export function makeContractHarness(options: {
           if (!options.session) throw new Error('no session configured');
           return options.session;
         },
-        listTotpFactorId: async () => 'factor-synthetic',
+        listTotpFactors: async () => ({ verifiedId: 'factor-synthetic', unverifiedIds: [] }),
+        enrollTotp: async () => ({
+          factorId: 'factor-enrolled-synthetic',
+          secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
+          qrSvg: null,
+          uri: null,
+        }),
+        unenrollTotp: async () => {},
         verifyTotp: async () => {
           if (!options.session) throw new Error('no session configured');
           return options.session;

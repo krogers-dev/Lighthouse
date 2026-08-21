@@ -1,29 +1,45 @@
 import { contrastRatio } from '../contrast';
 import { palette } from '../tokens';
 
-/** The approved brand pairings, measured. Values must match the design
- * brief's published table (rounded to 2 decimal places). */
-describe('approved brand pairing measurements', () => {
+/** Brand Kit v2.0 pairings, measured (rounded to 2 decimal places). These
+ * values are the design record; a palette change that shifts them fails. */
+describe('Brand Kit v2.0 pairing measurements', () => {
   const round = (n: number) => Math.round(n * 100) / 100;
 
-  it('Graphite on Eggshell is 16.32:1', () => {
-    expect(round(contrastRatio(palette.graphite, palette.eggshell))).toBe(16.32);
+  it('Soft Black on Wax White is 15.80:1 (primary light-theme text)', () => {
+    expect(round(contrastRatio(palette.softBlack, palette.waxWhite))).toBe(15.8);
   });
 
-  it('Graphite on Mineral Slate is 10.37:1', () => {
-    expect(round(contrastRatio(palette.graphite, palette.slate))).toBe(10.37);
+  it('Soft Black on Clean White is 19.72:1 (text on cards)', () => {
+    expect(round(contrastRatio(palette.softBlack, palette.cleanWhite))).toBe(19.72);
   });
 
-  it('Graphite on Soft Moss is 12.33:1', () => {
-    expect(round(contrastRatio(palette.graphite, palette.moss))).toBe(12.33);
+  it('Soft Black on Honey Gold is 9.56:1 (gold control text)', () => {
+    expect(round(contrastRatio(palette.softBlack, palette.honeyGold))).toBe(9.56);
   });
 
-  it('Rose on Eggshell is 4.24:1 (non-text or qualifying large text only)', () => {
-    expect(round(contrastRatio(palette.rose, palette.eggshell))).toBe(4.24);
+  it('Soft Black on Warm Amber is 11.43:1 (attention panels)', () => {
+    expect(round(contrastRatio(palette.softBlack, palette.warmAmber))).toBe(11.43);
   });
 
-  it('Rose on Graphite is 3.85:1 (non-text or qualifying large text only)', () => {
-    expect(round(contrastRatio(palette.rose, palette.graphite))).toBe(3.85);
+  it('Honey Gold on Soft Black is 9.56:1 (accent text on dark)', () => {
+    expect(round(contrastRatio(palette.honeyGold, palette.softBlack))).toBe(9.56);
+  });
+
+  it('FORBIDDEN: white text on Honey Gold measures only 2.06:1', () => {
+    // The rule "do not use white text on Honey Gold" is not stylistic —
+    // it fails every WCAG text threshold. Locked here so it stays visible.
+    expect(round(contrastRatio(palette.cleanWhite, palette.honeyGold))).toBe(2.06);
+    expect(contrastRatio(palette.cleanWhite, palette.honeyGold)).toBeLessThan(3);
+  });
+
+  it('Honey Gold on Wax White is 1.65:1 — gold is non-text on light surfaces', () => {
+    expect(round(contrastRatio(palette.honeyGold, palette.waxWhite))).toBe(1.65);
+    expect(contrastRatio(palette.honeyGold, palette.waxWhite)).toBeLessThan(3);
+  });
+
+  it('Muted Stone on Wax White is 4.28:1 — disabled/quiet use only', () => {
+    expect(round(contrastRatio(palette.mutedStone, palette.waxWhite))).toBe(4.28);
   });
 });
 

@@ -1,0 +1,17 @@
+appId: com.myhbcfo.hive.development
+name: Expired/revoked session fails closed into a fresh sign-in
+# Pre-steps on the runner:
+#   1. The app is signed in (sign-in.yaml) and then backgrounded/closed.
+#   2. Revoke the account's sessions server-side so the stored token can no
+#      longer refresh (synthetic local stack only):
+#        curl -s -X POST "$HIVE_LOCAL_SUPABASE_URL/auth/v1/admin/users/<seeded-uuid>/logout" \
+#          -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
+#      (service key stays in the runner's memory/env, never in this file).
+# The relaunch must show no protected content and the expired notice.
+---
+- launchApp
+- assertNotVisible: 'Home'
+- assertVisible:
+    id: 'signed-out-reason'
+- assertVisible: 'Your session ended. Sign in again to continue.'
+- assertVisible: 'Email'

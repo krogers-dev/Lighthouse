@@ -1,0 +1,27 @@
+appId: com.myhbcfo.hive.development
+name: Offline shows the explicit offline state and recovers on retry (Android lane)
+# setAirplaneMode is Android-only in Maestro; the iOS matrix covers this
+# case manually (Control Center) with the same assertions.
+---
+- launchApp
+- assertVisible: 'Home'
+- setAirplaneMode: enabled
+- tapOn:
+    id: 'dashboard-account'
+- assertVisible: 'Account'
+- back
+- assertVisible: 'Home'
+# Force a fresh read while offline: the dashboard shows the offline state,
+# never stale content presented as current.
+- tapOn:
+    id: 'dashboard-account'
+- assertVisible: 'Account'
+- tapOn:
+    id: 'settings-switch-scope'
+- assertVisible: 'Choose a workspace'
+- tapOn: 'Harbor Light Bakery LLC (Synthetic).*'
+- assertVisible: 'You are offline'
+- setAirplaneMode: disabled
+- tapOn: 'Check connection'
+- assertVisible:
+    id: 'dashboard-workspace'

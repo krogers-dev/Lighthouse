@@ -124,8 +124,19 @@ export function renderTypes(tables) {
 
 function introspect() {
   const args = [
-    '-h', '127.0.0.1', '-p', PORT, '-U', PG_USER, '-d', DB,
-    '-At', '-v', 'ON_ERROR_STOP=1', '-c', INTROSPECTION_SQL,
+    '-h',
+    '127.0.0.1',
+    '-p',
+    PORT,
+    '-U',
+    PG_USER,
+    '-d',
+    DB,
+    '-At',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    INTROSPECTION_SQL,
   ];
   const direct =
     typeof process.getuid === 'function' && process.getuid() === 0

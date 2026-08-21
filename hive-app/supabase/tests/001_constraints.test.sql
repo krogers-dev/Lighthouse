@@ -56,7 +56,7 @@ select throws_ok(
 -- 8-10. Enumerated value checks.
 select throws_ok(
   $$insert into public.memberships (user_id, environment_id, client_id, entity_id, role)
-    values ('cccccccc-0000-4000-8000-000000000007',
+    values ((select id from auth.users where email = 'nomember.norman@example.invalid'),
             '11111111-0000-4000-8000-000000000001',
             'aaaaaaaa-0000-4000-8000-000000000001',
             'aaaaaaaa-1111-4000-8000-000000000001', 'superuser')$$,

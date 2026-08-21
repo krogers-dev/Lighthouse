@@ -18,29 +18,29 @@ flowchart TD
     H --> E["Append-only audit receipts"]
 ```
 
-| Boundary | Authority | Mobile capability | Forbidden |
-|---|---|---|---|
-| Supabase Auth | Identity and session | OTP, MFA, current-user verification | Membership or accounting authority |
-| Postgres and RLS | Client/entity authorization and HIVE metadata | Exact scoped reads and approved narrow calls | Service key, arbitrary scope, direct approval mutation |
-| HIVE transition service | Workflow/review/approval state | Request a permitted transition | Client-controlled state assignment |
-| Google Drive | Permanent retained record | View verified reference when authorized | Mobile filing, delete, move, share, permission change |
-| QBO adapter | Read-only ledger context | Bounded source reference | Any token, POST, PATCH, PUT, DELETE, reconciliation, journal action |
-| Twenty | Relationship status | No Milestone 0 access | Become HIVE workflow authority |
-| Slack | Internal coordination | No client-record authority | Permanent record or approval source |
+| Boundary                | Authority                                     | Mobile capability                            | Forbidden                                                           |
+| ----------------------- | --------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------- |
+| Supabase Auth           | Identity and session                          | OTP, MFA, current-user verification          | Membership or accounting authority                                  |
+| Postgres and RLS        | Client/entity authorization and HIVE metadata | Exact scoped reads and approved narrow calls | Service key, arbitrary scope, direct approval mutation              |
+| HIVE transition service | Workflow/review/approval state                | Request a permitted transition               | Client-controlled state assignment                                  |
+| Google Drive            | Permanent retained record                     | View verified reference when authorized      | Mobile filing, delete, move, share, permission change               |
+| QBO adapter             | Read-only ledger context                      | Bounded source reference                     | Any token, POST, PATCH, PUT, DELETE, reconciliation, journal action |
+| Twenty                  | Relationship status                           | No Milestone 0 access                        | Become HIVE workflow authority                                      |
+| Slack                   | Internal coordination                         | No client-record authority                   | Permanent record or approval source                                 |
 
 ## Module ownership
 
-| Path | Owns | May depend on |
-|---|---|---|
-| `app/` | Thin Expo Router routes: navigation and state→screen mapping only | `src/*` |
-| `src/core/` | Environment validation, clock, opaque IDs, safe error mapping, diagnostics interface, SHA-256 | nothing app-internal |
-| `src/ui/` | Semantic tokens, contrast math, accessible primitives | `src/core` |
-| `src/auth/` | Auth reducer/state machine, lifecycle controller, SecureStore adapter, install marker, epoch, views | `src/core`, `src/ui`, `src/data/supabase` (client factory only) |
-| `src/tenancy/` | Membership types, ScopeKey, scope chooser, clearing rules | `src/core`, `src/ui` |
-| `src/data/supabase/` | The one client factory, generated database types, typed scoped repositories | `src/core`, `src/tenancy` (types) |
-| `src/features/dashboard/` | The scoped empty dashboard and synthetic cards | everything above |
-| `supabase/` | Migrations, grants, RLS, pgTAP tests, config | — |
-| `scripts/` | Toolchain, local-Supabase, secret-scan, type-drift, config, bundle-inspection commands | node stdlib only |
+| Path                      | Owns                                                                                                | May depend on                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `app/`                    | Thin Expo Router routes: navigation and state→screen mapping only                                   | `src/*`                                                         |
+| `src/core/`               | Environment validation, clock, opaque IDs, safe error mapping, diagnostics interface, SHA-256       | nothing app-internal                                            |
+| `src/ui/`                 | Semantic tokens, contrast math, accessible primitives                                               | `src/core`                                                      |
+| `src/auth/`               | Auth reducer/state machine, lifecycle controller, SecureStore adapter, install marker, epoch, views | `src/core`, `src/ui`, `src/data/supabase` (client factory only) |
+| `src/tenancy/`            | Membership types, ScopeKey, scope chooser, clearing rules                                           | `src/core`, `src/ui`                                            |
+| `src/data/supabase/`      | The one client factory, generated database types, typed scoped repositories                         | `src/core`, `src/tenancy` (types)                               |
+| `src/features/dashboard/` | The scoped empty dashboard and synthetic cards                                                      | everything above                                                |
+| `supabase/`               | Migrations, grants, RLS, pgTAP tests, config                                                        | —                                                               |
+| `scripts/`                | Toolchain, local-Supabase, secret-scan, type-drift, config, bundle-inspection commands              | node stdlib only                                                |
 
 Dependency direction is strictly downward in that table; `src/core` imports
 nothing app-internal, and only `src/data/supabase/client.ts` constructs a

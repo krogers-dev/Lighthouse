@@ -5,12 +5,7 @@ import {
   type AuthEvent,
   type AuthState,
 } from '../machine';
-import {
-  FORGED_MEMBERSHIP_ID,
-  actorAal1,
-  membershipA1,
-  membershipA2,
-} from './fixtures';
+import { FORGED_MEMBERSHIP_ID, actorAal1, membershipA1, membershipA2 } from './fixtures';
 
 const devReduce = createAuthReducer({ failMode: 'throw' });
 
@@ -126,7 +121,11 @@ describe('sign-in flow', () => {
     const verifying = drive(mfa, { type: 'MFA_SUBMITTED' });
     expect(verifying).toMatchObject({ name: 'mfa_required', verifying: true });
     const failed = drive(verifying, { type: 'MFA_FAILED', code: 'auth_invalid' });
-    expect(failed).toMatchObject({ name: 'mfa_required', verifying: false, notice: 'auth_invalid' });
+    expect(failed).toMatchObject({
+      name: 'mfa_required',
+      verifying: false,
+      notice: 'auth_invalid',
+    });
     const done = drive(
       failed,
       { type: 'MFA_SUBMITTED' },
@@ -137,6 +136,59 @@ describe('sign-in flow', () => {
 
   it('allows a safe cancel back to signed_out from first_factor', () => {
     expect(drive(firstFactor, { type: 'RETURN_TO_SIGNED_OUT' }).name).toBe('signed_out');
+  });
+});
+
+describe('first-time TOTP enrollment (P1-3)', () => {
+  const enrollment = {
+    factorId: 'factor-synthetic',
+    secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
+    qrSvg: '<svg />',
+    uri: null,
+  };
+  const mfa = drive(
+    firstFactor,
+    { type: 'OTP_REQUESTED' },
+    { type: 'OTP_SUBMITTED' },
+    { type: 'MFA_CHALLENGE_REQUIRED' },
+  );
+
+  it('carries the enrollment payload into mfa_required context', () => {
+    const enrolling = drive(mfa, { type: 'MFA_ENROLLMENT_REQUIRED', enrollment });
+    expect(enrolling).toMatchObject({ name: 'mfa_required', verifying: false, enrollment });
+  });
+
+  it('preserves enrollment across submit and a wrong-code failure', () => {
+    const failed = drive(
+      mfa,
+      { type: 'MFA_ENROLLMENT_REQUIRED', enrollment },
+      { type: 'MFA_SUBMITTED' },
+      { type: 'MFA_FAILED', code: 'auth_invalid' },
+    );
+    expect(failed).toMatchObject({
+      name: 'mfa_required',
+      verifying: false,
+      notice: 'auth_invalid',
+      enrollment,
+    });
+  });
+
+  it('accepts setup failures outside verification as a safe notice', () => {
+    const failed = drive(mfa, { type: 'MFA_FAILED', code: 'network' });
+    expect(failed).toMatchObject({ name: 'mfa_required', verifying: false, notice: 'network' });
+  });
+
+  it('rejects enrollment arriving while a code is being verified', () => {
+    const verifying = drive(mfa, { type: 'MFA_SUBMITTED' });
+    expect(() => devReduce(verifying, { type: 'MFA_ENROLLMENT_REQUIRED', enrollment })).toThrow(
+      IllegalTransitionError,
+    );
+  });
+
+  it('clears enrollment (with the whole context) on cancel to sign-out', () => {
+    const enrolling = drive(mfa, { type: 'MFA_ENROLLMENT_REQUIRED', enrollment });
+    const out = drive(enrolling, { type: 'SIGN_OUT_REQUESTED', reason: 'user' });
+    expect(out).toEqual({ name: 'signing_out', reason: 'user' });
   });
 });
 
@@ -208,7 +260,12 @@ describe('sign-out sequence', () => {
   });
 
   it('is reachable from every session-holding state', () => {
-    for (const from of [authorized, selectScope, firstFactor, drive(booting, { type: 'MFA_CHALLENGE_REQUIRED' })]) {
+    for (const from of [
+      authorized,
+      selectScope,
+      firstFactor,
+      drive(booting, { type: 'MFA_CHALLENGE_REQUIRED' }),
+    ]) {
       expect(drive(from, { type: 'SIGN_OUT_REQUESTED', reason: 'user' }).name).toBe('signing_out');
     }
   });
@@ -289,6 +346,20 @@ describe('illegal transitions', () => {
     [booting, { type: 'SIGN_IN_STARTED', email: 'client.owner@example.invalid' }],
     [firstFactor, { type: 'SCOPE_SWITCH_REQUESTED' }],
     [signedOut, { type: 'SCOPES_LOADED', actor: actorAal1, memberships: [membershipA1] }],
+    [
+      signedOut,
+      {
+        type: 'MFA_ENROLLMENT_REQUIRED',
+        enrollment: { factorId: 'f', secret: 's', qrSvg: null, uri: null },
+      },
+    ],
+    [
+      authorized,
+      {
+        type: 'MFA_ENROLLMENT_REQUIRED',
+        enrollment: { factorId: 'f', secret: 's', qrSvg: null, uri: null },
+      },
+    ],
   ];
 
   it.each(illegalPairs.map(([s, e]) => [s.name, e.type, s, e] as const))(

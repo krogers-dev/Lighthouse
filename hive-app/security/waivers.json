@@ -9,7 +9,7 @@
       "owner": "Kody",
       "approvedOn": "2026-08-21",
       "expires": "2026-11-21",
-      "retest": "Re-run npm audit at every dependency refresh; remove this waiver as soon as a fixed image-size release ships."
+      "retest": "Recheck monthly, on every lockfile or Expo change, before any release candidate, and at expiry; remove this waiver as soon as a fixed image-size release ships. Compensating control: audit:gate rejects tracked ICNS/JXL/HEIF/HEIC assets while this waiver is active."
     },
     {
       "advisory": "GHSA-5p2g-fcmc-qvqq",
@@ -19,7 +19,7 @@
       "owner": "Kody",
       "approvedOn": "2026-08-21",
       "expires": "2026-11-21",
-      "retest": "Re-run npm audit at every dependency refresh; remove this waiver as soon as a fixed image-size release ships."
+      "retest": "Recheck monthly, on every lockfile or Expo change, before any release candidate, and at expiry; remove this waiver as soon as a fixed image-size release ships. Compensating control: audit:gate rejects tracked ICNS/JXL/HEIF/HEIC assets while this waiver is active."
     }
   ]
 }

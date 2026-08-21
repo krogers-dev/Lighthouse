@@ -82,22 +82,127 @@ export function scanText(text, patterns, filePath = '<memory>') {
   return findings;
 }
 
-/** Allowlist entries: { path, pattern, reason, blob? }.
+/** History-exception gate (P2-10 hardened).
  *
- * - Without `blob`, an entry allows matches of that pattern in that tracked
- *   file (path suffix match).
- * - With `blob` (a Git object id prefix), the entry allows only that exact
- *   historical blob — used for synthetic values that once existed as
- *   literals; every new blob and tracked file stays fully covered. */
+ * Allowlist entries are blob-scoped only: every entry pins one exact
+ * historical Git object by full 40-hex id, exact repo-relative path,
+ * pattern, and exact expected occurrence count, with owner, reason,
+ * approval, expiry, and retest recorded. Tracked findings (no blob) are
+ * NEVER allowlisted — fix the file instead. */
+const FULL_BLOB_ID = /^[0-9a-f]{40}$/;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function entryKey(entry) {
+  return `${entry.blob}:${entry.path}:${entry.pattern}`;
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function isIsoDate(value) {
+  return (
+    typeof value === 'string' &&
+    ISO_DATE.test(value) &&
+    !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
+  );
+}
+
+/** A finding is covered only by an entry pinning its exact
+ * (blob, path, pattern) triple — full 40-hex equality, no prefixes. */
 export function isAllowed(finding, allowlist) {
-  return allowlist.some((entry) => {
-    if (finding.pattern !== entry.pattern) return false;
-    if (entry.blob) {
-      return typeof finding.blob === 'string' && finding.blob.startsWith(entry.blob);
+  if (typeof finding.blob !== 'string') return false;
+  return allowlist.some(
+    (entry) =>
+      entry.blob === finding.blob &&
+      entry.path === finding.blobPath &&
+      entry.pattern === finding.pattern,
+  );
+}
+
+/** Validate every allowlist entry; returns human-readable problems.
+ * Malformed, duplicate, and expired entries all fail the gate. */
+export function validateAllowlist(entries, todayIso) {
+  const problems = [];
+  const seen = new Set();
+  const knownPatterns = new Set(SECRET_PATTERNS.map((p) => p.name));
+  entries.forEach((entry, index) => {
+    const label = `allowlist entry ${index + 1}`;
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      problems.push(`${label}: not an object`);
+      return;
     }
-    if (finding.blob) return false;
-    return finding.file === entry.path || finding.file.endsWith(entry.path);
+    if (typeof entry.blob !== 'string' || !FULL_BLOB_ID.test(entry.blob)) {
+      problems.push(`${label}: blob must be a full 40-character lowercase hex Git object id`);
+    }
+    if (!isNonEmptyString(entry.path) || entry.path.startsWith('/') || entry.path.includes('..')) {
+      problems.push(`${label}: path must be a non-empty exact repo-relative path`);
+    }
+    if (!knownPatterns.has(entry.pattern)) {
+      problems.push(`${label}: pattern must name a known secret pattern`);
+    }
+    if (!Number.isInteger(entry.expectedCount) || entry.expectedCount < 1) {
+      problems.push(`${label}: expectedCount must be an integer >= 1`);
+    }
+    if (!isNonEmptyString(entry.owner)) {
+      problems.push(`${label}: owner is required`);
+    }
+    if (typeof entry.reason !== 'string' || entry.reason.trim().length < 10) {
+      problems.push(`${label}: reason must be at least 10 characters`);
+    }
+    if (!isNonEmptyString(entry.approval)) {
+      problems.push(`${label}: approval is required`);
+    }
+    if (!isIsoDate(entry.recordedOn)) {
+      problems.push(`${label}: recordedOn must be an ISO date (YYYY-MM-DD)`);
+    }
+    if (!isIsoDate(entry.expiry)) {
+      problems.push(`${label}: expiry must be an ISO date (YYYY-MM-DD)`);
+    } else {
+      if (isIsoDate(entry.recordedOn) && entry.expiry <= entry.recordedOn) {
+        problems.push(`${label}: expiry must be after recordedOn`);
+      }
+      if (entry.expiry <= todayIso) {
+        problems.push(`${label}: expired on ${entry.expiry} — re-approve or remove`);
+      }
+    }
+    if (!isNonEmptyString(entry.retest)) {
+      problems.push(`${label}: retest is required`);
+    }
+    const key = entryKey(entry);
+    if (seen.has(key)) {
+      problems.push(`${label}: duplicate of ${key}`);
+    }
+    seen.add(key);
   });
+  return problems;
+}
+
+/** Reconcile the raw (pre-filter) history findings against the allowlist:
+ * returns uncovered findings plus problems for orphaned (unused) entries
+ * and occurrence-count drift. Every entry must still match its recorded
+ * count exactly — no silent growth, no dead policy. */
+export function reconcileHistoryAllowlist(findings, allowlist) {
+  const counts = new Map();
+  for (const finding of findings) {
+    if (typeof finding.blob !== 'string') continue;
+    const key = `${finding.blob}:${finding.blobPath}:${finding.pattern}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const uncovered = findings.filter((finding) => !isAllowed(finding, allowlist));
+  const problems = [];
+  for (const entry of allowlist) {
+    const key = entryKey(entry);
+    const count = counts.get(key) ?? 0;
+    if (count === 0) {
+      problems.push(`orphaned (unused) history exception: ${key} matches nothing`);
+    } else if (count !== entry.expectedCount) {
+      problems.push(
+        `history exception count drift for ${key}: expected ${entry.expectedCount}, found ${count}`,
+      );
+    }
+  }
+  return { uncovered, problems };
 }
 
 export function looksBinary(buffer) {

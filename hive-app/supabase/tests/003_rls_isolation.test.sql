@@ -4,11 +4,17 @@
 begin;
 select plan(29);
 
-create function pg_temp.impersonate(uid uuid, aal text default 'aal1')
+create function pg_temp.user_id_for(p_email text)
+returns uuid language sql stable as $$
+  select id from auth.users where lower(email) = lower(p_email)
+$$;
+
+create function pg_temp.impersonate_email(p_email text, aal text default 'aal1')
 returns void language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
-    json_build_object('sub', uid, 'role', 'authenticated', 'aal', aal)::text, true);
+    json_build_object('sub', pg_temp.user_id_for(p_email),
+                      'role', 'authenticated', 'aal', aal)::text, true);
   perform set_config('role', 'authenticated', true);
 end;
 $$;
@@ -44,7 +50,7 @@ select pg_temp.become_superuser() \gset
 -- ---------------------------------------------------------------------------
 -- Client A owner: exactly their two entities, nothing of client B.
 -- ---------------------------------------------------------------------------
-select pg_temp.impersonate('cccccccc-0000-4000-8000-000000000001') \gset
+select pg_temp.impersonate_email('client.owner@example.invalid') \gset
 select is((select count(*)::int from public.memberships), 2,
   'client A owner sees exactly their two memberships');               -- 4
 select is((select count(*)::int from public.environments), 1,
@@ -67,7 +73,7 @@ select is((select count(*)::int from public.cases
   'sweeping another client id returns zero rows');                    -- 12
 select throws_ok(
   $$insert into public.memberships (user_id, environment_id, client_id, entity_id, role)
-    values ('cccccccc-0000-4000-8000-000000000001',
+    values (pg_temp.user_id_for('client.owner@example.invalid'),
             '11111111-0000-4000-8000-000000000001',
             'bbbbbbbb-0000-4000-8000-000000000001',
             'bbbbbbbb-1111-4000-8000-000000000001', 'client_user')$$,
@@ -96,7 +102,7 @@ select pg_temp.become_superuser() \gset
 -- ---------------------------------------------------------------------------
 -- Client B owner: entity-level isolation inside their own client.
 -- ---------------------------------------------------------------------------
-select pg_temp.impersonate('cccccccc-0000-4000-8000-000000000006') \gset
+select pg_temp.impersonate_email('client.second@example.invalid') \gset
 select is((select count(*)::int from public.cases), 1,
   'client B owner sees only the B1 case');                            -- 18
 select is((select count(*)::int from public.entities), 1,
@@ -112,14 +118,14 @@ select pg_temp.become_superuser() \gset
 -- ---------------------------------------------------------------------------
 -- Staff roles see exactly their memberships; roles add no extra reach.
 -- ---------------------------------------------------------------------------
-select pg_temp.impersonate('cccccccc-0000-4000-8000-000000000002', 'aal2') \gset
+select pg_temp.impersonate_email('intake.beth@example.invalid', 'aal2') \gset
 select is((select count(*)::int from public.cases), 3,
   'intake sees the three cases across all four entities');            -- 22
 select is((select count(*)::int from public.entities), 4,
   'intake sees all four entities via memberships');                   -- 23
 select pg_temp.become_superuser() \gset
 
-select pg_temp.impersonate('cccccccc-0000-4000-8000-000000000003', 'aal2') \gset
+select pg_temp.impersonate_email('preparer.pat@example.invalid', 'aal2') \gset
 select is((select count(*)::int from public.cases), 2,
   'preparer sees only A1 and B1 cases');                              -- 24
 select pg_temp.become_superuser() \gset
@@ -127,7 +133,7 @@ select pg_temp.become_superuser() \gset
 -- ---------------------------------------------------------------------------
 -- A valid account with no membership sees nothing.
 -- ---------------------------------------------------------------------------
-select pg_temp.impersonate('cccccccc-0000-4000-8000-000000000007') \gset
+select pg_temp.impersonate_email('nomember.norman@example.invalid') \gset
 select is((select count(*)::int from public.memberships), 0,
   'no-membership user has no membership rows');                       -- 25
 select is((select count(*)::int from public.cases), 0,

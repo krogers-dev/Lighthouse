@@ -16,6 +16,21 @@ export interface SessionInfo {
 
 export type AuthListenerEvent = 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'OTHER';
 
+export interface TotpFactors {
+  readonly verifiedId: string | null;
+  readonly unverifiedIds: readonly string[];
+}
+
+/** Setup material for first-time TOTP enrollment. The secret and QR exist
+ * in memory only, are never persisted or logged (the diagnostics allowlist
+ * cannot carry them), and are discarded on verification or sign-out. */
+export interface TotpEnrollment {
+  readonly factorId: string;
+  readonly secret: string;
+  readonly qrSvg: string | null;
+  readonly uri: string | null;
+}
+
 /** Narrow port over the auth surface the controller needs. Implemented for
  * supabase-js in src/data/supabase/client.ts and by fakes in tests. */
 export interface AuthGateway {
@@ -25,8 +40,11 @@ export interface AuthGateway {
   /** Sends an email OTP with shouldCreateUser: false (invite-only). */
   requestOtp(email: string): Promise<void>;
   verifyOtp(email: string, token: string): Promise<SessionInfo>;
-  /** Returns the verified TOTP factor id, when one is enrolled. */
-  listTotpFactorId(): Promise<string | null>;
+  listTotpFactors(): Promise<TotpFactors>;
+  /** Begins first-time TOTP enrollment (mfa.enroll). */
+  enrollTotp(): Promise<TotpEnrollment>;
+  /** Best-effort removal of an abandoned unverified factor. */
+  unenrollTotp(factorId: string): Promise<void>;
   verifyTotp(factorId: string, code: string): Promise<SessionInfo>;
   /** Server-side revocation. Failure must never preserve local access. */
   signOutRemote(): Promise<void>;

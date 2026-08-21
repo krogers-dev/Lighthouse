@@ -53,9 +53,7 @@ export function DashboardScreen({
       .load(scope)
       .then((snapshot) => {
         if (cancelled) return;
-        setLoad(
-          snapshot.caseStatus === null ? { name: 'empty' } : { name: 'ready', snapshot },
-        );
+        setLoad(snapshot.caseStatus === null ? { name: 'empty' } : { name: 'ready', snapshot });
       })
       .catch((error: unknown) => {
         if (cancelled) return;

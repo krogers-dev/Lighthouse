@@ -8,7 +8,12 @@ const sbSecret = 'sb_' + 'secret_syntheticsynthetic';
 const jwt = ['eyJsyntheticA1', 'eyJsyntheticB2', 'sigsigsig'].join('.');
 
 test('flags secret material in any profile', () => {
-  const findings = inspectContent(`var k = "${sbSecret}";`, 'dist/bundle.js', 'development', approved);
+  const findings = inspectContent(
+    `var k = "${sbSecret}";`,
+    'dist/bundle.js',
+    'development',
+    approved,
+  );
   assert.ok(findings.some((f) => f.pattern === 'supabase-secret-key'));
 });
 
@@ -47,7 +52,7 @@ test('non-development profiles reject loopback and development identifiers', () 
 });
 
 test('the gotrue-js default placeholder is recognized; other loopbacks still flag', () => {
-  const lib = 'const c = \'http://localhost:9999\'; // gotrue default';
+  const lib = "const c = 'http://localhost:9999'; // gotrue default";
   assert.deepEqual(inspectContent(lib, 'dist/bundle.js', 'development', approved), []);
   assert.deepEqual(inspectContent(lib, 'dist/bundle.js', 'release', approved), []);
   const other = inspectContent(
@@ -60,7 +65,8 @@ test('the gotrue-js default placeholder is recognized; other loopbacks still fla
 });
 
 test('binary payloads are scanned via string extraction (review P1-2)', async () => {
-  const { extractPrintableStrings, inspectBinary } = await import('../../scripts/bundle-inspect.mjs');
+  const { extractPrintableStrings, inspectBinary } =
+    await import('../../scripts/bundle-inspect.mjs');
   const secret = 'sb_' + 'secret_bytecodeembeddedvalue0123';
   const buffer = Buffer.concat([
     Buffer.from([0xc6, 0x1f, 0xbc, 0x03, 0x00, 0x00]), // hbc-like magic + NULs

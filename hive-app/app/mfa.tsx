@@ -16,7 +16,9 @@ export default function MfaRoute(): React.JSX.Element {
       <MfaView
         verifying={mfa?.verifying ?? false}
         notice={mfa?.notice}
+        enrollment={mfa?.enrollment}
         onSubmitCode={(code) => void controller.submitTotp(code)}
+        onRetrySetup={() => void controller.retryMfaSetup()}
         onSignOut={() => void controller.signOut()}
       />
     </Screen>

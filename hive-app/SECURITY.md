@@ -13,14 +13,14 @@ data were real.
 
 ## Actors
 
-| Actor | Trust |
-|---|---|
-| Anonymous network client | Untrusted |
-| Authenticated client user (AAL1) | Trusted only for exact memberships, read-only |
-| Staff roles (intake, preparer, reviewer, approver) | Trusted for role capabilities at AAL2, per membership |
-| The mobile app itself | **Untrusted** — it may hold only the Supabase URL and an approved public client key |
-| Postgres + RLS + reviewed server functions | The authorization authority |
-| Local seed/admin harness (dev machine only) | Privileged; its key never reaches the app |
+| Actor                                              | Trust                                                                               |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Anonymous network client                           | Untrusted                                                                           |
+| Authenticated client user (AAL1)                   | Trusted only for exact memberships, read-only                                       |
+| Staff roles (intake, preparer, reviewer, approver) | Trusted for role capabilities at AAL2, per membership                               |
+| The mobile app itself                              | **Untrusted** — it may hold only the Supabase URL and an approved public client key |
+| Postgres + RLS + reviewed server functions         | The authorization authority                                                         |
+| Local seed/admin harness (dev machine only)        | Privileged; its key never reaches the app                                           |
 
 ## Trust boundaries
 
@@ -36,27 +36,27 @@ in server-controlled tables).
 
 ## Threat cases and required behavior
 
-| Threat | Required behavior | Verified by |
-|---|---|---|
-| BOLA/IDOR by guessed case ID | Deny before content serialization; zero protected fields returned | pgTAP cross-scope tests |
-| Wrong client/entity in route or deep link | Untrusted scope ignored; membership verified server-side; deny | ScopeKey construction rules + repository tests |
-| Missing scope tuple in a query or mutation | Type/test failure — repositories require a ScopeKey; DB columns are NOT NULL | TS types + pgTAP constraints |
-| Stale membership/JWT | Server rechecks current membership at query time; staff-role rows additionally require an `aal2` JWT claim at RLS (a missing claim counts as aal1) | RLS subqueries + pgTAP staff-AAL suite |
-| Client attempts role/boundary change | RLS/grant denial; scope columns immutable by trigger | pgTAP negative tests |
-| Duplicate or replayed mutation | (No client mutations exist in M0) — protected-mutation contract: idempotency key, object version, exact scope, server time, atomic audit receipt | Contract recorded; enforced from Milestone 1 |
-| Stale object version | Conflict, refresh required, no overwrite | Contract recorded; enforced from Milestone 1 |
-| Interrupted sign-out / failed SecureStore deletion | Protected UI removed; `storage_quarantined`; only scrub recovery | Auth machine + controller regression tests |
-| Reinstall with iOS Keychain remnant | Pre-auth purge and verification, or quarantine | Install-marker tests |
-| Malformed/corrupt session chunks | Quarantine; no partial recovery, no session evaluation | Secure-store adapter tests |
-| Late listener after identity switch | Ignored by auth epoch | Controller epoch tests |
-| Offline app with prior session | No persistent protected response cache; safe recovery state | Boot tests; no cache layer exists |
-| Sensitive value passed to diagnostics | Redaction replaces it; allowlist drops unknown fields | Diagnostics tests |
-| Untrusted deep-link input | Route params never become scope; allowlisted navigation only | Tenancy rules + route guard |
-| Secret reaches source, history, or bundle | Secret gate (pinned scanner + canary + history scan) and bundle inspection fail the build | scripts/secret-scan.mjs, scripts/bundle-inspect.mjs |
+| Threat                                             | Required behavior                                                                                                                                                                                                                                                                       | Verified by                                            |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| BOLA/IDOR by guessed case ID                       | Deny before content serialization; zero protected fields returned                                                                                                                                                                                                                       | pgTAP cross-scope tests                                |
+| Wrong client/entity in route or deep link          | Untrusted scope ignored; membership verified server-side; deny                                                                                                                                                                                                                          | ScopeKey construction rules + repository tests         |
+| Missing scope tuple in a query or mutation         | Type/test failure — repositories require a ScopeKey; DB columns are NOT NULL                                                                                                                                                                                                            | TS types + pgTAP constraints                           |
+| Stale membership/JWT                               | Server rechecks current membership at query time; if the user holds ANY staff membership, every protected select additionally requires an `aal2` JWT claim at RLS — across all of that user's memberships, including client-role ones (a missing claim counts as aal1 and fails closed) | RLS subqueries + pgTAP staff-AAL and mixed-role suites |
+| Client attempts role/boundary change               | RLS/grant denial; scope columns immutable by trigger                                                                                                                                                                                                                                    | pgTAP negative tests                                   |
+| Duplicate or replayed mutation                     | (No client mutations exist in M0) — protected-mutation contract: idempotency key, object version, exact scope, server time, atomic audit receipt                                                                                                                                        | Contract recorded; enforced from Milestone 1           |
+| Stale object version                               | Conflict, refresh required, no overwrite                                                                                                                                                                                                                                                | Contract recorded; enforced from Milestone 1           |
+| Interrupted sign-out / failed SecureStore deletion | Protected UI removed; `storage_quarantined`; only scrub recovery                                                                                                                                                                                                                        | Auth machine + controller regression tests             |
+| Reinstall with iOS Keychain remnant                | Pre-auth purge and verification, or quarantine                                                                                                                                                                                                                                          | Install-marker tests                                   |
+| Malformed/corrupt session chunks                   | Quarantine; no partial recovery, no session evaluation                                                                                                                                                                                                                                  | Secure-store adapter tests                             |
+| Late listener after identity switch                | Ignored by auth epoch                                                                                                                                                                                                                                                                   | Controller epoch tests                                 |
+| Offline app with prior session                     | No persistent protected response cache; safe recovery state                                                                                                                                                                                                                             | Boot tests; no cache layer exists                      |
+| Sensitive value passed to diagnostics              | Redaction replaces it; allowlist drops unknown fields                                                                                                                                                                                                                                   | Diagnostics tests                                      |
+| Untrusted deep-link input                          | Route params never become scope; allowlisted navigation only                                                                                                                                                                                                                            | Tenancy rules + route guard                            |
+| Secret reaches source, history, or bundle          | Secret gate (pinned scanner + canary + history scan) and bundle inspection fail the build                                                                                                                                                                                               | scripts/secret-scan.mjs, scripts/bundle-inspect.mjs    |
 
 ## Controls in Milestone 0
 
-- **Self-registration disabled**; email OTP with `shouldCreateUser: false`; TOTP MFA. AAL2 for staff is enforced twice: the controller routes staff to MFA before scope binding, and RLS itself denies staff-membership rows to any JWT below `aal2` — a first-factor-only staff token gets nothing even by calling the API directly.
+- **Self-registration disabled**; email OTP with `shouldCreateUser: false`; TOTP MFA. AAL2 for staff is enforced twice: the controller routes staff to MFA before scope binding, and RLS enforces a **global staff gate** — a user holding any staff membership gets zero rows from every protected table (`environments`, `clients`, `entities`, `cases`, `case_attention_items`, `case_next_actions`) until the JWT carries `aal2`, even through a client-role membership and even by calling the Data API directly. **Precisely what AAL1 staff can see:** only their own rows in `public.memberships` — membership UUIDs, scope UUIDs, and role labels — which the client needs to route to MFA and the scope chooser. No client or workflow content, and not even scope _names_, is readable at AAL1 (names live in the gated tables). This own-membership exception is deliberate and test-locked (pgTAP suites 004/005 assert both the exact AAL1 visibility and the zero-row denials).
 - **One Supabase client** behind an auth lifecycle controller with an acquisition freeze, auth epoch, and serialized refresh/sign-out/expiry.
 - **Versioned SecureStore adapter**: serialized operations, generation-based two-phase commit for chunked sessions, SHA-256 digest verification, read-back verification of deletions, quarantine on any inconsistency. Keychain accessibility is `WHEN_UNLOCKED_THIS_DEVICE_ONLY` (no cross-device restore).
 - **Install marker** outside the Keychain (app documents file, excluded from Android backup via `allowBackup=false`): Keychain material without a marker means reinstall → scrub before any auth construction.
@@ -73,12 +73,12 @@ requires a documented threat decision and recovery design.
 
 ## Residual risks (dispositioned)
 
-| Risk | Severity | Disposition |
-|---|---|---|
-| `image-size` ≤ 2.0.2 DoS advisories (build-time Metro dependency; no fixed release published) | Moderate (build-time only; no confidentiality impact; assets are repo-controlled) | Waiver recorded in `security/waivers.json`, owner Kody, retest at next dependency refresh |
-| `uuid` < 11.1.1 bounds-check advisory via `xcode` (prebuild-time) | Moderate, below the high gate | Tracked for next dependency refresh |
-| iOS same-device backup restore can restore both marker and this-device-only Keychain items together | Low (same device, same owner; server AAL checks still apply) | Documented; native-lane test when a device lane exists |
-| Jest/component tests approximate native accessibility | Low | Native accessibility QA is a device-lane gate before any release candidate |
+| Risk                                                                                                | Severity                                                                          | Disposition                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `image-size` ≤ 2.0.2 DoS advisories (build-time Metro dependency; no fixed release published)       | Moderate (build-time only; no confidentiality impact; assets are repo-controlled) | Waiver recorded in `security/waivers.json`, owner Kody; retest monthly, on every lockfile or Expo change, before any release candidate, and at expiry (2026-11-21). Compensating control: `audit:gate` rejects any tracked ICNS/JXL/HEIF/HEIC asset while the waiver is active. Kody's written ratification of the exact waiver entries is pending — the audit lane is HOLD until signed |
+| `uuid` < 11.1.1 bounds-check advisory via `xcode` (prebuild-time)                                   | Moderate, below the high gate                                                     | Tracked for next dependency refresh                                                                                                                                                                                                                                                                                                                                                      |
+| iOS same-device backup restore can restore both marker and this-device-only Keychain items together | Low (same device, same owner; server AAL checks still apply)                      | Documented; native-lane test when a device lane exists                                                                                                                                                                                                                                                                                                                                   |
+| Jest/component tests approximate native accessibility                                               | Low                                                                               | Native accessibility QA is a device-lane gate before any release candidate                                                                                                                                                                                                                                                                                                               |
 
 ## Incident stop rules
 
@@ -90,13 +90,13 @@ source records and audit history.
 
 ## OWASP MASVS mapping (current release target)
 
-| MASVS family | HIVE control |
-|---|---|
-| MASVS-STORAGE | SecureStore adapter (digest, quarantine), install marker, no backup of auth material, no sensitive local cache |
-| MASVS-CRYPTO | Platform keystore via SecureStore; no home-rolled crypto for secrets (local SHA-256 is integrity-only) |
-| MASVS-AUTH | Invite-only OTP, TOTP MFA, AAL2 for staff, server-side membership, auth epoch, serialized lifecycle |
-| MASVS-NETWORK | TLS only (loopback dev exception), ATS defaults, no cleartext on Android |
-| MASVS-PLATFORM | Expo managed CNG, minimal permissions (none added), predictive back, no exported surfaces |
-| MASVS-CODE | Strict TS, lint gate, pinned toolchain, dependency review rule, secret gate |
-| MASVS-RESILIENCE | Deliberately deferred (see above) with documented rationale |
-| MASVS-PRIVACY | Data classification allowlist, diagnostics redaction, synthetic data only, no analytics SDK |
+| MASVS family     | HIVE control                                                                                                   |
+| ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| MASVS-STORAGE    | SecureStore adapter (digest, quarantine), install marker, no backup of auth material, no sensitive local cache |
+| MASVS-CRYPTO     | Platform keystore via SecureStore; no home-rolled crypto for secrets (local SHA-256 is integrity-only)         |
+| MASVS-AUTH       | Invite-only OTP, TOTP MFA, AAL2 for staff, server-side membership, auth epoch, serialized lifecycle            |
+| MASVS-NETWORK    | TLS only (loopback dev exception), ATS defaults, no cleartext on Android                                       |
+| MASVS-PLATFORM   | Expo managed CNG, minimal permissions (none added), predictive back, no exported surfaces                      |
+| MASVS-CODE       | Strict TS, lint gate, pinned toolchain, dependency review rule, secret gate                                    |
+| MASVS-RESILIENCE | Deliberately deferred (see above) with documented rationale                                                    |
+| MASVS-PRIVACY    | Data classification allowlist, diagnostics redaction, synthetic data only, no analytics SDK                    |

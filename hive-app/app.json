@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "hivedev",
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#FFFEFA",
+    "backgroundColor": "#F4E4CD",
     "ios": {
       "bundleIdentifier": "com.myhbcfo.hive.development",
       "supportsTablet": true
@@ -15,7 +15,7 @@
     "android": {
       "package": "com.myhbcfo.hive.development",
       "adaptiveIcon": {
-        "backgroundColor": "#FFFEFA",
+        "backgroundColor": "#F4E4CD",
         "foregroundImage": "./assets/images/adaptive-icon-foreground.png",
         "backgroundImage": "./assets/images/adaptive-icon-background.png",
         "monochromeImage": "./assets/images/adaptive-icon-monochrome.png"
@@ -32,9 +32,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFEFA",
+          "backgroundColor": "#F4E4CD",
           "dark": {
-            "backgroundColor": "#182027"
+            "backgroundColor": "#0A0B0A"
           }
         }
       ],

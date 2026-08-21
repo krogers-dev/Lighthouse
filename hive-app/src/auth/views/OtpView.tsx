@@ -60,8 +60,20 @@ export function OtpView({
         testID="otp-submit"
       />
       <View style={styles.secondaryRow}>
-        <Button kind="secondary" label="Send a new code" onPress={onResend} disabled={verifying} testID="otp-resend" />
-        <Button kind="secondary" label="Back" onPress={onCancel} disabled={verifying} testID="otp-cancel" />
+        <Button
+          kind="secondary"
+          label="Send a new code"
+          onPress={onResend}
+          disabled={verifying}
+          testID="otp-resend"
+        />
+        <Button
+          kind="secondary"
+          label="Back"
+          onPress={onCancel}
+          disabled={verifying}
+          testID="otp-cancel"
+        />
       </View>
     </View>
   );

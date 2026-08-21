@@ -62,7 +62,13 @@ export function SettingsView({
         accessibilityHint="Ends your session on this device"
         testID="settings-sign-out"
       />
-      <Button kind="secondary" label="Back" onPress={onBack} disabled={signingOut} testID="settings-back" />
+      <Button
+        kind="secondary"
+        label="Back"
+        onPress={onBack}
+        disabled={signingOut}
+        testID="settings-back"
+      />
     </View>
   );
 }

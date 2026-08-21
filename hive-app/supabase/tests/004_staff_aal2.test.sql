@@ -6,11 +6,17 @@
 begin;
 select plan(10);
 
-create function pg_temp.impersonate(uid uuid, aal text default 'aal1')
+create function pg_temp.user_id_for(p_email text)
+returns uuid language sql stable as $$
+  select id from auth.users where lower(email) = lower(p_email)
+$$;
+
+create function pg_temp.impersonate_email(p_email text, aal text default 'aal1')
 returns void language plpgsql as $$
 begin
   perform set_config('request.jwt.claims',
-    json_build_object('sub', uid, 'role', 'authenticated', 'aal', aal)::text, true);
+    json_build_object('sub', pg_temp.user_id_for(p_email),
+                      'role', 'authenticated', 'aal', aal)::text, true);
   perform set_config('role', 'authenticated', true);
 end;
 $$;
@@ -24,7 +30,7 @@ end;
 $$;
 
 -- Intake (staff) at aal1: routing metadata only, zero protected rows.
-select pg_temp.impersonate('cccccccc-0000-4000-8000-000000000002', 'aal1') \gset
+select pg_temp.impersonate_email('intake.beth@example.invalid', 'aal1') \gset
 select is((select count(*)::int from public.memberships), 4,
   'staff at aal1 still sees their own membership rows (MFA routing)');   -- 1
 select is((select count(*)::int from public.cases), 0,
@@ -38,7 +44,7 @@ select is((select count(*)::int from public.case_attention_items), 0,
 select pg_temp.become_superuser() \gset
 
 -- The same staff member at aal2 has their full membership reach.
-select pg_temp.impersonate('cccccccc-0000-4000-8000-000000000002', 'aal2') \gset
+select pg_temp.impersonate_email('intake.beth@example.invalid', 'aal2') \gset
 select is((select count(*)::int from public.cases), 3,
   'staff at aal2 sees the cases their memberships cover');               -- 6
 select is((select count(*)::int from public.entities), 4,
@@ -46,7 +52,7 @@ select is((select count(*)::int from public.entities), 4,
 select pg_temp.become_superuser() \gset
 
 -- client_user access is unchanged at aal1.
-select pg_temp.impersonate('cccccccc-0000-4000-8000-000000000001', 'aal1') \gset
+select pg_temp.impersonate_email('client.owner@example.invalid', 'aal1') \gset
 select is((select count(*)::int from public.cases), 1,
   'client user at aal1 still sees their case');                          -- 8
 select is((select count(*)::int from public.entities), 2,
@@ -55,7 +61,7 @@ select pg_temp.become_superuser() \gset
 
 -- A missing aal claim is treated as aal1 (fail closed) for staff.
 select set_config('request.jwt.claims',
-  json_build_object('sub', 'cccccccc-0000-4000-8000-000000000002',
+  json_build_object('sub', pg_temp.user_id_for('intake.beth@example.invalid'),
                     'role', 'authenticated')::text, true) \gset
 select set_config('role', 'authenticated', true) \gset
 select is((select count(*)::int from public.cases), 0,

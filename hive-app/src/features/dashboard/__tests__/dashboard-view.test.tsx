@@ -54,9 +54,7 @@ describe('DashboardView states', () => {
 
   it('shows permission-denied with a workspace action', async () => {
     const onSwitchScope = jest.fn();
-    await render(
-      <DashboardView {...baseProps} state="denied" onSwitchScope={onSwitchScope} />,
-    );
+    await render(<DashboardView {...baseProps} state="denied" onSwitchScope={onSwitchScope} />);
     await fireEvent.press(screen.getByRole('button', { name: 'Choose a workspace' }));
     expect(onSwitchScope).toHaveBeenCalled();
   });

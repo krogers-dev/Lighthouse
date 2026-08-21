@@ -21,14 +21,7 @@ import { radii, spacing } from '@/ui/tokens';
 import type { StatusKind } from '@/ui/primitives/StatusBadge';
 
 export type DashboardStateName =
-  | 'loading'
-  | 'ready'
-  | 'empty'
-  | 'offline'
-  | 'expired'
-  | 'denied'
-  | 'stale_scope'
-  | 'error';
+  'loading' | 'ready' | 'empty' | 'offline' | 'expired' | 'denied' | 'stale_scope' | 'error';
 
 export interface DashboardViewProps {
   state: DashboardStateName;
@@ -88,7 +81,9 @@ export function DashboardView({
         {workspaceName}
       </AppText>
 
-      {state === 'loading' ? <LoadingState label="Loading your view" testID="dashboard-loading" /> : null}
+      {state === 'loading' ? (
+        <LoadingState label="Loading your view" testID="dashboard-loading" />
+      ) : null}
 
       {state === 'offline' ? <OfflineState onRetry={onRetry} testID="dashboard-offline" /> : null}
 
@@ -134,7 +129,10 @@ export function DashboardView({
 
       {state === 'ready' && snapshot && snapshot.caseStatus ? (
         <View
-          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.divider, borderWidth: 1 }]}
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.divider, borderWidth: 1 },
+          ]}
           testID="dashboard-ready"
         >
           <AppText variant="heading">{snapshot.caseTitle ?? 'Current work'}</AppText>
@@ -167,7 +165,12 @@ export function DashboardView({
         </View>
       ) : null}
 
-      <Button kind="secondary" label="Account" onPress={onOpenSettings} testID="dashboard-account" />
+      <Button
+        kind="secondary"
+        label="Account"
+        onPress={onOpenSettings}
+        testID="dashboard-account"
+      />
     </View>
   );
 }

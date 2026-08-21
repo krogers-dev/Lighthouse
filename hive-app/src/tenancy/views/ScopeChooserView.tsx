@@ -48,8 +48,8 @@ export function ScopeChooserView({
         Choose a workspace
       </AppText>
       <AppText variant="body" tone="secondary">
-        You have access to more than one workspace. Choose where to work; you can switch at any
-        time from Account.
+        You have access to more than one workspace. Choose where to work; you can switch at any time
+        from Account.
       </AppText>
       <View style={styles.list} accessibilityRole="radiogroup">
         {memberships.map((membership) => (

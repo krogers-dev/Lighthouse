@@ -13,13 +13,7 @@ import {
 import { AuthController, type SessionStorage } from '../controller';
 import { InstallMarker } from '../install-marker';
 import { QuarantineRequiredError } from '../secure-store-adapter';
-import {
-  USER_CLIENT,
-  USER_STAFF,
-  membershipA1,
-  membershipA2,
-  membershipB1Staff,
-} from './fixtures';
+import { USER_CLIENT, USER_STAFF, membershipA1, membershipA2, membershipB1Staff } from './fixtures';
 
 class FakeSessionStorage implements SessionStorage {
   residue = false;
@@ -71,6 +65,10 @@ class FakeAuthGateway implements AuthGateway {
   verifyResult: SessionInfo | null = null;
   totpResult: SessionInfo | null = null;
   totpFactorId: string | null = 'factor-synthetic';
+  unverifiedFactorIds: string[] = [];
+  enrollError: Error | null = null;
+  enrolled = 0;
+  unenrolled: string[] = [];
   requestOtpError: Error | null = null;
   verifyOtpError: Error | null = null;
   signOutRemoteError: Error | null = null;
@@ -95,8 +93,27 @@ class FakeAuthGateway implements AuthGateway {
     if (!this.verifyResult) throw new Error('no verify result configured');
     return this.verifyResult;
   }
-  async listTotpFactorId(): Promise<string | null> {
-    return this.totpFactorId;
+  async listTotpFactors(): Promise<{ verifiedId: string | null; unverifiedIds: string[] }> {
+    return { verifiedId: this.totpFactorId, unverifiedIds: this.unverifiedFactorIds };
+  }
+  async enrollTotp(): Promise<{
+    factorId: string;
+    secret: string;
+    qrSvg: string | null;
+    uri: string | null;
+  }> {
+    this.log.push('auth.enrollTotp');
+    if (this.enrollError) throw this.enrollError;
+    this.enrolled += 1;
+    return {
+      factorId: 'factor-enrolled-synthetic',
+      secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
+      qrSvg: '<svg>synthetic</svg>',
+      uri: 'otpauth://totp/synthetic',
+    };
+  }
+  async unenrollTotp(factorId: string): Promise<void> {
+    this.unenrolled.push(factorId);
   }
   async verifyTotp(): Promise<SessionInfo> {
     this.log.push('auth.verifyTotp');
@@ -142,6 +159,7 @@ function makeHarness(options?: {
   memberships?: Membership[];
   membershipError?: Error;
   now?: number;
+  initialAppStatus?: 'active' | 'background' | 'inactive' | 'unknown';
 }): Harness {
   const log: string[] = [];
   const gateway = new FakeAuthGateway(log);
@@ -179,6 +197,7 @@ function makeHarness(options?: {
     }),
     clock: fixedClock(options?.now ?? 1_000_000),
     failMode: 'closed',
+    initialAppStatus: options?.initialAppStatus ?? 'unknown',
   });
   return {
     controller,
@@ -361,7 +380,13 @@ describe('sign-out sequence', () => {
     await h.controller.signOut();
     expect(h.controller.getState()).toMatchObject({ name: 'signed_out', reason: 'signed_out' });
     const order = h.log.filter((e) =>
-      ['auth.stopAutoRefresh', 'auth.unsubscribe', 'auth.signOutRemote', 'storage.delete', 'bundle.dispose'].includes(e),
+      [
+        'auth.stopAutoRefresh',
+        'auth.unsubscribe',
+        'auth.signOutRemote',
+        'storage.delete',
+        'bundle.dispose',
+      ].includes(e),
     );
     expect(order).toEqual([
       'auth.stopAutoRefresh',
@@ -524,5 +549,135 @@ describe('storage failures via the data path (review P2-5)', () => {
     h.gateway.session = clientSession;
     await h.controller.boot();
     expect(h.controller.getState().name).toBe('storage_quarantined');
+  });
+});
+
+describe('first-time TOTP enrollment (PM directive P1 item 3)', () => {
+  async function staffAal1AtMfa(h: Harness) {
+    h.gateway.session = staffSessionAal1;
+    await h.controller.boot();
+    expect(h.controller.getState().name).toBe('mfa_required');
+  }
+
+  it('enrolls when no verified factor exists and surfaces QR + secret', async () => {
+    const h = makeHarness();
+    h.gateway.totpFactorId = null;
+    await staffAal1AtMfa(h);
+    const state = h.controller.getState();
+    expect(state).toMatchObject({ name: 'mfa_required' });
+    if (state.name === 'mfa_required') {
+      expect(state.enrollment?.factorId).toBe('factor-enrolled-synthetic');
+      expect(state.enrollment?.secret).toBeTruthy();
+    }
+    expect(h.gateway.enrolled).toBe(1);
+  });
+
+  it('cleans abandoned unverified factors before enrolling again', async () => {
+    const h = makeHarness();
+    h.gateway.totpFactorId = null;
+    h.gateway.unverifiedFactorIds = ['stale-1', 'stale-2'];
+    await staffAal1AtMfa(h);
+    expect(h.gateway.unenrolled).toEqual(['stale-1', 'stale-2']);
+    expect(h.gateway.enrolled).toBe(1);
+  });
+
+  it('verifies the enrolled factor and promotes to authorized (AAL2)', async () => {
+    const h = makeHarness();
+    h.gateway.totpFactorId = null;
+    await staffAal1AtMfa(h);
+    h.gateway.totpResult = staffSessionAal2;
+    await h.controller.submitTotp('654321');
+    expect(h.controller.getState().name).toBe('authorized');
+  });
+
+  it('a wrong code during enrollment keeps the setup material for retry', async () => {
+    const h = makeHarness();
+    h.gateway.totpFactorId = null;
+    await staffAal1AtMfa(h);
+    h.gateway.totpResult = null;
+    await h.controller.submitTotp('000000');
+    const state = h.controller.getState();
+    expect(state).toMatchObject({ name: 'mfa_required', notice: 'auth_invalid' });
+    if (state.name === 'mfa_required') {
+      expect(state.enrollment?.factorId).toBe('factor-enrolled-synthetic');
+    }
+  });
+
+  it('a setup failure surfaces a safe notice and retryMfaSetup recovers', async () => {
+    const h = makeHarness();
+    h.gateway.totpFactorId = null;
+    h.gateway.enrollError = new TypeError('Network request failed');
+    await staffAal1AtMfa(h);
+    expect(h.controller.getState()).toMatchObject({ name: 'mfa_required', notice: 'network' });
+    h.gateway.enrollError = null;
+    await h.controller.retryMfaSetup();
+    const state = h.controller.getState();
+    if (state.name === 'mfa_required') {
+      expect(state.enrollment?.factorId).toBe('factor-enrolled-synthetic');
+    } else {
+      throw new Error('expected mfa_required');
+    }
+  });
+
+  it('relaunch with an existing verified factor verifies without enrolling', async () => {
+    const h = makeHarness();
+    await staffAal1AtMfa(h); // default fake has a verified factor
+    expect(h.gateway.enrolled).toBe(0);
+    h.gateway.totpResult = staffSessionAal2;
+    await h.controller.submitTotp('654321');
+    expect(h.controller.getState().name).toBe('authorized');
+  });
+
+  it('cancellation signs out and clears the pending factor', async () => {
+    const h = makeHarness();
+    h.gateway.totpFactorId = null;
+    await staffAal1AtMfa(h);
+    await h.controller.signOut();
+    expect(h.controller.getState().name).toBe('signed_out');
+    await h.controller.submitTotp('654321');
+    expect(h.controller.getState().name).toBe('signed_out');
+  });
+});
+
+describe('refresh starts without an AppState event (PM directive P1 item 5)', () => {
+  it('starts on a cold boot that is already foregrounded', async () => {
+    const h = makeHarness({ initialAppStatus: 'active' });
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    expect(h.controller.getState().name).toBe('authorized');
+    expect(h.log).toContain('auth.startAutoRefresh');
+  });
+
+  it('starts on first sign-in while active', async () => {
+    const h = makeHarness({ initialAppStatus: 'active' });
+    await h.controller.boot();
+    expect(h.log).not.toContain('auth.startAutoRefresh');
+    await h.controller.startSignIn('client.owner@example.invalid');
+    h.gateway.verifyResult = clientSession;
+    await h.controller.submitOtp('123456');
+    expect(h.controller.getState().name).toBe('authorized');
+    expect(h.log).toContain('auth.startAutoRefresh');
+  });
+
+  it('stops on sign-out and never restarts while signed out', async () => {
+    const h = makeHarness({ initialAppStatus: 'active' });
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    await h.controller.signOut();
+    const afterSignOut = h.log.slice(h.log.indexOf('storage.delete'));
+    expect(afterSignOut.filter((e) => e === 'auth.startAutoRefresh')).toHaveLength(0);
+  });
+
+  it('background stops and resume restarts exactly once', async () => {
+    const h = makeHarness({ initialAppStatus: 'active' });
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    const startsAfterBoot = h.log.filter((e) => e === 'auth.startAutoRefresh').length;
+    h.controller.handleAppStateChange('background');
+    await h.controller.settle();
+    expect(h.log.filter((e) => e === 'auth.stopAutoRefresh').length).toBeGreaterThan(0);
+    h.controller.handleAppStateChange('active');
+    await h.controller.settle();
+    expect(h.log.filter((e) => e === 'auth.startAutoRefresh').length).toBe(startsAfterBoot + 1);
   });
 });

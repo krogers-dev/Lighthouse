@@ -124,16 +124,15 @@ function up() {
   console.log(`local-supabase: wrote .env.local (${parsed.keyKind} key, loopback URL)`);
 }
 
-function seed() {
-  const { raw } = readStatus();
+function runHarness(scriptName) {
+  const { parsed, raw } = readStatus();
   const data = JSON.parse(raw);
   const serviceKey = data.SERVICE_ROLE_KEY ?? data.service_role_key ?? data.SECRET_KEY;
   if (typeof serviceKey !== 'string' || serviceKey.length === 0) {
     fail('no service key available from supabase status');
   }
-  const { parsed } = readStatus();
   // In memory only, to the child process; never written or printed.
-  const child = spawnSync('node', [path.join(appRoot, 'scripts', 'seed-local.mjs')], {
+  const child = spawnSync('node', [path.join(appRoot, 'scripts', scriptName)], {
     cwd: appRoot,
     encoding: 'utf8',
     stdio: ['ignore', 'inherit', 'pipe'],
@@ -141,11 +140,22 @@ function seed() {
       ...process.env,
       HIVE_LOCAL_SUPABASE_URL: parsed.url,
       HIVE_LOCAL_SERVICE_KEY: serviceKey,
+      HIVE_LOCAL_CLIENT_KEY: parsed.clientKey,
     },
   });
   if (child.status !== 0) {
-    fail('seed harness failed', redactSecrets(child.stderr ?? ''));
+    fail(`${scriptName} failed`, redactSecrets(child.stderr ?? ''));
   }
+}
+
+function seed() {
+  runHarness('seed-local.mjs');
+}
+
+/** Black-box auth executability proof (P0-1/P0-2): OTP by emailed token,
+ * unknown-email negative, TOTP enrollment, refresh, PostgREST negatives. */
+function e2e() {
+  runHarness('e2e-local-auth.mjs');
 }
 
 function stop() {
@@ -157,8 +167,7 @@ function stop() {
 }
 
 const command = process.argv[2];
-const isMain =
-  process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
 if (isMain) {
   switch (command) {
     case 'up':
@@ -172,10 +181,13 @@ if (isMain) {
     case 'seed':
       seed();
       break;
+    case 'e2e':
+      e2e();
+      break;
     case 'stop':
       stop();
       break;
     default:
-      fail('usage: local-supabase.mjs <up|status|seed|stop>');
+      fail('usage: local-supabase.mjs <up|status|seed|e2e|stop>');
   }
 }

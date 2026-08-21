@@ -51,16 +51,9 @@ export function Notice({ tone, title, body, testID }: NoticeProps): React.JSX.El
       accessible
       accessibilityRole={urgent ? 'alert' : undefined}
       accessibilityLabel={`${TONE_WORD[tone]}: ${title}${body ? `. ${body}` : ''}`}
-      style={[
-        styles.notice,
-        { backgroundColor: background[tone], borderLeftColor: colors.accent },
-      ]}
+      style={[styles.notice, { backgroundColor: background[tone], borderLeftColor: colors.accent }]}
     >
-      <AppText
-        variant="label"
-        style={{ color: textColor[tone] }}
-        importantForAccessibility="no"
-      >
+      <AppText variant="label" style={{ color: textColor[tone] }} importantForAccessibility="no">
         {`${TONE_WORD[tone]}: ${title}`}
       </AppText>
       {body ? (

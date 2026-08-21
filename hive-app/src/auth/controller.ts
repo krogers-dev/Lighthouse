@@ -13,11 +13,7 @@ import type { MembershipId } from '@/core/ids';
 import type { ClearReason, ScopedRegistry } from '@/tenancy/clearing';
 import { membershipsRequireAal2, type Membership } from '@/tenancy/types';
 
-import {
-  ClientLifecycle,
-  type ClientBundle,
-  type SessionInfo,
-} from './client-lifecycle';
+import { ClientLifecycle, type ClientBundle, type SessionInfo } from './client-lifecycle';
 import type { InstallMarker } from './install-marker';
 import {
   createAuthReducer,
@@ -47,6 +43,10 @@ export interface AuthControllerDeps {
   clock: Clock;
   /** 'throw' in development, 'closed' in production builds. */
   failMode: 'throw' | 'closed';
+  /** AppState at construction time, so refresh starts on a cold boot that
+   * is already foregrounded and on first sign-in (PM directive P1 item 5).
+   * Defaults to 'unknown' (treated as not foreground, fail closed). */
+  initialAppStatus?: AppStatus;
 }
 
 export type AppStatus = 'active' | 'background' | 'inactive' | 'unknown' | 'extension';
@@ -70,8 +70,12 @@ export class AuthController {
   private unsubscribeAuth: (() => void) | null = null;
   private heldBundle: ClientBundle | null = null;
   private pendingEmail: string | null = null;
+  private pendingFactorId: string | null = null;
+  private foreground: boolean;
+  private refreshRunning = false;
 
   constructor(private readonly deps: AuthControllerDeps) {
+    this.foreground = deps.initialAppStatus === 'active';
     this.lifecycle = new ClientLifecycle(deps.createBundle);
     this.reduce = createAuthReducer({
       failMode: deps.failMode,
@@ -119,6 +123,24 @@ export class AuthController {
       for (const listener of this.listeners) {
         listener(next);
       }
+      // Refresh follows the state, not only AppState events: it starts the
+      // moment a session becomes bound while foregrounded (cold boot, first
+      // sign-in) and stops on every exit from a bound state.
+      this.syncRefresh();
+    }
+  }
+
+  /** Foreground-only, bound-session-only auto refresh, kept in lockstep
+   * with both AppState and auth-state transitions. */
+  private syncRefresh(): void {
+    const bound = this.state.name === 'authorized' || this.state.name === 'select_scope';
+    const shouldRun = this.foreground && bound && this.lifecycle.currentPhase === 'active';
+    if (shouldRun && !this.refreshRunning) {
+      this.heldBundle?.auth.startAutoRefresh();
+      this.refreshRunning = true;
+    } else if (!shouldRun && this.refreshRunning) {
+      this.heldBundle?.auth.stopAutoRefresh();
+      this.refreshRunning = false;
     }
   }
 
@@ -213,6 +235,7 @@ export class AuthController {
     const bundle = this.heldBundle;
     bundle?.auth.stopAutoRefresh();
     this.pendingEmail = null;
+    this.pendingFactorId = null;
     this.deps.registry.clearAll(reason);
     try {
       await bundle?.auth.signOutRemote();
@@ -259,6 +282,7 @@ export class AuthController {
     }
     if (membershipsRequireAal2(memberships) && session.aal !== 'aal2') {
       this.dispatch({ type: 'MFA_CHALLENGE_REQUIRED' });
+      await this.prepareMfaInternal();
       return;
     }
     this.dispatch({
@@ -320,6 +344,46 @@ export class AuthController {
     });
   }
 
+  /** Resolve the second-factor path: verify against an existing factor, or
+   * begin first-time enrollment (mfa.enroll) when none is verified yet.
+   * Runs inside the op that dispatched MFA_CHALLENGE_REQUIRED; also
+   * re-runnable via retryMfaSetup after a setup failure. */
+  private async prepareMfaInternal(): Promise<void> {
+    if (this.state.name !== 'mfa_required' || this.state.verifying) return;
+    const bundle = this.tryAcquire();
+    if (!bundle) return;
+    try {
+      const factors = await bundle.auth.listTotpFactors();
+      if (factors.verifiedId) {
+        this.pendingFactorId = factors.verifiedId;
+        return;
+      }
+      // Abandoned unverified factors from an interrupted setup are removed
+      // best-effort so enrollment stays idempotent.
+      for (const staleId of factors.unverifiedIds) {
+        try {
+          await bundle.auth.unenrollTotp(staleId);
+        } catch {
+          // Best-effort only; a stale unverified factor grants nothing.
+        }
+      }
+      const enrollment = await bundle.auth.enrollTotp();
+      this.pendingFactorId = enrollment.factorId;
+      this.dispatch({ type: 'MFA_ENROLLMENT_REQUIRED', enrollment });
+    } catch (error) {
+      if (error instanceof QuarantineRequiredError) {
+        this.handleStorageOrFatal(error);
+        return;
+      }
+      this.dispatch({ type: 'MFA_FAILED', code: toSafeError(error).code });
+    }
+  }
+
+  /** Retry factor discovery/enrollment after a setup failure. */
+  retryMfaSetup(): Promise<void> {
+    return this.enqueue(() => this.prepareMfaInternal());
+  }
+
   submitTotp(code: string): Promise<void> {
     return this.enqueue(async () => {
       if (this.state.name !== 'mfa_required') return;
@@ -328,7 +392,7 @@ export class AuthController {
       if (!bundle) return;
       let session: SessionInfo;
       try {
-        const factorId = await bundle.auth.listTotpFactorId();
+        const factorId = this.pendingFactorId;
         if (!factorId) {
           this.dispatch({ type: 'MFA_FAILED', code: 'denied' });
           return;
@@ -346,6 +410,7 @@ export class AuthController {
         });
         return;
       }
+      this.pendingFactorId = null;
       await this.loadAndRoute(session, 'mfa');
     });
   }
@@ -402,10 +467,15 @@ export class AuthController {
     bundle?.auth.stopAutoRefresh();
     this.unsubscribeAuth?.();
     this.unsubscribeAuth = null;
-    // 4. Clear actor/scope state.
+    // 4. Clear actor/scope state (incl. any in-flight MFA/enrollment).
     this.pendingEmail = null;
+    this.pendingFactorId = null;
     const clearReason: ClearReason =
-      reason === 'identity_switch' ? 'identity_switch' : reason === 'expired' ? 'expiry' : 'sign_out';
+      reason === 'identity_switch'
+        ? 'identity_switch'
+        : reason === 'expired'
+          ? 'expiry'
+          : 'sign_out';
     this.deps.registry.clearAll(clearReason);
     // 5. Remote revocation; failure cannot preserve local access.
     try {
@@ -458,18 +528,15 @@ export class AuthController {
   }
 
   /** React Native AppState wiring: refresh runs only in the foreground and
-   * only while a session-bearing, post-auth state holds. */
+   * only while a bound-session state holds (authorized/select_scope). */
   handleAppStateChange(status: AppStatus): void {
     void this.enqueue(async () => {
       if (status === 'active') {
-        if (this.state.name === 'authorized' || this.state.name === 'select_scope') {
-          this.tryAcquire()?.auth.startAutoRefresh();
-        }
-        return;
+        this.foreground = true;
+      } else if (status === 'background' || status === 'inactive') {
+        this.foreground = false;
       }
-      if (status === 'background' || status === 'inactive') {
-        this.tryAcquire()?.auth.stopAutoRefresh();
-      }
+      this.syncRefresh();
     });
   }
 }

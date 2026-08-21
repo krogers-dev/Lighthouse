@@ -1,0 +1,53 @@
+appId: com.myhbcfo.hive.development
+name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, correct code reaches AAL2
+# Pre-steps on the runner:
+#   1. Seeded stack up, `node scripts/totp-helper.mjs` running (loopback).
+#   2. reviewer.rae@example.invalid has NO verified TOTP factor yet
+#      (fresh `node scripts/local-supabase.mjs seed`).
+#   3. OTP_CODE read from Mailpit for reviewer.rae@example.invalid.
+# The setup key on screen is a SYNTHETIC QA account's secret; it is copied
+# only into the loopback helper (the flow's stand-in authenticator) and is
+# never screenshotted or logged.
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: 'sign-in-email'
+- inputText: 'reviewer.rae@example.invalid'
+- tapOn:
+    id: 'sign-in-submit'
+- assertVisible: 'Enter your sign-in code'
+- tapOn:
+    id: 'otp-code'
+- inputText: ${OTP_CODE}
+- tapOn:
+    id: 'otp-submit'
+# First-time setup: QR and manual setup key are shown.
+- assertVisible: 'Set up your authenticator'
+- assertVisible:
+    id: 'mfa-enroll-qr'
+- assertVisible:
+    id: 'mfa-enroll-secret'
+- copyTextFrom:
+    id: 'mfa-enroll-secret'
+# An incorrect code must fail safely and keep the enrollment on screen.
+- tapOn:
+    id: 'mfa-code'
+- inputText: '000000'
+- tapOn:
+    id: 'mfa-submit'
+- assertVisible:
+    id: 'mfa-notice'
+- assertVisible:
+    id: 'mfa-enroll-qr'
+# The real code, computed from the copied setup key by the loopback helper.
+- runScript: totp-code.js
+- tapOn:
+    id: 'mfa-code'
+- inputText: ${output.totpCode}
+- tapOn:
+    id: 'mfa-submit'
+# reviewer.rae holds a single membership -> straight to Home at AAL2.
+- assertVisible: 'Home'
+- assertVisible:
+    id: 'dashboard-workspace'

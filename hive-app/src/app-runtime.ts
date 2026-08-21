@@ -3,6 +3,8 @@
  * never initializes auth or data. The single Supabase client is owned by
  * the AuthController's lifecycle; repositories reach it only through the
  * accessor below, which fails safe when no client exists. */
+import { AppState } from 'react-native';
+
 import { AuthController, type SessionStorage } from '@/auth/controller';
 import { InstallMarker } from '@/auth/install-marker';
 import { documentMarkerFileStore } from '@/auth/marker-file-store';
@@ -31,8 +33,7 @@ export interface AppServices {
 }
 
 export type RuntimeResult =
-  | { ok: true; services: AppServices }
-  | { ok: false; problems: readonly string[] };
+  { ok: true; services: AppServices } | { ok: false; problems: readonly string[] };
 
 let cached: RuntimeResult | null = null;
 
@@ -87,6 +88,9 @@ export function getRuntime(): RuntimeResult {
     diagnostics: nullDiagnostics,
     clock: systemClock,
     failMode: __DEV__ ? 'throw' : 'closed',
+    // Cold boots usually happen already-foregrounded; refresh must start
+    // then too, not only after the next AppState change (P1 item 5).
+    initialAppStatus: AppState.currentState === 'active' ? 'active' : 'unknown',
   });
 
   // The moment sign-out begins (or storage quarantines, or the app goes

@@ -46,13 +46,19 @@ const results = [];
 
 function check(name, expected, actual) {
   const ok = expected === actual;
-  results.push(`${ok ? 'ok  ' : 'FAIL'} ${name}: expected ${expected}, found ${actual ?? 'missing'}`);
+  results.push(
+    `${ok ? 'ok  ' : 'FAIL'} ${name}: expected ${expected}, found ${actual ?? 'missing'}`,
+  );
   if (!ok) failures.push(name);
 }
 
 check('node (.node-version)', nodePin, process.version.replace(/^v/, ''));
 check('node (engines)', pkg.engines?.node, process.version.replace(/^v/, ''));
-check('npm (packageManager)', npmPin, commandVersion('npm', ['--version'], (v) => v));
+check(
+  'npm (packageManager)',
+  npmPin,
+  commandVersion('npm', ['--version'], (v) => v),
+);
 check('expo', pkg.dependencies?.expo, installedVersion('expo'));
 check('react-native', pkg.dependencies?.['react-native'], installedVersion('react-native'));
 check('react', pkg.dependencies?.react, installedVersion('react'));

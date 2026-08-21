@@ -13,8 +13,11 @@
  * 5. Verifies `.env.local` is not tracked and `.env.example` carries names
  *    only.
  *
- * Findings honor the explicit allowlist in
- * security/secret-scan-allowlist.json (path + pattern + reason).
+ * History findings honor only the hardened blob-scoped exception list in
+ * security/secret-scan-allowlist.json: full 40-character object id, exact
+ * path, pattern, exact expected occurrence count, owner, reason, approval,
+ * expiry, and retest. Unused (orphaned), duplicate, malformed, and expired
+ * entries fail the gate; tracked files are never allowlisted (P2-10).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -22,7 +25,13 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { SECRET_PATTERNS, isAllowed, looksBinary, scanText } from './lib/secret-patterns.mjs';
+import {
+  SECRET_PATTERNS,
+  looksBinary,
+  reconcileHistoryAllowlist,
+  scanText,
+  validateAllowlist,
+} from './lib/secret-patterns.mjs';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -61,23 +70,35 @@ function loadAllowlist() {
   return file.entries ?? [];
 }
 
-const TEXT_EXTENSIONS_SKIP = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.ttf', '.otf', '.ico', '.pdf', '.zip', '.jar']);
+const TEXT_EXTENSIONS_SKIP = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.ttf',
+  '.otf',
+  '.ico',
+  '.pdf',
+  '.zip',
+  '.jar',
+]);
 
-function scanTrackedFiles(allowlist) {
+function scanTrackedFiles() {
+  // Tracked files have NO allowlist: a secret-shaped match in a current
+  // file always fails — fix the file, never except it (P2-10).
   const findings = [];
   const files = git(['ls-files']).split('\n').filter(Boolean);
   for (const file of files) {
     if (TEXT_EXTENSIONS_SKIP.has(path.extname(file).toLowerCase())) continue;
     const buffer = readFileSync(path.join(appRoot, file));
     if (looksBinary(buffer)) continue;
-    for (const finding of scanText(buffer.toString('utf8'), SECRET_PATTERNS, file)) {
-      if (!isAllowed(finding, allowlist)) findings.push(finding);
-    }
+    findings.push(...scanText(buffer.toString('utf8'), SECRET_PATTERNS, file));
   }
   return { findings, fileCount: files.length };
 }
 
-function scanHistory(allowlist) {
+function scanHistory() {
   const findings = [];
   const objects = git(['rev-list', '--objects', '--all'])
     .split('\n')
@@ -113,8 +134,9 @@ function scanHistory(allowlist) {
       SECRET_PATTERNS,
       `history:${object.oid.slice(0, 12)}:${object.path}`,
     )) {
-      const withBlob = { ...finding, blob: object.oid };
-      if (!isAllowed(withBlob, allowlist)) findings.push(finding);
+      // Raw findings carry the full blob id and exact recorded path; the
+      // hardened allowlist reconciliation happens after the whole scan.
+      findings.push({ ...finding, blob: object.oid, blobPath: object.path });
     }
   }
   return { findings, blobCount };
@@ -167,23 +189,38 @@ function checkEnvFiles() {
 
 selfTest();
 const allowlist = loadAllowlist();
-const tracked = scanTrackedFiles(allowlist);
-const history = scanHistory(allowlist);
+const todayIso = new Date().toISOString().slice(0, 10);
+const allowlistProblems = validateAllowlist(allowlist, todayIso);
+// Fail closed: a malformed allowlist covers nothing.
+const effectiveAllowlist = allowlistProblems.length === 0 ? allowlist : [];
+const tracked = scanTrackedFiles();
+const history = scanHistory();
+const reconciled = reconcileHistoryAllowlist(history.findings, effectiveAllowlist);
 const secretlint = runSecretlint();
 const envProblems = checkEnvFiles();
 
 console.log(
-  `secrets:scan: self-test ok; ${tracked.fileCount} tracked files scanned; ${history.blobCount} history blobs scanned; secretlint ${secretlint.clean ? 'clean' : 'FINDINGS'}`,
+  `secrets:scan: self-test ok; ${tracked.fileCount} tracked files scanned; ${history.blobCount} history blobs scanned; ${effectiveAllowlist.length} history exceptions reconciled; secretlint ${secretlint.clean ? 'clean' : 'FINDINGS'}`,
 );
 
 let failed = false;
+for (const problem of allowlistProblems) {
+  failed = true;
+  console.error(`FAIL allowlist ${problem}`);
+}
 for (const finding of tracked.findings) {
   failed = true;
   console.error(`FAIL tracked ${finding.file}:${finding.line} ${finding.pattern}`);
 }
-for (const finding of history.findings) {
+for (const finding of reconciled.uncovered) {
   failed = true;
-  console.error(`FAIL ${finding.file} ${finding.pattern} (rotate the credential; history rewrite alone is insufficient)`);
+  console.error(
+    `FAIL ${finding.file} ${finding.pattern} (rotate the credential; history rewrite alone is insufficient)`,
+  );
+}
+for (const problem of reconciled.problems) {
+  failed = true;
+  console.error(`FAIL ${problem}`);
 }
 if (!secretlint.clean) {
   failed = true;

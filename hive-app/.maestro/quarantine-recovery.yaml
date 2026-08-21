@@ -1,0 +1,19 @@
+appId: com.myhbcfo.hive.development
+name: Storage quarantine blocks protected UI; scrub is the only recovery
+# Pre-step on the runner (manual, per platform): invalidate the stored
+# session material while the app is closed so the adapter's verification
+# fails at boot — e.g. remove/re-add the device passcode (iOS Keychain
+# items are WHEN_UNLOCKED_THIS_DEVICE_ONLY) or clear the Keystore entry via
+# the platform test hook. The app was signed in beforehand (sign-in.yaml).
+---
+- launchApp
+# No protected UI and no generic retry: only the scrub action exists.
+- assertNotVisible: 'Home'
+- assertVisible:
+    id: 'quarantine-screen'
+- assertVisible: 'Secure sign-in data needs a reset'
+- assertNotVisible: 'Retry'
+- tapOn: 'Reset secure sign-in data'
+# Verified scrub lands on signed-out with the scrubbed notice; sign-in works.
+- assertVisible: 'Secure sign-in data was reset. Sign in again to continue.'
+- assertVisible: 'Email'

@@ -1,52 +1,55 @@
-# DESIGN.md — Rose + Slate system for HIVE
+# DESIGN.md — Brand Kit v2.0 system for HIVE
 
-Brand authority: the selected Rose + Slate direction in *Honeybee Web and
-HIVE Selected Direction Brief*, approved 2026-08-19. A later written brand
-decision supersedes it. Approved logo files, font files/licenses, app icon,
-and store creative are **HOLD**: until they arrive the app uses a text-only
-"HIVE" development mark, system fonts, and neutral solid-color placeholder
-images (deliberately not a logo).
+Brand authority: **Brand Kit v2.0**, adopted 2026-08-21, superseding the
+Rose + Slate direction of 2026-08-19 (whose dated execution record remains
+in docs/plans as history). A later written brand decision supersedes this
+one. The approved Concept 02 HIVE mark, its provenance, clear-space rules,
+and platform exports land only after asset QA — never redrawn from a
+screenshot. Until then the app uses a text-only "HIVE" development mark,
+system fonts, and neutral solid-color placeholder images (deliberately not
+a logo).
 
 ## Palette
 
-| Token | Hex |
-|---|---|
-| Eggshell | `#FFFEFA` |
-| Graphite | `#182027` |
-| Rose | `#AD6670` |
-| Mineral Slate | `#BFD0D7` |
-| Soft Moss | `#D8E1DB` |
-| Pale Rose | `#F1E2E5` |
+| Token       | Hex       |
+| ----------- | --------- |
+| Soft Black  | `#0A0B0A` |
+| Honey Gold  | `#EEA723` |
+| Warm Amber  | `#F5BC49` |
+| Wax White   | `#F4E4CD` |
+| Clean White | `#FFFFFF` |
+| Muted Stone | `#6C6B66` |
 
-No gold, gradients, ornamental shadows, cute bees, or invented logo.
+No gradients, ornamental shadows, cute bees, or invented logo.
 
 ## Semantic tokens
 
 Implemented in `src/ui/tokens.ts` as light and dark `SemanticColors` sets.
-Graphite/Eggshell carry all normal text and the primary filled control in
-both themes. Rose appears only as `accent` (borders, badges, qualifying
-large text). Derived shades (danger/success/warning text, dark-theme panel
-surfaces) exist solely to keep measured contrast; they are not new brand
-colors.
+Soft Black carries text on light surfaces; Clean White on dark. Honey Gold
+is the primary filled control and the accent in both themes, always with
+Soft Black control text. Warm Amber carries attention panels. Derived
+shades (secondary text `#5B5A55`, borders, status colors, dark surfaces)
+exist solely to keep measured contrast; they are not new brand colors.
 
 ### Measured pairings (enforced by `src/ui/__tests__/contrast.test.ts` and `tokens.test.ts`)
 
-| Pair | Ratio | Use |
-|---|---:|---|
-| Graphite on Eggshell | 16.32:1 | Primary light-theme text |
-| Eggshell on Graphite | 16.32:1 | Dark surfaces and primary filled controls |
-| Graphite on Mineral Slate | 10.37:1 | Context panels |
-| Graphite on Soft Moss | 12.33:1 | Stable/complete panels |
-| Rose on Eggshell | 4.24:1 | Non-text accent or qualifying large text only |
-| Rose on Graphite | 3.85:1 | Non-text accent or qualifying large text only |
+| Pair                      |   Ratio | Use                                                    |
+| ------------------------- | ------: | ------------------------------------------------------ |
+| Soft Black on Wax White   | 15.80:1 | Primary light-theme text                               |
+| Soft Black on Clean White | 19.72:1 | Text on cards                                          |
+| Clean White on Soft Black | 19.72:1 | Primary dark-theme text                                |
+| Soft Black on Honey Gold  |  9.56:1 | Gold control text (the only allowed gold text pairing) |
+| Honey Gold on Soft Black  |  9.56:1 | Accent text on dark surfaces                           |
+| Soft Black on Warm Amber  | 11.43:1 | Attention panels                                       |
+| Clean White on Honey Gold |  2.06:1 | **Forbidden** — never white text on gold               |
+| Honey Gold on Wax White   |  1.65:1 | Non-text accent only on light surfaces                 |
 
-Every functional text pair must measure ≥ 4.5:1, every functional non-text
-pair ≥ 3:1, in both themes; the test suite computes the ratios from the
-actual token values, so a color change that breaks contrast fails CI. Rose
-is never a normal body or standard-size button-label color, and a test
-asserts no normal-text token equals Rose. Every status pairs text (or icon
-plus text); no color-only meaning. Error/warning colors are contrast-passing
-derived tokens.
+Every functional text pair must measure ≥ 4.5:1 and every functional
+non-text pair ≥ 3:1 in both themes; the tests compute ratios from the
+actual token values, so a change that breaks contrast fails CI. Tests also
+assert that gold control text is Soft Black in both themes and that Honey
+Gold is never a normal-text token. Every status pairs text (or icon plus
+text); no color-only meaning.
 
 ## Typography
 

@@ -1,8 +1,4 @@
-import {
-  createDiagnostics,
-  sanitizeFieldValue,
-  type DiagnosticEventName,
-} from '../diagnostics';
+import { createDiagnostics, sanitizeFieldValue, type DiagnosticEventName } from '../diagnostics';
 
 function capture() {
   const events: { name: string; fields: Record<string, unknown> }[] = [];

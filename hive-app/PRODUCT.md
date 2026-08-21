@@ -27,13 +27,13 @@ autonomous accounting system.
 
 ## System-of-record boundaries
 
-| System | Authority |
-|---|---|
+| System            | Authority                                     |
+| ----------------- | --------------------------------------------- |
 | QuickBooks Online | The ledger, read-only from HIVE's perspective |
-| Google Drive | The permanent record |
-| HIVE | Workflow, review, and approval state |
-| Twenty | Relationship state |
-| Slack | Internal coordination only |
+| Google Drive      | The permanent record                          |
+| HIVE              | Workflow, review, and approval state          |
+| Twenty            | Relationship state                            |
+| Slack             | Internal coordination only                    |
 
 HIVE never becomes the permanent record, never writes to QBO, and never
 takes relationship-state authority from Twenty.
@@ -62,15 +62,15 @@ binary and called protected.
 
 ## Roadmap and gates
 
-| Milestone | Working result | Explicit exclusions | Gate |
-|---|---|---|---|
-| 0. Identity and isolation | Invite, OTP, MFA, secure session lifecycle, scope selection, empty dashboard | All live data and integrations | Work Order 001 (current) |
-| 1. Read-only client dashboard | Scoped case status, requests, activity, help, source timestamps | No uploads or financial values until contracts pass | Requires Milestone 0 PASS |
-| 2. Controlled document request | System picker, quarantine upload, validation, malware-scan interface, digest, duplicate and expiry controls | No automatic Drive filing; no document becomes evidence automatically | Requires approved scanner, limits, retention |
-| 3. Review and response | Client answers, source-linked questions, draft retention, explicit submission | No accounting decision or approval by Beth or automation | Requires communication and record contracts |
-| 4. Internal review and approval | Frozen package, read-only PASS/RETURN/HOLD, exact expiring approval | Approval is not release, reconciliation, completion, or filing | Requires conflict-free approvers |
-| 5. Source adapters | QBO read-only references and verified manual Drive filing receipts | No QBO write and no automatic Drive mutation | Requires separate adapter PASS |
-| 6. Store release candidate | Signed builds, disclosures, review tenant, support/deletion flows, store assets, rollback | No automatic public release | Requires joint exact-build approval |
+| Milestone                       | Working result                                                                                              | Explicit exclusions                                                   | Gate                                         |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------- |
+| 0. Identity and isolation       | Invite, OTP, MFA, secure session lifecycle, scope selection, empty dashboard                                | All live data and integrations                                        | Work Order 001 (current)                     |
+| 1. Read-only client dashboard   | Scoped case status, requests, activity, help, source timestamps                                             | No uploads or financial values until contracts pass                   | Requires Milestone 0 PASS                    |
+| 2. Controlled document request  | System picker, quarantine upload, validation, malware-scan interface, digest, duplicate and expiry controls | No automatic Drive filing; no document becomes evidence automatically | Requires approved scanner, limits, retention |
+| 3. Review and response          | Client answers, source-linked questions, draft retention, explicit submission                               | No accounting decision or approval by Beth or automation              | Requires communication and record contracts  |
+| 4. Internal review and approval | Frozen package, read-only PASS/RETURN/HOLD, exact expiring approval                                         | Approval is not release, reconciliation, completion, or filing        | Requires conflict-free approvers             |
+| 5. Source adapters              | QBO read-only references and verified manual Drive filing receipts                                          | No QBO write and no automatic Drive mutation                          | Requires separate adapter PASS               |
+| 6. Store release candidate      | Signed builds, disclosures, review tenant, support/deletion flows, store assets, rollback                   | No automatic public release                                           | Requires joint exact-build approval          |
 
 ### Upload lifecycle (later milestone; not implemented in Milestone 0)
 

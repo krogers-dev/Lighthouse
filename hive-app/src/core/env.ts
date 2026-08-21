@@ -87,12 +87,18 @@ export function validateEnvironment(source: EnvSource, variant: BuildVariant): E
       if (!loopback) {
         problems.push('EXPO_PUBLIC_SUPABASE_URL uses http:// on a non-loopback host');
       } else if (variant !== 'development') {
-        problems.push('EXPO_PUBLIC_SUPABASE_URL is loopback but the build variant is not development');
+        problems.push(
+          'EXPO_PUBLIC_SUPABASE_URL is loopback but the build variant is not development',
+        );
       }
     } else if (parsedUrl.protocol !== 'https:') {
-      problems.push('EXPO_PUBLIC_SUPABASE_URL must use https:// (or loopback http:// in development)');
+      problems.push(
+        'EXPO_PUBLIC_SUPABASE_URL must use https:// (or loopback http:// in development)',
+      );
     } else if (loopback && variant !== 'development') {
-      problems.push('EXPO_PUBLIC_SUPABASE_URL is loopback but the build variant is not development');
+      problems.push(
+        'EXPO_PUBLIC_SUPABASE_URL is loopback but the build variant is not development',
+      );
     }
   }
 
@@ -121,7 +127,9 @@ export function validateEnvironment(source: EnvSource, variant: BuildVariant): E
         );
         break;
       case 'malformed':
-        problems.push('EXPO_PUBLIC_SUPABASE_CLIENT_KEY is not a recognized public client key format');
+        problems.push(
+          'EXPO_PUBLIC_SUPABASE_CLIENT_KEY is not a recognized public client key format',
+        );
         break;
     }
   }

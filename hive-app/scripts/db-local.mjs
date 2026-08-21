@@ -49,7 +49,13 @@ function ensureUser() {
   if (typeof process.getuid !== 'function' || process.getuid() !== 0) return;
   const check = spawnSync('id', ['-u', PG_USER], { encoding: 'utf8' });
   if (check.status !== 0) {
-    execFileSync('useradd', ['--system', '--no-create-home', '--shell', '/usr/sbin/nologin', PG_USER]);
+    execFileSync('useradd', [
+      '--system',
+      '--no-create-home',
+      '--shell',
+      '/usr/sbin/nologin',
+      PG_USER,
+    ]);
   }
 }
 
@@ -62,7 +68,10 @@ function fail(message, output) {
 function run(label, cmd, args, options = {}) {
   const result = asPgUser(cmd, args, options);
   if (result.status !== 0) {
-    fail(`${label} failed (exit ${result.status})`, `${result.stdout ?? ''}\n${result.stderr ?? ''}`);
+    fail(
+      `${label} failed (exit ${result.status})`,
+      `${result.stdout ?? ''}\n${result.stderr ?? ''}`,
+    );
   }
   return result.stdout ?? '';
 }
@@ -81,20 +90,36 @@ function initCluster() {
     execFileSync('chown', ['-R', `${PG_USER}:${PG_USER}`, SOCK_DIR]);
   }
   if (!existsSync(path.join(DATA, 'PG_VERSION'))) {
-    run('initdb', path.join(PG_BIN, 'initdb'), ['-D', DATA, '--auth-local=trust', '--auth-host=trust', '-U', PG_USER]);
+    run('initdb', path.join(PG_BIN, 'initdb'), [
+      '-D',
+      DATA,
+      '--auth-local=trust',
+      '--auth-host=trust',
+      '-U',
+      PG_USER,
+    ]);
   }
   if (!serverRunning()) {
     run('pg_ctl start', path.join(PG_BIN, 'pg_ctl'), [
-      'start', '-D', DATA, '-w', '-l', path.join(CACHE, 'postgres.log'), '-o',
+      'start',
+      '-D',
+      DATA,
+      '-w',
+      '-l',
+      path.join(CACHE, 'postgres.log'),
+      '-o',
       `-p ${PORT} -c listen_addresses=127.0.0.1 -k ${SOCK_DIR}`,
     ]);
   }
 }
 
 function psql(args, options = {}) {
-  return run('psql', path.join(PG_BIN, 'psql'), [
-    '-h', '127.0.0.1', '-p', PORT, '-U', PG_USER, '-v', 'ON_ERROR_STOP=1', ...args,
-  ], options);
+  return run(
+    'psql',
+    path.join(PG_BIN, 'psql'),
+    ['-h', '127.0.0.1', '-p', PORT, '-U', PG_USER, '-v', 'ON_ERROR_STOP=1', ...args],
+    options,
+  );
 }
 
 function migrationFiles() {
@@ -114,7 +139,10 @@ function reset() {
     console.log(`applied ${path.basename(file)}`);
   }
   psql(['-d', DB, '-f', path.join(appRoot, 'supabase', 'seed.sql')]);
-  console.log('seed applied');
+  // SQL-only lane: fixed-UUID identity placeholders (cannot sign in; the
+  // full Supabase lane creates real users via the Auth Admin API instead).
+  psql(['-d', DB, '-f', path.join(appRoot, 'supabase', 'seeds', 'pgtap-identities.sql')]);
+  console.log('seed applied (domain + pgTAP identities)');
   console.log(`db-local reset OK on ${DB_URL}`);
 }
 
@@ -126,10 +154,22 @@ function test() {
     .sort()
     .map((f) => path.join(testDir, f));
   if (files.length === 0) fail('no pgTAP test files found');
-  const result = asPgUser('pg_prove', [
-    '--host', '127.0.0.1', '--port', PORT, '--username', PG_USER, '--dbname', DB,
-    '--verbose', ...files,
-  ], { stdio: ['ignore', 'inherit', 'inherit'] });
+  const result = asPgUser(
+    'pg_prove',
+    [
+      '--host',
+      '127.0.0.1',
+      '--port',
+      PORT,
+      '--username',
+      PG_USER,
+      '--dbname',
+      DB,
+      '--verbose',
+      ...files,
+    ],
+    { stdio: ['ignore', 'inherit', 'inherit'] },
+  );
   if (result.status !== 0) fail(`pg_prove failed (exit ${result.status})`);
   console.log('db-local pgTAP suite OK');
 }

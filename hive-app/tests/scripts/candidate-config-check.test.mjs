@@ -42,7 +42,10 @@ test('android API 36, the no-backup plugin, and iOS 16.4 are enforced', () => {
     plugins: [
       [
         'expo-build-properties',
-        { ios: { deploymentTarget: '15.1' }, android: { compileSdkVersion: 35, targetSdkVersion: 35 } },
+        {
+          ios: { deploymentTarget: '15.1' },
+          android: { compileSdkVersion: 35, targetSdkVersion: 35 },
+        },
       ],
     ],
   };
@@ -59,7 +62,10 @@ const legacyServiceRole = `${encodePayload({ alg: 'HS256' })}.${encodePayload({ 
 test('release env rejects loopback, legacy anon keys, and non-publishable keys', () => {
   assert.ok(
     checkEnvValues(
-      { EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321', EXPO_PUBLIC_SUPABASE_CLIENT_KEY: legacyAnon },
+      {
+        EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+        EXPO_PUBLIC_SUPABASE_CLIENT_KEY: legacyAnon,
+      },
       'release',
     ).length >= 2,
   );
@@ -89,7 +95,10 @@ test('release env accepts https + publishable key', () => {
 test('development env accepts loopback + legacy anon key', () => {
   assert.deepEqual(
     checkEnvValues(
-      { EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321', EXPO_PUBLIC_SUPABASE_CLIENT_KEY: legacyAnon },
+      {
+        EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+        EXPO_PUBLIC_SUPABASE_CLIENT_KEY: legacyAnon,
+      },
       'development',
     ),
     [],
