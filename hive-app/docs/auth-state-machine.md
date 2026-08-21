@@ -31,6 +31,7 @@ transitions into `signing_out`, `signed_out`, `storage_quarantined`, and
 |---|---|---|---|
 | `BOOTED_NO_SESSION` | booting | signed_out(initial) | |
 | `BOOTED_OFFLINE` | booting | signed_out(offline) | Session unverifiable offline → no protected content, safe recovery |
+| `BOOTED_EXPIRED` | booting | signed_out(expired) | Stored session already expired; local cleanup ran first |
 | `SCOPES_LOADED {actor, memberships}` | booting, first_factor(verifying), mfa_required(verifying) | authorized (1 membership) / select_scope (>1) | Zero memberships is expressed as `NO_ACCESS`, not this event |
 | `NO_ACCESS` | booting, first_factor, mfa_required | signed_out(no_access) | Controller has already signed out server-side |
 | `MFA_CHALLENGE_REQUIRED` | booting, first_factor(verifying) | mfa_required | Staff roles need AAL2 before scopes load |
