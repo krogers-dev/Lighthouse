@@ -1,0 +1,23 @@
+appId: com.myhbcfo.hive.development
+name: Invite-only OTP sign-in reaches the scoped dashboard
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+- tapOn:
+    id: 'sign-in-email'
+- inputText: 'client.owner@example.invalid'
+- tapOn:
+    id: 'sign-in-submit'
+- assertVisible: 'Enter your sign-in code'
+- tapOn:
+    id: 'otp-code'
+- inputText: ${OTP_CODE}
+- tapOn:
+    id: 'otp-submit'
+# client.owner holds two memberships, so explicit scope selection is forced.
+- assertVisible: 'Choose a workspace'
+- tapOn: 'Harbor Light Bakery LLC (Synthetic).*'
+- assertVisible: 'Home'
+- assertVisible:
+    id: 'dashboard-workspace'

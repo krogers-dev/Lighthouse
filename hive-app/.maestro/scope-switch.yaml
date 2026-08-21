@@ -1,0 +1,17 @@
+appId: com.myhbcfo.hive.development
+name: Entity switch clears content and rebinds the dashboard
+---
+- launchApp
+- assertVisible: 'Home'
+- tapOn:
+    id: 'dashboard-account'
+- assertVisible: 'Account'
+- tapOn:
+    id: 'settings-switch-scope'
+- assertVisible: 'Choose a workspace'
+# Prior entity content must not be visible behind the chooser.
+- assertNotVisible: '2025 books close (Synthetic)'
+- tapOn: 'Harbor Light Holdings LLC (Synthetic).*'
+- assertVisible: 'Home'
+- assertVisible: 'Nothing needs your attention'
+- assertNotVisible: '2025 books close (Synthetic)'

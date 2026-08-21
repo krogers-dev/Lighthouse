@@ -143,26 +143,29 @@ function introspect() {
   return JSON.parse(direct.stdout.trim());
 }
 
-const command = process.argv[2];
-if (command === 'generate') {
-  const rendered = renderTypes(introspect());
-  writeFileSync(OUTPUT, rendered);
-  console.log(`db-types: wrote ${path.relative(appRoot, OUTPUT)}`);
-} else if (command === 'check') {
-  const rendered = renderTypes(introspect());
-  let committed = '';
-  try {
-    committed = readFileSync(OUTPUT, 'utf8');
-  } catch {
-    console.error('db-types: committed types file is missing');
+const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+if (isMain) {
+  const command = process.argv[2];
+  if (command === 'generate') {
+    const rendered = renderTypes(introspect());
+    writeFileSync(OUTPUT, rendered);
+    console.log(`db-types: wrote ${path.relative(appRoot, OUTPUT)}`);
+  } else if (command === 'check') {
+    const rendered = renderTypes(introspect());
+    let committed = '';
+    try {
+      committed = readFileSync(OUTPUT, 'utf8');
+    } catch {
+      console.error('db-types: committed types file is missing');
+      process.exit(1);
+    }
+    if (committed !== rendered) {
+      console.error('db-types: committed database.types.ts has drifted from the schema');
+      process.exit(1);
+    }
+    console.log('db-types: committed types match the schema');
+  } else {
+    console.error('usage: db-types.mjs <generate|check>');
     process.exit(1);
   }
-  if (committed !== rendered) {
-    console.error('db-types: committed database.types.ts has drifted from the schema');
-    process.exit(1);
-  }
-  console.log('db-types: committed types match the schema');
-} else {
-  console.error('usage: db-types.mjs <generate|check>');
-  process.exit(1);
 }

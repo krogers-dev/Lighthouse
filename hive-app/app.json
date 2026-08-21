@@ -46,11 +46,11 @@
           },
           "android": {
             "compileSdkVersion": 36,
-            "targetSdkVersion": 36,
-            "allowBackup": false
+            "targetSdkVersion": 36
           }
         }
-      ]
+      ],
+      "./plugins/with-android-no-backup"
     ],
     "experiments": {
       "typedRoutes": true

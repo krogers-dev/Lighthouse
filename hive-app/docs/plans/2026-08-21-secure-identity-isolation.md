@@ -126,3 +126,31 @@ One coherent commit per checkpoint (A, B, C, D) on
 intermediate safe points). No advance past a P0/P1 defect, failed isolation
 test, secret finding, unresolved destructive migration, or storage-
 quarantine escape.
+
+## Execution record (2026-08-21, this environment)
+
+| Lane | Result |
+|---|---|
+| npm ci (clean checkout) | exit 0, deterministic from package-lock.json |
+| verify:toolchain | exit 0 — Node 22.23.2, npm 10.9.8, Expo 57.0.11, RN 0.86.2, React 19.2.3, expo-doctor 1.20.2, Supabase CLI 2.115.0, supabase-js 2.112.3, TS 6.0.3 |
+| npm ls --all | exit 0 |
+| npm audit --audit-level=high | exit 1 raw: two high advisories against image-size ≤ 2.0.2 with **no fixed release published**; `npm run audit:gate` exit 0 under recorded waivers (owner Kody, expires 2026-11-21, security/waivers.json) |
+| secrets:scan | exit 0 — canary self-test ok, 113 tracked files + 135 history blobs scanned, secretlint clean, allowlist contains only blob-scoped waivers for two historical synthetic test blobs |
+| expo-doctor | 19/21; the two failures are network-blocked lookups from this container (Expo config schema fetch, RN Directory) — not project findings. The duplicate-dependency check passes after re-pinning expo-file-system 57.0.5 / expo-secure-store 57.0.1 / expo-build-properties 57.0.13 |
+| lint / typecheck | exit 0 / exit 0, zero warnings |
+| jest | 17 suites, **220 tests**, all passing (main and clean checkout) |
+| node:test script suites | **33 tests**, all passing |
+| supabase db reset/lint/advisors/test --local | **HOLD** — container registries (ECR, Docker Hub, ghcr) block blob downloads from this environment, so the CLI stack cannot start |
+| db-local fallback (system PostgreSQL 16 + shim) | migrations + seed applied; **53 pgTAP tests** all passing (constraints, grants, full RLS isolation negatives), main and clean checkout |
+| db:types:check | exit 0 (generated types match schema) |
+| expo export --platform all | exit 0, 11 routes (main and clean checkout) |
+| bundle:inspect (development) | exit 0 — 16 text files; only the documented gotrue-js default constant recognized |
+| expo prebuild --clean (clean checkout) | exit 0; generated projects verified: `android:allowBackup="false"`, no cleartext traffic, compile/target SDK 36, iOS deploymentTarget 16.4, identifiers com.myhbcfo.hive.development |
+| expo run:android --variant debug | **HOLD** — `spawn adb ENOENT` (no Android SDK in this container) |
+| expo run:ios | **HOLD** — Linux container ("iOS apps can only be built on macOS devices") |
+| Maestro flows | Authored (.maestro/); **HOLD** — no device/simulator lane |
+| Device accessibility (VoiceOver/TalkBack, 200% on device) | **HOLD** — device lane; jest accessibility assertions and measured-contrast tests are the executable substitute |
+
+Follow-ups discovered while executing: expo-build-properties (SDK 57 line)
+no longer exposes `allowBackup`, so `plugins/with-android-no-backup.js`
+sets it directly and the config gate asserts the plugin stays registered.

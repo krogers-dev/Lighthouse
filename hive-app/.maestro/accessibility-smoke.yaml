@@ -1,0 +1,14 @@
+appId: com.myhbcfo.hive.development
+name: Accessibility smoke — labels present on the auth path
+---
+# Runs with the platform screen reader enabled in the device-lane matrix
+# (VoiceOver / TalkBack); assertions here confirm the accessible labels the
+# reader depends on are present and stable.
+- launchApp
+- assertVisible: 'HIVE'
+- assertVisible: 'Email'
+- tapOn:
+    id: 'sign-in-email'
+- inputText: 'client.owner@example.invalid'
+- assertVisible:
+    id: 'sign-in-submit'

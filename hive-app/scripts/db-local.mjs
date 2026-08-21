@@ -27,6 +27,9 @@ const PG_BIN = process.env.HIVE_PG_BIN ?? '/usr/lib/postgresql/16/bin';
 const CACHE = path.join(appRoot, '.cache', 'hive-pg');
 const DATA = path.join(CACHE, 'data');
 const PORT = process.env.HIVE_PG_PORT ?? '55433';
+// Unix sockets have a ~107-byte path ceiling, so the socket lives in a
+// short per-port /tmp directory even when the checkout path is deep.
+const SOCK_DIR = `/tmp/hive-pg-${PORT}`;
 const DB = 'hive_local';
 const PG_USER = 'hivepg';
 
@@ -72,8 +75,10 @@ function serverRunning() {
 function initCluster() {
   ensureUser();
   mkdirSync(CACHE, { recursive: true });
+  mkdirSync(SOCK_DIR, { recursive: true });
   if (typeof process.getuid === 'function' && process.getuid() === 0) {
     execFileSync('chown', ['-R', `${PG_USER}:${PG_USER}`, CACHE]);
+    execFileSync('chown', ['-R', `${PG_USER}:${PG_USER}`, SOCK_DIR]);
   }
   if (!existsSync(path.join(DATA, 'PG_VERSION'))) {
     run('initdb', path.join(PG_BIN, 'initdb'), ['-D', DATA, '--auth-local=trust', '--auth-host=trust', '-U', PG_USER]);
@@ -81,7 +86,7 @@ function initCluster() {
   if (!serverRunning()) {
     run('pg_ctl start', path.join(PG_BIN, 'pg_ctl'), [
       'start', '-D', DATA, '-w', '-l', path.join(CACHE, 'postgres.log'), '-o',
-      `-p ${PORT} -c listen_addresses=127.0.0.1 -k ${CACHE}`,
+      `-p ${PORT} -c listen_addresses=127.0.0.1 -k ${SOCK_DIR}`,
     ]);
   }
 }

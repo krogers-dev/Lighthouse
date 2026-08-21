@@ -1,0 +1,16 @@
+appId: com.myhbcfo.hive.development
+name: Sign-out removes protected UI and survives relaunch signed out
+---
+- launchApp
+- assertVisible: 'Home'
+- tapOn:
+    id: 'dashboard-account'
+- assertVisible: 'Account'
+- tapOn:
+    id: 'settings-sign-out'
+- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+# The session must not survive a relaunch.
+- stopApp
+- launchApp
+- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+- assertNotVisible: 'Home'
