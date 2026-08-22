@@ -19,6 +19,7 @@
  * Release-profile inspection stays HOLD until approved public release
  * configuration exists; the development profile is the Milestone 0 lane.
  */
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -30,22 +31,80 @@ import {
   looksBinary,
   scanText,
 } from './lib/secret-patterns.mjs';
+import { originMatchesApproved } from './lib/origins.mjs';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Well-known constants inside vendored libraries that are present in every
  * bundle regardless of configuration. Each entry is an exact string with a
  * documented origin; nothing pattern-shaped is ever allowed wholesale. */
+/** RETURN-4 P1-4: vendor constants are no longer deleted globally (that
+ * hid app-owned uses of the same endpoints). Each carries an exact
+ * occurrence budget per scanned file; exceeding it is a finding, and any
+ * use of these values in APP-OWNED sources (src/, app/) fails
+ * separately (checkAppOwnedConstants). */
 export const KNOWN_LIBRARY_CONSTANTS = [
-  // @supabase/auth-js GoTrueClient default placeholder URL; the client is
-  // always constructed with the validated environment URL, never this.
-  'http://localhost:9999',
-  // react-native Libraries/Core/Devtools/getDevServer.js fallback constant,
-  // present in every React Native bundle.
-  'http://localhost:8081',
-  // expo-router build/head/url.js default origin constant.
-  'http://localhost:3000',
+  {
+    // @supabase/auth-js GoTrueClient default placeholder URL; the client
+    // is always constructed with the validated environment URL.
+    value: 'http://localhost:9999',
+    maxOccurrences: 2,
+    source: '@supabase/auth-js GoTrueClient default',
+  },
+  {
+    // react-native Libraries/Core/Devtools/getDevServer.js fallback.
+    value: 'http://localhost:8081',
+    maxOccurrences: 2,
+    source: 'react-native getDevServer fallback',
+  },
+  {
+    // expo-router build/head/url.js default origin constant.
+    value: 'http://localhost:3000',
+    maxOccurrences: 2,
+    source: 'expo-router head url default',
+  },
 ];
+
+/** App-owned sources must never use the vendored constants: their
+ * endpoints come only from validated configuration. */
+export function checkAppOwnedConstants(files, readFile) {
+  const failures = [];
+  for (const file of files) {
+    const content = readFile(file);
+    if (content === null) continue;
+    for (const constant of KNOWN_LIBRARY_CONSTANTS) {
+      if (content.includes(constant.value)) {
+        failures.push(
+          `app-owned source ${file} uses the vendor constant ${constant.value} — endpoints come only from validated configuration`,
+        );
+      }
+    }
+  }
+  return failures;
+}
+
+/** Count and neutralize vendor constants within budget; over-budget
+ * occurrences produce findings and are left in place for the endpoint
+ * checks to flag. */
+export function applyVendorConstantBudget(text, filePath) {
+  const findings = [];
+  let result = text;
+  for (const constant of KNOWN_LIBRARY_CONSTANTS) {
+    const count = text.split(constant.value).length - 1;
+    if (count === 0) continue;
+    if (count > constant.maxOccurrences) {
+      findings.push({
+        pattern: 'vendor-constant-count-exceeded',
+        file: filePath,
+        line: 0,
+        snippet: `[${constant.source}: ${count} occurrences exceed the recorded budget of ${constant.maxOccurrences}]`,
+      });
+      continue; // leave them in — the endpoint checks will flag each
+    }
+    result = result.split(constant.value).join('[known-library-default]');
+  }
+  return { text: result, findings };
+}
 
 export function collectFiles(dir) {
   const out = [];
@@ -98,7 +157,7 @@ export function checkApprovedValues(text, filePath, approved) {
   }
   SUPABASE_ENDPOINT.lastIndex = 0;
   while ((match = SUPABASE_ENDPOINT.exec(text)) !== null) {
-    if (!approved.url || !match[0].startsWith(approved.url)) {
+    if (!approved.url || !originMatchesApproved(match[0], approved.url)) {
       findings.push(
         findingAt(
           'unapproved-supabase-endpoint',
@@ -130,12 +189,11 @@ export function patternsForProfile(profile) {
 }
 
 export function inspectContent(rawText, filePath, profile, approved) {
-  let text = rawText;
-  for (const constant of KNOWN_LIBRARY_CONSTANTS) {
-    text = text.split(constant).join('[known-library-default]');
-  }
-  const findings = scanText(text, SECRET_PATTERNS, filePath).filter(
-    (f) => f.pattern !== 'generic-secret-env',
+  const budget = applyVendorConstantBudget(rawText, filePath);
+  const text = budget.text;
+  const findings = [...budget.findings];
+  findings.push(
+    ...scanText(text, SECRET_PATTERNS, filePath).filter((f) => f.pattern !== 'generic-secret-env'),
   );
   findings.push(...checkApprovedValues(text, filePath, approved));
   findings.push(...scanText(text, patternsForProfile(profile), filePath));
@@ -146,7 +204,7 @@ export function inspectContent(rawText, filePath, profile, approved) {
     const urlPattern = /https?:\/\/(?:127\.0\.0\.1|localhost|10\.0\.2\.2)(?::\d+)?/g;
     let match;
     while ((match = urlPattern.exec(text)) !== null) {
-      if (approved.url && match[0].startsWith(approved.url)) continue;
+      if (approved.url && originMatchesApproved(match[0], approved.url)) continue;
       findings.push(
         findingAt(
           'unapproved-loopback-endpoint',
@@ -192,7 +250,48 @@ export function inspectBinary(buffer, filePath, profile, approved) {
   }));
 }
 
-function loadApproved() {
+/** Approved configuration comes from the independent reviewed manifest
+ * (security/approved-config.json), and the environment values that built
+ * the bundle must MATCH it — missing or partial configuration fails
+ * instead of silently passing (RETURN-4 P1-4). Returns
+ * { url, clientKey } or { problems }. */
+export function resolveApprovedConfig(profile, env, manifest) {
+  const problems = [];
+  const profileManifest = manifest?.profiles?.[profile];
+  if (!profileManifest) {
+    return { problems: [`no approved-config manifest entry for profile ${profile}`] };
+  }
+  const url = env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+  const clientKey = env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY ?? '';
+  if (url === '') problems.push('EXPO_PUBLIC_SUPABASE_URL is missing — configuration incomplete');
+  if (clientKey === '')
+    problems.push('EXPO_PUBLIC_SUPABASE_CLIENT_KEY is missing — configuration incomplete');
+  if (url !== '') {
+    const approvedList = profileManifest.approvedOrigins ?? [];
+    if (approvedList.length === 0) {
+      problems.push(`profile ${profile} has no approved origins in the manifest (HOLD)`);
+    } else if (!approvedList.some((origin) => originMatchesApproved(url, origin))) {
+      problems.push(
+        `configured URL is not an exact approved origin for profile ${profile} (custom domains require explicit manifest approval)`,
+      );
+    }
+  }
+  if (clientKey !== '') {
+    if (profileManifest.clientKeyPolicy === 'exact') {
+      if (!profileManifest.clientKey || clientKey !== profileManifest.clientKey) {
+        problems.push(
+          `configured client key is not the manifest-approved exact key for ${profile}`,
+        );
+      }
+    } else if (!/^sb_publishable_[A-Za-z0-9_-]{10,}$/.test(clientKey)) {
+      problems.push('configured client key is not publishable-shaped');
+    }
+  }
+  if (problems.length > 0) return { problems };
+  return { url, clientKey, problems: [] };
+}
+
+export function loadApproved(profile) {
   const env = {};
   try {
     for (const line of readFileSync(path.join(appRoot, '.env.local'), 'utf8').split('\n')) {
@@ -200,13 +299,22 @@ function loadApproved() {
       if (match) env[match[1]] = match[2];
     }
   } catch {
-    // no .env.local: exports carry no endpoint at all, which is also valid
+    // fall through: env vars may still be present in process.env
   }
-  return {
-    url: process.env.EXPO_PUBLIC_SUPABASE_URL ?? env.EXPO_PUBLIC_SUPABASE_URL ?? '',
-    clientKey:
-      process.env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY ?? env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY ?? '',
+  const effective = {
+    EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? env.EXPO_PUBLIC_SUPABASE_URL,
+    EXPO_PUBLIC_SUPABASE_CLIENT_KEY:
+      process.env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY ?? env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY,
   };
+  let manifest;
+  try {
+    manifest = JSON.parse(
+      readFileSync(path.join(appRoot, 'security', 'approved-config.json'), 'utf8'),
+    );
+  } catch {
+    return { problems: ['security/approved-config.json is unreadable'] };
+  }
+  return resolveApprovedConfig(profile, effective, manifest);
 }
 
 const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
@@ -240,7 +348,31 @@ if (isMain) {
     console.error(`bundle:inspect ENGINE FAILURE: zero files found under ${distDir}`);
     process.exit(2);
   }
-  const approved = loadApproved();
+  const approved = loadApproved(profile);
+  if (approved.problems.length > 0) {
+    for (const problem of approved.problems) console.error(`FAIL ${problem}`);
+    console.error('bundle:inspect FAILED (approved configuration)');
+    process.exit(1);
+  }
+  // App-owned sources must not use the vendored constants at all.
+  const appFiles = execFileSync('git', ['ls-files', 'src', 'app'], {
+    cwd: appRoot,
+    encoding: 'utf8',
+  })
+    .split('\n')
+    .filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
+  const appOwned = checkAppOwnedConstants(appFiles, (file) => {
+    try {
+      return readFileSync(path.join(appRoot, file), 'utf8');
+    } catch {
+      return null;
+    }
+  });
+  if (appOwned.length > 0) {
+    for (const failure of appOwned) console.error(`FAIL ${failure}`);
+    console.error('bundle:inspect FAILED (app-owned vendor constants)');
+    process.exit(1);
+  }
   const findings = [];
   let textCount = 0;
   let binaryCount = 0;

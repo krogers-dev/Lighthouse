@@ -134,3 +134,100 @@ test('QA hooks are rejected outside the development profile (RETURN-2)', async (
   assert.equal(checkQaHooks({ EXPO_PUBLIC_QA_HOOKS: '1' }, 'release').length, 1);
   assert.deepEqual(checkQaHooks({}, 'release'), []);
 });
+
+// ---- RETURN-4 P1-4: missing config fails, exact-host loopback, manifest ----
+
+test('NEGATIVE: missing configuration FAILS both profiles — never a silent pass', () => {
+  for (const profile of ['development', 'release']) {
+    const problems = checkEnvValues({}, profile);
+    assert.ok(
+      problems.some((p) => p.includes('missing EXPO_PUBLIC_SUPABASE_URL')),
+      `${profile}: URL missing must fail`,
+    );
+    assert.ok(
+      problems.some((p) => p.includes('missing EXPO_PUBLIC_SUPABASE_CLIENT_KEY')),
+      `${profile}: key missing must fail`,
+    );
+  }
+  const partial = checkEnvValues(
+    { EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321' },
+    'development',
+  );
+  assert.ok(partial.some((p) => p.includes('missing EXPO_PUBLIC_SUPABASE_CLIENT_KEY')));
+});
+
+test('NEGATIVE: loopback is exact-host — 127.0.0.1.evil.example is NOT loopback', () => {
+  const legacy = legacyAnon;
+  const problems = checkEnvValues(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1.evil.example:54321',
+      EXPO_PUBLIC_SUPABASE_CLIENT_KEY: legacy,
+    },
+    'development',
+  );
+  assert.ok(problems.some((p) => p.includes('must be loopback or https')));
+  assert.ok(
+    problems.some((p) => p.includes('legacy anon key with a loopback URL')),
+    'the anon-key-on-loopback allowance must not apply to a suffix host',
+  );
+  // And release-side: the suffix host must NOT be excused as loopback-only
+  // (it is still rejected for not being https, which is the point — it is
+  // judged as a non-loopback host).
+  const release = checkEnvValues(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1.evil.example:54321',
+      EXPO_PUBLIC_SUPABASE_CLIENT_KEY: 'sb_publishable_syntheticsynthetic',
+    },
+    'release',
+  );
+  assert.ok(release.some((p) => p.includes('must use https')));
+  assert.ok(!release.some((p) => p.includes('uses a loopback URL')));
+});
+
+const MANIFEST = {
+  profiles: {
+    development: {
+      approvedOrigins: ['http://127.0.0.1:54321'],
+      clientKeyPolicy: 'publishable-shape',
+    },
+    release: { approvedOrigins: [], clientKeyPolicy: 'exact', clientKey: null },
+  },
+};
+
+test('the manifest cross-check binds the configured URL to an exact approved origin', () => {
+  const key = { EXPO_PUBLIC_SUPABASE_CLIENT_KEY: 'sb_publishable_syntheticsynthetic' };
+  assert.deepEqual(
+    checkEnvValues(
+      { EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321', ...key },
+      'development',
+      MANIFEST,
+    ),
+    [],
+  );
+  // Loopback but a DIFFERENT port: still rejected against the manifest.
+  const otherPort = checkEnvValues(
+    { EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54322', ...key },
+    'development',
+    MANIFEST,
+  );
+  assert.ok(otherPort.some((p) => p.includes('not an exact approved origin')));
+  // An unapproved custom domain requires explicit manifest approval.
+  const custom = checkEnvValues(
+    { EXPO_PUBLIC_SUPABASE_URL: 'https://supabase.mycustomdomain.example', ...key },
+    'development',
+    MANIFEST,
+  );
+  assert.ok(custom.some((p) => p.includes('custom domains require explicit manifest approval')));
+});
+
+test('NEGATIVE: the release manifest approves no origins yet (HOLD)', () => {
+  const problems = checkEnvValues(
+    {
+      EXPO_PUBLIC_SUPABASE_URL: 'https://example-project.supabase.co',
+      EXPO_PUBLIC_SUPABASE_CLIENT_KEY: 'sb_publishable_syntheticsynthetic',
+    },
+    'release',
+    MANIFEST,
+  );
+  assert.ok(problems.some((p) => p.includes('no approved origins in the manifest (HOLD)')));
+});

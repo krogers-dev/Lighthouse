@@ -1,0 +1,41 @@
+{
+  "$comment": [
+    "Hardware (device-lane) toolchain record. RETURN-4 P2-1 requires the",
+    "Maestro CLI to be pinned by VERSION and ARTIFACT CHECKSUM, because the",
+    "flow validator's per-command payload schemas are only meaningful",
+    "against a known CLI version, and because an unverified CLI download is",
+    "an unreviewed binary on the machine that sees the enrollment QR.",
+    "",
+    "The build container cannot fill these values: outbound HTTPS to the",
+    "Maestro release host is denied by organization egress policy (the",
+    "gateway answered 403 to CONNECT on 2026-08-22), and no checksum may be",
+    "invented. The fields below are therefore an operator-fill HOLD with",
+    "exact commands. scripts/maestro-enroll-runner.mjs reads this record and",
+    "REFUSES to run any flow while status is not 'pinned' or while the",
+    "installed CLI version differs from the pinned version.",
+    "",
+    "To fill (on the QA machine, Kody or the QA lead):",
+    "  1. Download the release artifact for the chosen version from the",
+    "     official Maestro release page and record its exact URL.",
+    "  2. shasum -a 256 <artifact>   # record the 64-hex digest below",
+    "  3. Install it, then: maestro --version   # must equal `version`",
+    "  4. Set status to 'pinned' and record verifiedBy / verifiedOn.",
+    "Re-running maestro:validate after filling this record is required: the",
+    "payload schemas are declared to match this exact version."
+  ],
+  "maestro": {
+    "status": "HOLD-operator-fill",
+    "version": null,
+    "artifactUrl": null,
+    "sha256": null,
+    "installCommand": null,
+    "verifiedBy": null,
+    "verifiedOn": null,
+    "schemaBasis": "scripts/maestro-validate.mjs per-command payload schemas are declared against the pinned version recorded here"
+  },
+  "deviceLane": {
+    "status": "HOLD",
+    "reason": "No device, simulator, or Maestro binary in the build container; execution waits for PM PASS of the corrective candidate and Kody's machine reservation",
+    "owner": "Kody"
+  }
+}

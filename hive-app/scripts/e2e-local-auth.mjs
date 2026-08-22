@@ -31,7 +31,8 @@
  */
 import process from 'node:process';
 
-import { cleanAllFactors } from './lib/admin-factors.mjs';
+import { requireFactorsClean } from './lib/admin-factors.mjs';
+import { msUntilIatAdvance, verifyRefreshedSession } from './lib/refresh-verify.mjs';
 import { SCOPE, SYNTHETIC_IDENTITIES } from './lib/synthetic-identities.mjs';
 import { totpCode } from './lib/totp.mjs';
 
@@ -86,7 +87,14 @@ async function admin(pathname, options = {}) {
       ...options.headers,
     },
   });
-  return { status: response.status, body: await response.json().catch(() => ({})) };
+  // Contract note (RETURN-4 P1-1): `ok` is part of the adapter contract
+  // the shared factor-cleanup helper verifies; omitting it once made
+  // real HTTP 200s read as failures.
+  return {
+    ok: response.ok,
+    status: response.status,
+    body: await response.json().catch(() => ({})),
+  };
 }
 
 async function rest(pathname, accessToken) {
@@ -192,6 +200,12 @@ async function signInWithOtp(identity) {
  * Returns the refreshed session — callers use IT for protected reads. */
 async function mandatoryRefresh(session, identity, expectedAal, label) {
   if (!check(Boolean(session?.refresh_token), `${label}: refresh token present`)) return null;
+  const previousClaims = jwtClaims(session.access_token);
+  // Deterministic wait (RETURN-4 P1-2): a same-second exchange can mint
+  // byte-identical tokens legally; wait until the clock is past the prior
+  // token's iat second, then demand a strictly later iat.
+  const waitMs = msUntilIatAdvance(previousClaims.iat, Date.now());
+  if (waitMs > 0) await sleep(waitMs + 150);
   const refreshed = await auth('/token?grant_type=refresh_token', {
     method: 'POST',
     body: JSON.stringify({ refresh_token: session.refresh_token }),
@@ -204,36 +218,51 @@ async function mandatoryRefresh(session, identity, expectedAal, label) {
   ) {
     return null;
   }
-  check(
-    refreshed.body.access_token !== session.access_token,
-    `${label}: refresh yields a NEW access token`,
+  const problems = verifyRefreshedSession(
+    {
+      accessToken: session.access_token,
+      refreshToken: session.refresh_token,
+      claims: previousClaims,
+    },
+    {
+      accessToken: refreshed.body.access_token,
+      refreshToken: refreshed.body.refresh_token,
+      claims: jwtClaims(refreshed.body.access_token),
+    },
+    { canonicalSub: identity.id, expectedAal, nowMs: Date.now() },
   );
+  for (const problem of problems) check(false, `${label}: ${problem}`);
   check(
-    Boolean(refreshed.body.refresh_token) && refreshed.body.refresh_token !== session.refresh_token,
-    `${label}: refresh yields a NEW refresh token`,
+    problems.length === 0,
+    `${label}: refresh verified (later iat, rotated tokens, canonical sub, session retained, ${expectedAal})`,
   );
-  const claims = jwtClaims(refreshed.body.access_token);
-  check(claims.sub === identity.id, `${label}: refreshed sub is still the canonical id`);
-  check(claims.aal === expectedAal, `${label}: refreshed session retains ${expectedAal}`);
-  return refreshed.body;
+  return problems.length === 0 ? refreshed.body : null;
 }
 
 // ---------------------------------------------------------------------------
 // TOTP helpers (admin cleanup keeps reruns deterministic).
 // ---------------------------------------------------------------------------
 
-/** Fail-closed factor cleanup (RETURN-3 area 5): the listing must
- * succeed, every deletion must succeed, and a final readback must prove
- * zero factors remain before any enrollment begins. */
+/** Genuinely fail-stop factor cleanup (RETURN-4 P1-1): terminates the
+ * harness immediately on any listing, deletion, readback, or adapter-
+ * contract failure — no OTP request, enrollment, challenge, verification,
+ * or other mutation can run after a cleanup failure. */
 async function adminCleanFactors(identity) {
-  const { problems, deleted } = await cleanAllFactors(admin, identity);
-  for (const problem of problems) {
-    check(false, `${identity.email}: factor cleanup — ${problem}`);
+  try {
+    const deleted = await requireFactorsClean(admin, identity);
+    check(
+      true,
+      `${identity.email}: factor-clean before enrollment (${deleted} deleted, readback zero)`,
+    );
+  } catch (error) {
+    for (const problem of error.problems ?? [String(error)]) {
+      check(false, `${identity.email}: factor cleanup — ${problem}`);
+    }
+    console.error(
+      `e2e-local-auth: ${passed} passed, ${failed} failed — TERMINATED at factor cleanup`,
+    );
+    process.exit(1);
   }
-  return check(
-    problems.length === 0,
-    `${identity.email}: factor-clean before enrollment (${deleted} deleted, readback zero)`,
-  );
 }
 
 async function enrollAndVerifyTotp(identity, session, label) {
@@ -295,7 +324,14 @@ const NEXT_ACTIONS = {
 };
 /** Exact AAL2 reach per scope set, covering ALL SIX protected tables
  * (RETURN-3 area 6). The B-side attention/next-action rows exist
- * specifically so the missing ids here are real negatives. */
+ * specifically so the missing ids here are real negatives.
+ *
+ * RETURN-4 P2-4: entity B2 now carries its own attention item and next
+ * action, and they appear in NO reach set below — including
+ * mixed.cross's. Previously every seeded child row was inside
+ * mixed.cross's reach, so "exact reach" for those two tables was
+ * satisfied by a set that happened to be the whole table; an
+ * entity-level leak into B2 would not have been detected. */
 const REACH = {
   aOnly: {
     environments: [SCOPE.environmentId],

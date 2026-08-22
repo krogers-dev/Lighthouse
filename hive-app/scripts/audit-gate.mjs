@@ -32,6 +32,7 @@
  * (tests/scripts/audit-gate-integration.test.mjs).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
+import { manifestSha256, verifyRatification } from './lib/ratification.mjs';
 import { createHash } from 'node:crypto';
 import { openSync, readSync, closeSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -41,6 +42,15 @@ import { fileURLToPath } from 'node:url';
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const GHSA_PATTERN = /^GHSA(-[a-z0-9]{4}){3}$/;
+// Only the canonical GitHub advisory URL yields an id — trailing slashes,
+// other hosts, and malformed tails are rejected, never silently skipped
+// (RETURN-4 P1-5).
+const ADVISORY_URL = /^https:\/\/github\.com\/advisories\/(GHSA(?:-[a-z0-9]{4}){3})$/;
+
+export function advisoryIdFromUrl(url) {
+  const match = ADVISORY_URL.exec(url ?? '');
+  return match ? match[1] : null;
+}
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 const PENDING_WORDS = /pending|proposed|not\s+approved|not\s+yet\s+given/i;
 const SEVERITIES = ['info', 'low', 'moderate', 'high', 'critical'];
@@ -120,9 +130,83 @@ export function validateAuditReport(report) {
       if (!SEVERITY_SET.has(via.severity)) {
         problems.push(`${label}: advisory via entry has invalid severity "${via.severity}"`);
       }
-      if (typeof via.url !== 'string' || !via.url.includes('/advisories/')) {
-        problems.push(`${label}: advisory via entry has no advisory url`);
+      if (advisoryIdFromUrl(via.url) === null) {
+        problems.push(
+          `${label}: advisory via entry url is not a canonical GitHub advisory url yielding a GHSA id`,
+        );
       }
+    }
+  }
+  // Via-graph resolution (RETURN-4 P1-5): every string via must name an
+  // existing node; every node must transitively reach the advisories it
+  // claims; dangling references, unresolved high/critical nodes, and node
+  // severities that do not match the reached advisories all fail — a high
+  // node can no longer evaluate as zero advisories.
+  //
+  // Cycles are TRAVERSED SAFELY, not rejected: real npm reports contain
+  // them legitimately (metro <-> metro-config <-> metro-transform-worker
+  // in this very lockfile), so refusing them would make the gate
+  // permanently unrunnable rather than strict. Termination comes from the
+  // visited set, and the security property the cycle rule was meant to
+  // protect is enforced directly below: any high/critical node that
+  // reaches ZERO advisories fails, so a cycle cannot be used to hide an
+  // unresolved finding.
+  const nodes = report.vulnerabilities;
+  const reportedDangling = new Set();
+  const resolveAdvisories = (start) => {
+    const seenNodes = new Set([start]);
+    const queue = [start];
+    const reached = [];
+    const reachedKeys = new Set();
+    while (queue.length > 0) {
+      const name = queue.shift();
+      const node = nodes[name];
+      if (typeof node !== 'object' || node === null || !Array.isArray(node.via)) continue;
+      for (const via of node.via) {
+        if (typeof via === 'string') {
+          if (!(via in nodes)) {
+            const key = `${name}->${via}`;
+            if (!reportedDangling.has(key)) {
+              reportedDangling.add(key);
+              problems.push(`node "${name}": via reference "${via}" does not resolve to any node`);
+            }
+            continue;
+          }
+          if (!seenNodes.has(via)) {
+            seenNodes.add(via);
+            queue.push(via);
+          }
+        } else if (typeof via === 'object' && via !== null) {
+          const key = `${via.url ?? ''}|${via.name ?? ''}|${via.severity ?? ''}`;
+          if (!reachedKeys.has(key)) {
+            reachedKeys.add(key);
+            reached.push(via);
+          }
+        }
+      }
+    }
+    return reached;
+  };
+  const rank = { info: 0, low: 1, moderate: 2, high: 3, critical: 4 };
+  for (const [name, node] of Object.entries(nodes)) {
+    if (typeof node !== 'object' || node === null || !SEVERITY_SET.has(node.severity)) continue;
+    const reached = resolveAdvisories(name);
+    if (reached.length === 0) {
+      if (node.severity === 'high' || node.severity === 'critical') {
+        problems.push(
+          `node "${name}" is ${node.severity} but resolves to ZERO advisories through its via graph`,
+        );
+      }
+      continue;
+    }
+    const worstReached = reached.reduce(
+      (worst, via) => ((rank[via.severity] ?? -1) > (rank[worst] ?? -1) ? via.severity : worst),
+      'info',
+    );
+    if (worstReached !== node.severity) {
+      problems.push(
+        `node "${name}" severity ${node.severity} does not reconcile with the advisories reached through its via graph (worst reached: ${worstReached})`,
+      );
     }
   }
   // Cross-occurrence consistency (RETURN-3 area 1): the same GHSA may
@@ -135,7 +219,7 @@ export function validateAuditReport(report) {
     if (typeof node !== 'object' || node === null || !Array.isArray(node.via)) continue;
     for (const via of node.via) {
       if (typeof via !== 'object' || via === null) continue;
-      const ghsa = (via.url ?? '').split('/').pop() ?? '';
+      const ghsa = advisoryIdFromUrl(via.url);
       if (!ghsa) continue;
       const occurrences = occurrencesByGhsa.get(ghsa) ?? [];
       occurrences.push({ name: via.name, severity: via.severity, url: via.url });
@@ -231,8 +315,24 @@ export function validateWaivers(waiverFile, today) {
       }
       if (!isRealIsoDate(waiver.ratifiedOn ?? '')) {
         problems.push(`${label}: ratified entries require a real ratifiedOn date`);
-      } else if (isRealIsoDate(waiver.proposedOn ?? '') && waiver.ratifiedOn < waiver.proposedOn) {
-        problems.push(`${label}: ratifiedOn cannot precede proposedOn`);
+      } else {
+        if (isRealIsoDate(waiver.proposedOn ?? '') && waiver.ratifiedOn < waiver.proposedOn) {
+          problems.push(`${label}: ratifiedOn cannot precede proposedOn`);
+        }
+        if (waiver.ratifiedOn > today) {
+          problems.push(`${label}: ratifiedOn is in the future — rejected`);
+        }
+        if (isRealIsoDate(waiver.expires ?? '') && waiver.ratifiedOn > waiver.expires) {
+          problems.push(`${label}: ratification after expiry is rejected`);
+        }
+      }
+      if (
+        typeof waiver.decisionRecordPath !== 'string' ||
+        !waiver.decisionRecordPath.startsWith('security/decisions/')
+      ) {
+        problems.push(
+          `${label}: ratified entries require decisionRecordPath under security/decisions/`,
+        );
       }
       if (
         typeof waiver.approvalReference !== 'string' ||
@@ -299,8 +399,8 @@ export function evaluateAudit(auditReport, waiverFile, today) {
   for (const vuln of Object.values(auditReport.vulnerabilities ?? {})) {
     for (const via of vuln.via ?? []) {
       if (typeof via !== 'object' || via === null) continue;
-      const ghsa = (via.url ?? '').split('/').pop() ?? '';
-      if (!ghsa) continue;
+      const ghsa = advisoryIdFromUrl(via.url);
+      if (!ghsa) continue; // schema validation already failed such reports
       const current = byGhsa.get(ghsa);
       if (!current || (severityRank[via.severity] ?? 0) > (severityRank[current.severity] ?? 0)) {
         byGhsa.set(ghsa, { severity: via.severity, name: via.name });
@@ -336,7 +436,7 @@ export function evaluateAudit(auditReport, waiverFile, today) {
     matchedAdvisories.push({ ghsa, package: worst.name });
     if (waiver.approvalStatus === 'ratified') {
       notes.push(
-        `waived (ratified ${waiver.ratifiedOn}): ${ghsa} (${worst.name}) by ${waiver.owner} until ${waiver.expires}`,
+        `waived (ratified ${waiver.ratifiedOn} by ${waiver.ratifiedBy}; owner: ${waiver.owner}): ${ghsa} (${worst.name}) until ${waiver.expires}`,
       );
     } else {
       holds.push(
@@ -405,11 +505,11 @@ export function detectProhibitedAssetPayload(buffer) {
   return null;
 }
 
-const PROHIBITED_ASSET_EXTENSIONS = new Set(['.icns', '.jxl', '.heif', '.heic', '.avif']);
+export const PROHIBITED_ASSET_EXTENSIONS = new Set(['.icns', '.jxl', '.heif', '.heic', '.avif']);
 /** Extensions that read as build images: while the control is active,
  * every such file must be on the positive allowlist AND match its
  * approved signature — a renamed crafted payload fails either way. */
-const IMAGE_EXTENSIONS = new Set([
+export const IMAGE_EXTENSIONS = new Set([
   '.png',
   '.jpg',
   '.jpeg',
@@ -419,6 +519,12 @@ const IMAGE_EXTENSIONS = new Set([
   '.ico',
   '.tiff',
   '.tif',
+  // RETURN-4 P1-7: Metro's default asset list includes PSD and SVG, so
+  // they are governed image formats here too; a drift test asserts every
+  // image-like extension in the PINNED metro-config defaults is covered
+  // by this set or the prohibited set.
+  '.svg',
+  '.psd',
 ]);
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 /** Positive allowlist: HIVE build images are PNGs, full stop. */
@@ -544,6 +650,15 @@ if (isMain) {
     // reconcile with its own nodes cannot be trusted at all: engine class.
     engineFail(reportProblems.join('; '), run.stderr);
   }
+  // Exit-status/report reconciliation (RETURN-4 P1-5): npm exits 0 only
+  // for a clean report and 1 only when it found something.
+  const reportedTotal = report.metadata.vulnerabilities.total;
+  if (run.status === 0 && reportedTotal !== 0) {
+    engineFail(`npm exited 0 but the report totals ${reportedTotal} vulnerabilities`);
+  }
+  if (run.status === 1 && reportedTotal === 0) {
+    engineFail('npm exited 1 (findings) but the report totals zero vulnerabilities');
+  }
 
   const waiverPath =
     process.env.HIVE_WAIVERS_PATH ?? path.join(appRoot, 'security', 'waivers.json');
@@ -575,6 +690,56 @@ if (isMain) {
     engineFail('package-lock.json unreadable — cannot verify waiver bindings');
   }
   failures.push(...checkWaiverBindings(waiverFile.waivers ?? [], lockfileSha256));
+  // Verifiable ratification (RETURN-4 P1-6): any ratified entry must
+  // resolve its immutable decision record with every binding intact and
+  // the digest presented out-of-band.
+  const ratifiedWaivers = (waiverFile.waivers ?? []).filter((w) => w.approvalStatus === 'ratified');
+  if (ratifiedWaivers.length > 0) {
+    let candidateSha = process.env.HIVE_CANDIDATE_SHA ?? '';
+    if (!candidateSha) {
+      try {
+        candidateSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+          cwd: appRoot,
+          encoding: 'utf8',
+        }).trim();
+      } catch {
+        engineFail('cannot resolve the candidate commit for ratification verification');
+      }
+    }
+    let rawAuditSha256;
+    try {
+      rawAuditSha256 = createHash('sha256')
+        .update(readFileSync(path.join(appRoot, 'security', 'evidence', 'npm-audit-current.json')))
+        .digest('hex');
+    } catch {
+      engineFail('archived raw-audit evidence unreadable — cannot verify ratification bindings');
+    }
+    const approvalDigests = new Set(
+      (process.env.HIVE_APPROVAL_DIGESTS ?? '')
+        .split(',')
+        .map((digest) => digest.trim())
+        .filter(Boolean),
+    );
+    const context = {
+      readFile: (relative) => {
+        try {
+          return readFileSync(path.join(appRoot, relative));
+        } catch {
+          return null;
+        }
+      },
+      todayIso: today,
+      expectedAction: 'waiver-ratification',
+      manifestSha256: manifestSha256(waiverFile.waivers ?? []),
+      currentLockfileSha256: lockfileSha256,
+      currentRawAuditSha256: rawAuditSha256,
+      candidateSha,
+      approvalDigests,
+    };
+    for (const waiver of ratifiedWaivers) {
+      failures.push(...verifyRatification(waiver, context));
+    }
+  }
   // Advisory SOURCES and affected package NODES are different counts —
   // npm's metadata tallies nodes; keep the two visibly distinct.
   console.log(

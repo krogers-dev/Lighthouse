@@ -29,6 +29,10 @@ export function base32Decode(input) {
  * or null. */
 export function strictBase32Decode(input) {
   if (typeof input !== 'string' || input.length === 0) return null;
+  // ASCII validation BEFORE any case folding (RETURN-4 P2-2): Unicode
+  // characters like dotless i (U+0131) case-fold into valid ASCII 'I',
+  // which would launder a non-alphabet input into acceptance.
+  if (!/^[A-Za-z2-7=]+$/.test(input)) return null;
   const normalized = input.toUpperCase();
   if (!/^[A-Z2-7]+={0,6}$/.test(normalized)) return null;
   const padIndex = normalized.indexOf('=');
@@ -58,21 +62,38 @@ export function strictBase32Decode(input) {
   return Buffer.from(out);
 }
 
-/** Codes for the previous, current, and next time windows — the set a
- * server with adjacent-window tolerance would accept. */
-export function totpWindowCodes(secretBase32, atMs = Date.now(), stepSeconds = 30) {
-  const stepMs = stepSeconds * 1000;
-  return [
-    totpCode(secretBase32, atMs - stepMs, stepSeconds),
-    totpCode(secretBase32, atMs, stepSeconds),
-    totpCode(secretBase32, atMs + stepMs, stepSeconds),
-  ];
+/** Codes for every window a tolerant server could accept for a
+ * submission between `atMs` and `atMs + graceSeconds` (RETURN-4 P2-3):
+ * one window before the generation window through one window after the
+ * latest window reachable within the grace interval. At a 30s rollover,
+ * the naive previous/current/next triple missed the server's NEW
+ * adjacent window. */
+export function totpWindowCodes(
+  secretBase32,
+  atMs = Date.now(),
+  stepSeconds = 30,
+  graceSeconds = 90,
+) {
+  const firstWindow = Math.max(0, Math.floor(atMs / 1000 / stepSeconds) - 1);
+  const lastWindow = Math.floor((atMs / 1000 + graceSeconds) / stepSeconds) + 1;
+  const codes = [];
+  for (let window = firstWindow; window <= lastWindow; window++) {
+    codes.push(totpCode(secretBase32, window * stepSeconds * 1000, stepSeconds));
+  }
+  return codes;
 }
 
-/** A six-digit code guaranteed wrong under adjacent-window tolerance: it
- * differs from the previous, current, AND next accepted codes. */
-export function guaranteedWrongCode(secretBase32, atMs = Date.now(), stepSeconds = 30) {
-  const accepted = new Set(totpWindowCodes(secretBase32, atMs, stepSeconds));
+/** A six-digit code guaranteed wrong for any submission within
+ * `graceSeconds` of generation, under adjacent-window tolerance: it
+ * differs from every code in that reachable span. Callers must submit
+ * before `expiresAtMs` (returned alongside by the helper) or regenerate. */
+export function guaranteedWrongCode(
+  secretBase32,
+  atMs = Date.now(),
+  stepSeconds = 30,
+  graceSeconds = 90,
+) {
+  const accepted = new Set(totpWindowCodes(secretBase32, atMs, stepSeconds, graceSeconds));
   let candidate = (Number(totpCode(secretBase32, atMs, stepSeconds)) + 1) % 1_000_000;
   while (accepted.has(String(candidate).padStart(6, '0'))) {
     candidate = (candidate + 1) % 1_000_000;

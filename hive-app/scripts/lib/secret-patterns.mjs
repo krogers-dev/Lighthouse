@@ -180,8 +180,24 @@ export function validateAllowlist(entries, todayIso) {
       }
       if (!isIsoDate(entry.ratifiedOn)) {
         problems.push(`${label}: ratified entries require a real ratifiedOn date`);
-      } else if (isIsoDate(entry.proposedOn) && entry.ratifiedOn < entry.proposedOn) {
-        problems.push(`${label}: ratifiedOn cannot precede proposedOn`);
+      } else {
+        if (isIsoDate(entry.proposedOn) && entry.ratifiedOn < entry.proposedOn) {
+          problems.push(`${label}: ratifiedOn cannot precede proposedOn`);
+        }
+        if (entry.ratifiedOn > todayIso) {
+          problems.push(`${label}: ratifiedOn is in the future — rejected`);
+        }
+        if (isIsoDate(entry.expiry) && entry.ratifiedOn > entry.expiry) {
+          problems.push(`${label}: ratification after expiry is rejected`);
+        }
+      }
+      if (
+        typeof entry.decisionRecordPath !== 'string' ||
+        !entry.decisionRecordPath.startsWith('security/decisions/')
+      ) {
+        problems.push(
+          `${label}: ratified entries require decisionRecordPath under security/decisions/`,
+        );
       }
       if (
         isNonEmptyString(entry.approvalReference) &&

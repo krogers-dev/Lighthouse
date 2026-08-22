@@ -10,18 +10,20 @@ targets, and banned secret channels across every flow.
 
 ## Flows
 
-| Flow                       | Covers                                                                                             |
-| -------------------------- | -------------------------------------------------------------------------------------------------- |
-| `sign-in.yaml`             | Invite-only email OTP to the scoped dashboard (multi-membership chooser)                           |
-| `mfa-enroll.yaml`          | First staff login: TOTP enrollment (QR + setup key), derived wrong-code recovery, AAL2             |
-| `mfa-login.yaml`           | Subsequent staff login against the existing factor — never a second QR                             |
-| `scope-switch.yaml`        | Entity switch clears content and rebinds                                                           |
-| `sign-out.yaml`            | Sign-out removes protected UI and survives relaunch                                                |
-| `expired-session.yaml`     | Revoked/expired stored session fails closed into fresh sign-in                                     |
-| `offline.yaml`             | Explicit offline state, no stale content, retry recovery (Android `setAirplaneMode`)               |
-| `quarantine-recovery.yaml` | Storage quarantine blocks protected UI; verified scrub is the only exit (QA-build corruption hook) |
-| `reinstall.yaml`           | Data-cleared/reinstalled app boots clean and scrubs stale secure data first                        |
-| `accessibility-smoke.yaml` | Accessible labels on the auth path (run with the screen reader active)                             |
+| Flow                       | Covers                                                                                                           |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `sign-in.yaml`             | Invite-only email OTP to the scoped dashboard (multi-membership chooser)                                         |
+| `mfa-enroll.yaml`          | First staff login: TOTP enrollment (QR + setup key), derived wrong-code recovery, AAL2                           |
+| `mfa-login.yaml`           | Subsequent staff login against the existing factor — never a second QR                                           |
+| `scope-switch.yaml`        | Entity switch clears content and rebinds                                                                         |
+| `sign-out.yaml`            | Sign-out removes protected UI and survives relaunch                                                              |
+| `expired-session.yaml`     | Revoked/expired stored session fails closed into fresh sign-in                                                   |
+| `offline.yaml`             | Explicit offline state, no stale content, retry recovery (Android `setAirplaneMode`)                             |
+| `quarantine-recovery.yaml` | Storage quarantine blocks protected UI; verified scrub is the only exit (QA-build corruption hook)               |
+| `reinstall.yaml`           | Data-cleared/reinstalled app boots clean and scrubs stale secure data first                                      |
+| `accessibility-smoke.yaml` | Accessible labels on the auth path (run with the screen reader active)                                           |
+| `confinement-probe.yaml`   | Forced failure while the QR/setup key is on screen — proves artifact confinement (`npm run maestro:confinement`) |
+| `clipboard-scrub.yaml`     | Cleanup only: overwrites the device clipboard on every runner exit path                                          |
 
 ## Prerequisites on a machine with a device lane
 
@@ -33,8 +35,14 @@ targets, and banned secret channels across every flow.
    dev-only `hivedev://qa/corrupt-storage` hook, which `config:check`
    forbids outside development and `bundle:inspect` proves absent from
    non-development exports.
-3. One-time codes arrive in the local Mailpit (http://127.0.0.1:54324);
-   pass them per flow: `maestro test -e OTP_CODE=123456 .maestro/sign-in.yaml`.
+3. One-time codes arrive in the local Mailpit (http://127.0.0.1:54324) and
+   are read MID-FLOW by `otp-snapshot.js` / `otp-fetch.js` — no
+   out-of-band `-e OTP_CODE=…` variable. The snapshot script records the
+   recipient's existing message ids before the code is requested, and the
+   fetch script accepts only a message that arrived afterwards, addressed
+   to exactly that synthetic recipient, with the exact subject and exactly
+   one distinct six-digit token; anything else leaves `output.otpCode`
+   empty so the flow fails loudly instead of typing a stale code.
 4. For the TOTP flows, run `node scripts/totp-helper.mjs` (loopback-only)
    and keep the SAME process running across `mfa-enroll.yaml` and
    `mfa-login.yaml`: the enrollment flow copies the on-screen setup key
@@ -54,20 +62,56 @@ targets, and banned secret channels across every flow.
 6. `expired-session.yaml` has its documented server-side revocation
    pre-step in the flow header.
 
-## Artifact hygiene for the enrollment flow (mandatory)
+## Artifact hygiene for the enrollment flow (executable, mandatory)
 
-Maestro captures screenshots on failure, and the setup screen shows the
-QR and setup key. Therefore, for `mfa-enroll.yaml`:
+**Run the enrollment and login flows only through the runner:**
 
-1. Run with a restricted TEMPORARY artifact directory:
-   `maestro test --debug-output <private tmp dir> …` — never the shared
-   evidence folder.
-2. After the run — success or failure — revoke the disposable factor
-   (re-run `reset-totp` if the run failed mid-enrollment), then scrub
-   the temporary artifact directory.
-3. Copy evidence for retention only AFTER the scrub, and retained
-   evidence begins at the post-setup assertions — no retained artifact
-   may contain the QR or setup key.
+```
+npm run maestro:enroll          # reset -> enroll -> sign-out -> login -> revoke
+npm run maestro:confinement     # forced-failure confinement proof
+```
+
+`scripts/maestro-enroll-runner.mjs` is the single supported entry point.
+Earlier revisions of this file gave the hygiene steps as prose AND got the
+artifact model wrong: **`--debug-output` does not receive screenshots.** It
+carries logs and the command journal. Maestro writes screenshots — including
+the failure screenshot that can show the enrollment QR and setup key — to
+`--test-output-dir`, or, when that flag is absent, to the default
+`~/.maestro/tests/<timestamp>`. Confining only `--debug-output` confined
+nothing.
+
+The runner therefore, on every exit path (success, failure, `SIGINT`,
+`SIGTERM`, `SIGHUP`):
+
+1. refuses to start unless the Maestro CLI matches the version **and**
+   sha256 pinned in `security/hardware-toolchain.json`, and unless the
+   installed CLI actually supports both output flags (an unconfinable run
+   is refused, never attempted);
+2. creates a private mode-0700 run root with **separate** 0700
+   directories for `--debug-output` and `--test-output-dir`;
+3. snapshots `~/.maestro/tests` before and after every flow and fails on
+   any new entry there (default-location leak detection);
+4. runs the sequence strictly sequentially — one flow per invocation, no
+   sharding flag — as `reset-totp` → `mfa-enroll` → `sign-out` →
+   `mfa-login` → `revoke`. The factor is **not** revoked between a
+   successful enrollment and the subsequent login: that login is what
+   proves the existing factor verifies;
+5. starts the loopback `totp-helper` for the whole sequence and kills it
+   in cleanup (the setup secret lives only in that process's memory);
+6. overwrites the device clipboard via `clipboard-scrub.yaml` (a run that
+   dies between "copy the setup key" and "overwrite it" would otherwise
+   leave the key on the clipboard);
+7. revokes the disposable factor with the checked `reset-totp` command;
+8. removes the entire artifact tree and verifies it is gone. Enrollment
+   artifacts are discarded unread — **no screenshot containing the QR or
+   setup secret is ever retained.** Only the post-secret flows'
+   assertions are reported.
+
+`npm run maestro:confinement` runs `confinement-probe.yaml`, which fails
+deliberately while the QR and setup key are on screen. The runner asserts
+that the resulting screenshot landed inside the private run root, that
+nothing appeared in `~/.maestro/tests`, and then scrubs it — the proof is
+the assertion, not a retained image.
 
 ## Device evidence to capture (beyond flow output)
 

@@ -168,3 +168,149 @@ test('the QA-hook marker is flagged in non-development profiles only (RETURN-2)'
   const candidate = inspectContent(`var x="${marker}"`, 'bundle.js', 'candidate', approved);
   assert.ok(candidate.some((f) => f.pattern === 'qa-hook-marker'));
 });
+
+// ---- RETURN-4 P1-4: fingerprinted vendor constants, app-owned uses ----
+
+test('vendor constants over their recorded budget are findings, not silently deleted', async () => {
+  const { applyVendorConstantBudget, inspectContent } =
+    await import('../../scripts/bundle-inspect.mjs');
+  const withinBudget = "a='http://localhost:9999'; b='http://localhost:9999';";
+  const within = applyVendorConstantBudget(withinBudget, 'dist/b.js');
+  assert.deepEqual(within.findings, []);
+  assert.ok(!within.text.includes('http://localhost:9999'));
+  const overBudget = withinBudget + " c='http://localhost:9999';";
+  const over = applyVendorConstantBudget(overBudget, 'dist/b.js');
+  assert.ok(over.findings.some((f) => f.pattern === 'vendor-constant-count-exceeded'));
+  // Over-budget occurrences stay in the text so the endpoint checks see them.
+  assert.ok(over.text.includes('http://localhost:9999'));
+  const findings = inspectContent(overBudget, 'dist/b.js', 'development', approved);
+  const patterns = findings.map((f) => f.pattern);
+  assert.ok(patterns.includes('vendor-constant-count-exceeded'));
+  assert.ok(patterns.includes('unapproved-loopback-endpoint'));
+});
+
+test('NEGATIVE: app-owned sources may never use the vendored constants', async () => {
+  const { checkAppOwnedConstants } = await import('../../scripts/bundle-inspect.mjs');
+  const files = {
+    'src/lib/supabase.ts': 'createClient(validatedEnv.url, validatedEnv.clientKey)',
+    'src/dev/sneaky.ts': "const FALLBACK = 'http://localhost:9999';",
+  };
+  const failures = checkAppOwnedConstants(Object.keys(files), (f) => files[f] ?? null);
+  assert.equal(failures.length, 1);
+  assert.ok(failures[0].includes('src/dev/sneaky.ts'));
+  assert.ok(failures[0].includes('http://localhost:9999'));
+  const clean = checkAppOwnedConstants(['src/lib/supabase.ts'], (f) => files[f] ?? null);
+  assert.deepEqual(clean, []);
+});
+
+// ---- RETURN-4 P1-4: approved-config manifest resolution ----
+
+const MANIFEST = {
+  profiles: {
+    development: {
+      approvedOrigins: ['http://127.0.0.1:54321'],
+      clientKeyPolicy: 'publishable-shape',
+    },
+    candidate: {
+      approvedOrigins: ['http://127.0.0.1:54321'],
+      clientKeyPolicy: 'publishable-shape',
+    },
+    release: { approvedOrigins: [], clientKeyPolicy: 'exact', clientKey: null },
+  },
+};
+
+test('a complete manifest-matching configuration resolves', async () => {
+  const { resolveApprovedConfig } = await import('../../scripts/bundle-inspect.mjs');
+  const resolved = resolveApprovedConfig(
+    'development',
+    {
+      EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+      EXPO_PUBLIC_SUPABASE_CLIENT_KEY: 'sb_publishable_synthetic0123',
+    },
+    MANIFEST,
+  );
+  assert.deepEqual(resolved.problems, []);
+  assert.equal(resolved.url, 'http://127.0.0.1:54321');
+});
+
+test('NEGATIVE: missing or partial configuration fails — it never silently passes', async () => {
+  const { resolveApprovedConfig } = await import('../../scripts/bundle-inspect.mjs');
+  const missingBoth = resolveApprovedConfig('development', {}, MANIFEST);
+  assert.ok(missingBoth.problems.some((p) => p.includes('EXPO_PUBLIC_SUPABASE_URL is missing')));
+  assert.ok(
+    missingBoth.problems.some((p) => p.includes('EXPO_PUBLIC_SUPABASE_CLIENT_KEY is missing')),
+  );
+  const missingKey = resolveApprovedConfig(
+    'development',
+    { EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321' },
+    MANIFEST,
+  );
+  assert.ok(missingKey.problems.some((p) => p.includes('CLIENT_KEY is missing')));
+  const missingUrl = resolveApprovedConfig(
+    'development',
+    { EXPO_PUBLIC_SUPABASE_CLIENT_KEY: 'sb_publishable_synthetic0123' },
+    MANIFEST,
+  );
+  assert.ok(missingUrl.problems.some((p) => p.includes('SUPABASE_URL is missing')));
+});
+
+test('NEGATIVE: unapproved custom hosts and suffix-host attacks fail against the manifest', async () => {
+  const { resolveApprovedConfig } = await import('../../scripts/bundle-inspect.mjs');
+  const key = { EXPO_PUBLIC_SUPABASE_CLIENT_KEY: 'sb_publishable_synthetic0123' };
+  const custom = resolveApprovedConfig(
+    'development',
+    { EXPO_PUBLIC_SUPABASE_URL: 'https://supabase.mycustomdomain.example', ...key },
+    MANIFEST,
+  );
+  assert.ok(custom.problems.some((p) => p.includes('not an exact approved origin')));
+  const hostedManifest = {
+    profiles: {
+      development: {
+        approvedOrigins: ['https://example-project.supabase.co'],
+        clientKeyPolicy: 'publishable-shape',
+      },
+    },
+  };
+  const suffix = resolveApprovedConfig(
+    'development',
+    { EXPO_PUBLIC_SUPABASE_URL: 'https://example-project.supabase.co.evil.example', ...key },
+    hostedManifest,
+  );
+  assert.ok(suffix.problems.some((p) => p.includes('not an exact approved origin')));
+  const exact = resolveApprovedConfig(
+    'development',
+    { EXPO_PUBLIC_SUPABASE_URL: 'https://example-project.supabase.co', ...key },
+    hostedManifest,
+  );
+  assert.deepEqual(exact.problems, []);
+});
+
+test('NEGATIVE: the release profile resolves nothing until origins are approved (HOLD)', async () => {
+  const { resolveApprovedConfig } = await import('../../scripts/bundle-inspect.mjs');
+  const release = resolveApprovedConfig(
+    'release',
+    {
+      EXPO_PUBLIC_SUPABASE_URL: 'https://example-project.supabase.co',
+      EXPO_PUBLIC_SUPABASE_CLIENT_KEY: 'sb_publishable_synthetic0123',
+    },
+    MANIFEST,
+  );
+  assert.ok(release.problems.some((p) => p.includes('no approved origins')));
+  assert.ok(release.problems.some((p) => p.includes('exact key')));
+  const unknown = resolveApprovedConfig('staging', {}, MANIFEST);
+  assert.ok(unknown.problems.some((p) => p.includes('no approved-config manifest entry')));
+});
+
+test('NEGATIVE: a non-publishable-shaped client key fails shape policy', async () => {
+  const { resolveApprovedConfig } = await import('../../scripts/bundle-inspect.mjs');
+  const jwtKey = ['eyJsyntheticA1', 'eyJsyntheticB2', 'sigsigsig'].join('.');
+  const bad = resolveApprovedConfig(
+    'development',
+    {
+      EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+      EXPO_PUBLIC_SUPABASE_CLIENT_KEY: jwtKey,
+    },
+    MANIFEST,
+  );
+  assert.ok(bad.problems.some((p) => p.includes('not publishable-shaped')));
+});

@@ -1,0 +1,36 @@
+{
+  "$comment": "Binding record for the archived raw npm audit report (RETURN-4 P2-6). The raw report in npm-audit-current.json is byte-for-byte as npm produced it; audit-gate.mjs hashes that file for the rawAuditSha256 ratification binding, so any future approval is bound to THIS evidence. Regenerate both files together whenever package-lock.json changes.",
+  "capturedAt": "2026-08-22T11:53:24.241Z",
+  "command": "npm audit --json",
+  "rawReportPath": "security/evidence/npm-audit-current.json",
+  "rawReportSha256": "b87a38278a87c48a788612a1014e30a59adffc01fde7e72e8fcc8142b522bff3",
+  "lockfileSha256": "065897e1979bcf49314739b04715fafb64fd60b5dcce824301bcfea2f10ff600",
+  "toolVersions": {
+    "node": "v22.23.2",
+    "npm": "10.9.8"
+  },
+  "npmExitStatus": 1,
+  "counts": {
+    "auditReportVersion": 2,
+    "affectedPackageNodes": 16,
+    "distinctAdvisorySources": 3,
+    "nodesBySeverity": {
+      "moderate": 11,
+      "high": 5
+    },
+    "metadataVulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 11,
+      "high": 5,
+      "critical": 0,
+      "total": 16
+    }
+  },
+  "advisories": [
+    "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq",
+    "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr",
+    "https://github.com/advisories/GHSA-w5hq-g745-h8pq"
+  ],
+  "disposition": "All three advisories are covered by PROPOSED waivers in security/waivers.json. Nothing is ratified: audit:gate exits 3 (HOLD)."
+}

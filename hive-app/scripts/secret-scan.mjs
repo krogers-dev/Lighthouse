@@ -28,6 +28,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { assertCompleteHistory, scanHistoryAt } from './lib/history-scan.mjs';
+import { manifestSha256, verifyRatification } from './lib/ratification.mjs';
 import {
   SECRET_PATTERNS,
   allowlistHolds,
@@ -103,47 +105,12 @@ function scanTrackedFiles() {
 }
 
 function scanHistory() {
-  const findings = [];
-  const objects = git(['rev-list', '--objects', '--all'])
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => {
-      const spaceIndex = line.indexOf(' ');
-      return spaceIndex === -1
-        ? { oid: line, path: '' }
-        : { oid: line.slice(0, spaceIndex), path: line.slice(spaceIndex + 1) };
-    })
-    .filter((o) => o.path && !o.path.endsWith('/'));
-  const seen = new Set();
-  let blobCount = 0;
-  for (const object of objects) {
-    if (seen.has(object.oid)) continue;
-    seen.add(object.oid);
-    if (TEXT_EXTENSIONS_SKIP.has(path.extname(object.path).toLowerCase())) continue;
-    let type;
-    try {
-      type = git(['cat-file', '-t', object.oid]).trim();
-    } catch {
-      continue;
-    }
-    if (type !== 'blob') continue;
-    blobCount += 1;
-    const content = execFileSync('git', ['cat-file', 'blob', object.oid], {
-      cwd: appRoot,
-      maxBuffer: 256 * 1024 * 1024,
-    });
-    if (looksBinary(content)) continue;
-    for (const finding of scanText(
-      content.toString('utf8'),
-      SECRET_PATTERNS,
-      `history:${object.oid.slice(0, 12)}:${object.path}`,
-    )) {
-      // Raw findings carry the full blob id and exact recorded path; the
-      // hardened allowlist reconciliation happens after the whole scan.
-      findings.push({ ...finding, blob: object.oid, blobPath: object.path });
-    }
+  const completeness = assertCompleteHistory(git);
+  if (completeness.length > 0) {
+    for (const problem of completeness) console.error(`secrets:scan ENGINE FAILURE: ${problem}`);
+    process.exit(2);
   }
-  return { findings, blobCount };
+  return scanHistoryAt(git, appRoot);
 }
 
 function runSecretlint() {
@@ -204,7 +171,7 @@ const secretlint = runSecretlint();
 const envProblems = checkEnvFiles();
 
 console.log(
-  `secrets:scan: self-test ok; ${tracked.fileCount} tracked files scanned; ${history.blobCount} history blobs scanned; ${effectiveAllowlist.length} history-exception entries reconciled covering ${reconciled.matchedFindings} historical matches; secretlint ${secretlint.clean ? 'clean' : 'FINDINGS'}`,
+  `secrets:scan: self-test ok; ${tracked.fileCount} tracked files scanned; ${history.blobCount} history blobs across ${history.associationCount} (blob, path) associations scanned (history completeness verified); ${effectiveAllowlist.length} history-exception entries reconciled covering ${reconciled.matchedFindings} historical matches; secretlint ${secretlint.clean ? 'clean' : 'FINDINGS'}`,
 );
 
 let failed = false;
@@ -238,6 +205,48 @@ for (const problem of envProblems) {
 if (failed) {
   console.error('secrets:scan FAILED');
   process.exit(1);
+}
+// Verifiable ratification for history exceptions (RETURN-4 P1-6).
+const ratifiedEntries = effectiveAllowlist.filter((e) => e.approvalStatus === 'ratified');
+if (ratifiedEntries.length > 0) {
+  let candidateSha = process.env.HIVE_CANDIDATE_SHA ?? '';
+  if (!candidateSha) {
+    try {
+      candidateSha = git(['rev-parse', 'HEAD']).trim();
+    } catch {
+      candidateSha = '';
+    }
+  }
+  const approvalDigests = new Set(
+    (process.env.HIVE_APPROVAL_DIGESTS ?? '')
+      .split(',')
+      .map((digest) => digest.trim())
+      .filter(Boolean),
+  );
+  const context = {
+    readFile: (relative) => {
+      try {
+        return readFileSync(path.join(appRoot, relative));
+      } catch {
+        return null;
+      }
+    },
+    todayIso,
+    expectedAction: 'history-exception-ratification',
+    manifestSha256: manifestSha256(effectiveAllowlist),
+    candidateSha,
+    approvalDigests,
+  };
+  for (const entry of ratifiedEntries) {
+    for (const problem of verifyRatification(entry, context)) {
+      failed = true;
+      console.error(`FAIL ${problem}`);
+    }
+  }
+  if (failed) {
+    console.error('secrets:scan FAILED');
+    process.exit(1);
+  }
 }
 const holds = allowlistHolds(effectiveAllowlist);
 if (holds.length > 0) {

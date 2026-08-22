@@ -70,6 +70,7 @@ function validEntry(overrides = {}) {
     proposedOn: '2026-08-20',
     ratifiedOn: '2026-08-21',
     ratifiedBy: 'Kody',
+    decisionRecordPath: 'security/decisions/history-exceptions-2026-08-21.json',
     decisionRecordDigest: 'a'.repeat(64),
     expiry: '2026-11-21',
     retest: 'Re-run secrets:scan monthly and at expiry.',
@@ -261,4 +262,43 @@ test('NEGATIVE: flipping the CURRENT proposed exceptions to ratified without new
   }));
   const refProblems = validateAllowlist(withDates, TODAY);
   assert.ok(refProblems.some((p) => p.includes('pending')));
+});
+
+// ---------------------------------------------------------------------------
+// RETURN-4 P1-6: history-exception ratification carries the same bindings
+// ---------------------------------------------------------------------------
+
+test('NEGATIVE: a history exception ratified in the FUTURE is rejected', () => {
+  const problems = validateAllowlist([validEntry({ ratifiedOn: '2026-09-15' })], TODAY);
+  assert.ok(
+    problems.some((p) => p.includes('future')),
+    JSON.stringify(problems),
+  );
+});
+
+test('NEGATIVE: ratification AFTER the exception expiry is rejected', () => {
+  const problems = validateAllowlist(
+    [validEntry({ proposedOn: '2026-01-01', expiry: '2026-06-01', ratifiedOn: '2026-05-01' })],
+    TODAY,
+  );
+  assert.ok(
+    problems.some((p) => p.includes('expired') || p.includes('after expiry')),
+    JSON.stringify(problems),
+  );
+  // Expiry in the future, ratification after it: the specific rule.
+  const future = validateAllowlist(
+    [validEntry({ proposedOn: '2026-08-01', expiry: '2026-09-01', ratifiedOn: '2026-08-21' })],
+    TODAY,
+  );
+  assert.deepEqual(future, []);
+});
+
+test('NEGATIVE: a ratified history exception must name a decision record under security/decisions/', () => {
+  for (const bad of [undefined, '', 'notes/elsewhere.json', '../security/decisions/x.json']) {
+    const problems = validateAllowlist([validEntry({ decisionRecordPath: bad })], TODAY);
+    assert.ok(
+      problems.some((p) => p.includes('decisionRecordPath')),
+      `expected rejection for ${JSON.stringify(bad)}; got ${JSON.stringify(problems)}`,
+    );
+  }
 });

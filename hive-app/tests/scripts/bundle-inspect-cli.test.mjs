@@ -24,10 +24,18 @@ function makeDist(files) {
   return dir;
 }
 
-function runInspect(profile, distDir) {
+/** RETURN-4 P1-4: inspection now requires COMPLETE approved
+ * configuration; the harness injects the manifest-matching synthetic
+ * values (security/approved-config.json development/candidate profile). */
+const SYNTHETIC_ENV = {
+  EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+  EXPO_PUBLIC_SUPABASE_CLIENT_KEY: 'sb_publishable_' + 'synthetic0123456789',
+};
+
+function runInspect(profile, distDir, envOverrides = SYNTHETIC_ENV) {
   return spawnSync('node', [inspector, '--profile', profile], {
     encoding: 'utf8',
-    env: { ...process.env, HIVE_BUNDLE_DIST: distDir },
+    env: { ...process.env, ...envOverrides, HIVE_BUNDLE_DIST: distDir },
   });
 }
 
@@ -90,4 +98,25 @@ test('unknown profiles are rejected', () => {
   const dist = makeDist({ 'bundle.js': 'var x=1;' });
   const result = runInspect('production', dist);
   assert.equal(result.status, 2);
+});
+
+test('NEGATIVE: missing configuration FAILS inspection — it never silently passes (RETURN-4)', () => {
+  const dist = makeDist({ 'bundle.js': 'var x=1;' });
+  const result = runInspect('candidate', dist, {
+    EXPO_PUBLIC_SUPABASE_URL: '',
+    EXPO_PUBLIC_SUPABASE_CLIENT_KEY: '',
+  });
+  assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /configuration incomplete/);
+  assert.match(result.stderr, /approved configuration/);
+});
+
+test('NEGATIVE: a suffix-host URL is rejected against the approved-config manifest (RETURN-4)', () => {
+  const dist = makeDist({ 'bundle.js': 'var x=1;' });
+  const result = runInspect('candidate', dist, {
+    ...SYNTHETIC_ENV,
+    EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1.evil.example:54321',
+  });
+  assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /not an exact approved origin/);
 });

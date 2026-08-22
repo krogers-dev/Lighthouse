@@ -1,13 +1,23 @@
 appId: com.myhbcfo.hive.development
 name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, correct code reaches AAL2
-# Pre-steps on the runner:
+# RUN THIS THROUGH THE RUNNER, never by hand:
+#   npm run maestro:enroll
+# scripts/maestro-enroll-runner.mjs is the only supported entry point. It
+# creates mode-0700 temporary directories for BOTH --debug-output and
+# --test-output-dir (screenshots go to the latter, never the former),
+# starts and terminates the loopback totp-helper, resets factors before
+# the run, revokes the disposable factor after it, scrubs the clipboard,
+# detects leakage into Maestro's default ~/.maestro/tests location, and
+# removes every temporary artifact on success, failure, and signals.
+# Pre-steps the runner performs for you:
 #   1. Seeded stack up; `node scripts/totp-helper.mjs` running (loopback).
-#   2. Reset the reviewer's factors with the CHECKED loopback command
-#      (seeding does NOT clear factors):
-#        node scripts/local-supabase.mjs reset-totp reviewer.rae@example.invalid
-#      It verifies a zero-factor readback, making this flow repeatable
-#      after previous successful AND failed runs.
-#   3. OTP_CODE read from Mailpit for reviewer.rae@example.invalid.
+#   2. Factors reset with the CHECKED loopback command (seeding does NOT
+#      clear factors): reset-totp reviewer.rae@example.invalid, which
+#      verifies a zero-factor readback, making this flow repeatable after
+#      previous successful AND failed runs.
+#   3. The email code is read from Mailpit MID-FLOW by otp-fetch.js
+#      (snapshot semantics: only a message that arrives after
+#      otp-snapshot.js is accepted) — no out-of-band OTP_CODE variable.
 # Secret handling: the setup key belongs to a SYNTHETIC QA account. It is
 # copied once, handed to the loopback helper's memory in a POST body
 # (never CLI/env/URL), and the clipboard is overwritten immediately after.
@@ -31,12 +41,16 @@ name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, corr
 - tapOn:
     id: 'sign-in-email'
 - inputText: 'reviewer.rae@example.invalid'
+# Snapshot Mailpit BEFORE requesting the code (stale-code replay is
+# rejected), then read the fresh code mid-flow.
+- runScript: otp-snapshot.js
 - tapOn:
     id: 'sign-in-submit'
 - assertVisible: 'Enter your sign-in code'
+- runScript: otp-fetch.js
 - tapOn:
     id: 'otp-code'
-- inputText: ${OTP_CODE}
+- inputText: ${output.otpCode}
 - tapOn:
     id: 'otp-submit'
 # First-time setup: QR and manual setup key are shown.

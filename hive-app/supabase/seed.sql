@@ -37,7 +37,11 @@ insert into public.entities (id, environment_id, client_id, display_name) values
 
 -- ---------------------------------------------------------------------------
 -- Synthetic workflow content: one case with an attention item and next
--- action on A1; a bare case on B1; a case on B2 (visible to intake only);
+-- action on A1; a case with the same children on B1; a case on B2 with its
+-- own attention item and next action (RETURN-4 P2-4: no seeded client
+-- user, mixed.cross included, may reach the B2 children — without them
+-- every seeded child row fell inside mixed.cross's reach and the
+-- exact-reach assertion for those two tables was satisfied trivially);
 -- A2 stays empty to exercise the dashboard empty state.
 -- ---------------------------------------------------------------------------
 
@@ -62,7 +66,16 @@ insert into public.case_attention_items (id, environment_id, client_id, entity_i
   ('ffffffff-0000-4000-8000-0000000000b1', '11111111-0000-4000-8000-000000000001',
    'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-1111-4000-8000-000000000001',
    'eeeeeeee-0000-4000-8000-0000000000b1',
-   'Quarterly checklist item outstanding (Synthetic)');
+   'Quarterly checklist item outstanding (Synthetic)'),
+  -- ENTITY B2 fixture (RETURN-4 P2-4). Without it, every seeded attention
+  -- item fell inside mixed.cross's reach (A + B1), so "exact reach" was
+  -- satisfied trivially for this table and an entity-level leak would not
+  -- have been detected. This row is reachable by NO seeded client user and
+  -- by staff only at AAL2.
+  ('ffffffff-0000-4000-8000-0000000000b2', '11111111-0000-4000-8000-000000000001',
+   'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-2222-4000-8000-000000000002',
+   'eeeeeeee-0000-4000-8000-0000000000b2',
+   'Entity setup documents not yet supplied (Synthetic)');
 
 insert into public.case_next_actions (id, environment_id, client_id, entity_id, case_id, summary, owner_role) values
   ('ffffffff-1111-4000-8000-0000000000a1', '11111111-0000-4000-8000-000000000001',
@@ -73,7 +86,13 @@ insert into public.case_next_actions (id, environment_id, client_id, entity_id, 
   ('ffffffff-1111-4000-8000-0000000000b1', '11111111-0000-4000-8000-000000000001',
    'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-1111-4000-8000-000000000001',
    'eeeeeeee-0000-4000-8000-0000000000b1',
-   'Prepare the quarterly review packet (Synthetic)', 'preparer');
+   'Prepare the quarterly review packet (Synthetic)', 'preparer'),
+  -- ENTITY B2 fixture (RETURN-4 P2-4): the next-action counterpart, out of
+  -- reach for every seeded client user including mixed.cross.
+  ('ffffffff-1111-4000-8000-0000000000b2', '11111111-0000-4000-8000-000000000001',
+   'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-2222-4000-8000-000000000002',
+   'eeeeeeee-0000-4000-8000-0000000000b2',
+   'Collect the entity setup documents (Synthetic)', 'preparer');
 
 -- A representative privileged audit receipt via the server-side writer.
 select app_private.append_audit(

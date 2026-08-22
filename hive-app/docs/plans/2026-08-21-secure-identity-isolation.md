@@ -339,3 +339,108 @@ Audit and exception lanes: **explicitly HOLD (exit 3)**. No waiver or
 exception is ratified or represented as approved; ratification now
 additionally requires the area-3 provenance fields, so a bare status flip
 cannot ratify anything.
+
+## RETURN-4 correction record (2026-08-22)
+
+The PM returned candidate `a7fd7f1` with sixteen items. `a7fd7f1` is
+preserved unchanged; this record belongs to one new corrective candidate
+parented from it. No history was rewritten, nothing was ratified, and no
+Docker, native, simulator, device, screenshot, or Maestro execution was
+performed.
+
+### Corrections superseding earlier claims
+
+Three earlier statements in this document are now **wrong** and are
+corrected here rather than left standing:
+
+1. **Enrollment artifact hygiene (RETURN-3 area 8).** The recorded step
+   "run with a restricted temporary `--debug-output`" did not confine
+   screenshots. `--debug-output` receives logs and the command journal;
+   Maestro writes screenshots — including the failure screenshot that can
+   show the enrollment QR and setup key — to `--test-output-dir`, or to
+   the default `~/.maestro/tests/<timestamp>` when that flag is absent. The
+   hygiene procedure was also prose, not something that runs. Both are
+   fixed: `scripts/maestro-enroll-runner.mjs` is now the single supported
+   entry point and confines both directories, detects leakage into the
+   default location, and cleans up on every exit path.
+2. **Hosted OTP email (RETURN-3 area 9).** "Pro or controlled custom SMTP"
+   was wrong. A paid plan alone is insufficient: the built-in default
+   email service delivers only to project-team addresses and is
+   rate-limited, so authorized recipients outside the project team receive
+   nothing. Hosted staging/release require a controlled custom SMTP
+   provider **or** an approved Send Email Hook. PRODUCT.md and SECURITY.md
+   now say so, with the black-box acceptance proof spelled out.
+3. **Archived audit evidence.** The archived report predated the current
+   lockfile. It is re-captured from a live `npm audit --json` against the
+   final lockfile and renamed to a date-free slot
+   (`security/evidence/npm-audit-current.json`) with a binding record
+   (`.meta.json`: raw-report sha256, lockfile sha256, npm/Node versions,
+   capture timestamp, exact counts, advisory list) so a future approval
+   binds to this evidence and drift is visible.
+
+### Deviation recorded (P1-5, via-graph cycles)
+
+The directive listed via-graph **cycles** among the structures to reject.
+Implemented literally, the gate became unrunnable: the real `npm audit`
+report for this lockfile contains legitimate cycles among the metro
+packages (`metro` ↔ `metro-config` ↔ `metro-transform-worker`), and the
+first implementation reported them as engine failures (exit 2) against
+real data. Cycles are therefore **traversed safely** (visited-set worklist,
+guaranteed termination) rather than refused, and the security property the
+rule protects is enforced directly and strictly: any high or critical node
+that resolves to **zero** advisories through its via graph fails, so a
+cycle cannot hide an unresolved finding. Both behaviors are unit-tested,
+and a further test validates the archived real report through the same
+resolver so this class of defect cannot recur silently.
+
+### What each item changed
+
+| Item | Correction                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1-1 | Real e2e `admin()` now returns a normalized `{ok, status, body}`; factor cleanup runs through `requireFactorsClean`, which throws on any contract violation, and the caller terminates immediately (`process.exit(1)`) instead of continuing. Contract tests use the exact real adapter shape (`{status: 200, body: []}` with no `ok` is rejected) and prove no mutation is attempted after a failure. `reset-totp` retained                                                                                                                                                                                                                                                                                                     |
+| P1-2 | The refresh check waits deterministically past the prior token's `iat` second (`msUntilIatAdvance`) and then requires a strictly later `iat`, a different access token, a rotated refresh token, preserved `sub`/`session_id`/`aal`, and sane expiry — the same-second flake is gone, with a deterministic regression                                                                                                                                                                                                                                                                                                                                                                                                            |
+| P1-3 | `scripts/candidate-export.mjs`: one command resolves approved config (fail-closed), creates a fresh mode-0700 directory, runs the pinned `expo export --platform all` with QA hooks deleted from the child environment, verifies THAT output (metadata-driven per-platform bundles plus payload floors, no hardcoded counts), inspects THAT directory, and records command, tool versions, source commit, config-manifest digest, and a full output manifest. Preplanted, stale, empty, tiny, and platform-missing outputs are all proven unable to pass. The QA-enabled positive control is preserved and itself fails if the detector sees nothing. The lane is labeled synthetic and nonfunctional — never a functional build |
+| P1-4 | URLs are parsed and compared as exact origins (`scripts/lib/origins.mjs`); approved configuration comes from an independent manifest (`security/approved-config.json`); missing or partial configuration fails instead of passing; custom Supabase domains require explicit exact-origin approval; vendor constants carry per-file occurrence budgets instead of being deleted globally, and app-owned use of them fails separately. Negatives cover suffix hosts, userinfo, loopback suffixes, malformed ports, missing/partial config, unapproved custom hosts, and app-owned constants                                                                                                                                        |
+| P1-5 | Only canonical GitHub advisory URLs yield an id; string vias resolve transitively; dangling references, unresolved high/critical nodes, severity mismatches, and npm-exit-status/report-total disagreement all fail (cycles per the deviation above)                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| P1-6 | Ratification resolves a real immutable decision artifact: recomputed sha256, bound actor/role/action/manifest/candidate/lockfile/raw-audit/destination/time/expiry, material change invalidates, and the digest must ALSO be presented out-of-band (`HIVE_APPROVAL_DIGESTS`) — a repository field is not authority. No signing key and no approval were invented; everything stays `proposed`                                                                                                                                                                                                                                                                                                                                    |
+| P1-7 | Governed image extensions now include the Metro defaults that were missing (`.svg`, `.psd`); every non-approved image format is rejected, with svg/psd regressions, and the advisory-shape signature checks are preserved                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| P1-8 | Executable, secret-safe runner (see correction 1) with the deterministic sequence reset → enroll → sign-out → login on the SAME factor → revoke; helper start/termination; clipboard scrub on every exit path; cleanup traps on success, failure, and signals; default-location leak detection; a forced-failure confinement probe; and no retained enrollment-screen artifact                                                                                                                                                                                                                                                                                                                                                   |
+| P1-9 | Hosted email corrected (see correction 2); release stays HOLD and nothing is configured                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| P2-1 | Real per-command payload schemas (`tapOn: []`, numeric `inputText`, malformed `extendedWaitUntil`, unknown header/selector fields, bad env types, bad runScript shapes all fail); the Maestro CLI version and artifact checksum are pinned in `security/hardware-toolchain.json`, which the runner enforces before any flow runs                                                                                                                                                                                                                                                                                                                                                                                                 |
+| P2-2 | Base32 input is validated as ASCII **before** case folding (U+0131 dotless-i regression)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| P2-3 | The guaranteed-wrong code covers every window reachable in the generation-to-submit interval, carries an expiry, and has a 1 ms-rollover property test                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| P2-4 | Entity B2 now carries its own attention item and next action, so the exact-reach assertion for those tables is a real negative instead of the whole table                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| P2-5 | Canonical identity verification requires exactly one TOTAL identity, the email provider id bound to the canonical user, exact `user_id` and `identity_data.sub`, normalized email, canonical provider metadata, and `is_anonymous === false` stated explicitly; phone/OAuth-extra-identity and mutated-sub negatives added                                                                                                                                                                                                                                                                                                                                                                                                       |
+| P2-6 | Audit evidence re-captured and bound (see correction 3)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| P2-7 | History scanning proves completeness: shallow, promisor, and partial clones are refused, and every (blob, path) association is enumerated — the old OID dedup recorded a reused blob under only one path. Temp-repo tests cover a reused blob under two paths and a shallow clone                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+
+### Execution record — RETURN-4 corrective candidate run (2026-08-22)
+
+Run in this Linux container at the RETURN-4 corrective candidate (the
+commit containing this record; hash, parent, and host details in the
+resubmission report).
+
+| Lane                                                      | Result                                                                                                                                                                            |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| verify:toolchain                                          | exit 0 — Node 22.23.2, npm 10.9.8, Expo 57.0.11, RN 0.86.2, React 19.2.3, Supabase CLI 2.115.0, supabase-js 2.112.3, TS 6.0.3                                                     |
+| lint / format:check / typecheck                           | exit 0 / exit 0 / exit 0, zero warnings                                                                                                                                           |
+| jest                                                      | 21 suites, **276 tests**, all passing                                                                                                                                             |
+| node:test script suites                                   | **238 tests**, all passing (89 more than RETURN-3)                                                                                                                                |
+| maestro:validate                                          | exit 0 — **12 flows, 4 helper scripts**, real YAML parse plus per-command payload schemas                                                                                         |
+| db-local (PostgreSQL 16.13 + pgTAP 1.3.2)                 | reset exit 0; **86 pgTAP tests** in 6 files, all passing with the new B2 fixtures                                                                                                 |
+| db:types:check                                            | exit 0                                                                                                                                                                            |
+| secrets:scan                                              | **exit 3 (HOLD)** — 195 tracked files; 348 history blobs across 348 (blob, path) associations, history completeness verified; 4 proposed exceptions covering 5 historical matches |
+| npm audit (raw) / audit:gate                              | raw exit 1 / **exit 3 (HOLD)** — 3 distinct advisory sources across 16 affected package nodes; HOLD because the matched waivers are PROPOSED                                      |
+| config:check development / release                        | exit 0 / **exit 1** — release names no approved origin in the manifest (HOLD by design)                                                                                           |
+| expo export --platform all / bundle:inspect (development) | exit 0 / exit 0 — 16 text + 53 binary files                                                                                                                                       |
+| **export:candidate (atomic authorized synthetic lane)**   | exit 0 — fresh mode-0700 directory, QA hooks disabled, platform output verified, inspection clean. **Synthetic nonfunctional configuration; NOT a functional build**              |
+| **export:candidate --qa-control**                         | exit 0 as a control — the QA-enabled export was REJECTED by inspection with qa-hook findings in the real iOS `.hbc`, Android `.hbc`, and web bundle                               |
+| bundle:inspect --profile release                          | **exit 3 (HOLD)** — requires approved production configuration                                                                                                                    |
+| expo-doctor                                               | 19/21 — the same two checks fail on blocked egress (`Host not in...` from the proxy); environmental                                                                               |
+| supabase CLI stack (Docker)                               | **HOLD** — no Docker in this container                                                                                                                                            |
+| iOS/Android builds, devices, Maestro execution            | **HOLD** — device lane; no device, simulator, or Maestro binary here. `maestro:enroll` correctly exits 3 (HOLD)                                                                   |
+
+Audit and exception lanes remain **explicitly HOLD (exit 3)**. Nothing is
+ratified; the Maestro CLI pin is an operator-fill HOLD because outbound
+HTTPS to the release host is denied by organization egress policy here and
+no checksum may be invented.

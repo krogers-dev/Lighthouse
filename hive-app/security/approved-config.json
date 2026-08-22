@@ -1,0 +1,21 @@
+{
+  "$comment": "Independent reviewed manifest of approved public configuration (RETURN-4 P1-4). The gates verify environment values AGAINST this manifest instead of trusting the same variables that built the bundle. Origins are compared exactly (scheme, hostname, port) after parsing — never by string prefix. The development profile approves only the local loopback stack origin and requires the current publishable key shape; candidate is the authorized synthetic lane carrying the development configuration by design; release approvals are absent on purpose (HOLD) and a custom Supabase domain may be added only as an explicit exact origin here after review.",
+  "profiles": {
+    "development": {
+      "approvedOrigins": ["http://127.0.0.1:54321"],
+      "clientKeyPolicy": "publishable-shape",
+      "notes": "Local loopback Supabase stack only; synthetic data only."
+    },
+    "candidate": {
+      "approvedOrigins": ["http://127.0.0.1:54321"],
+      "clientKeyPolicy": "publishable-shape",
+      "notes": "Authorized SYNTHETIC candidate lane: production-mode export with development configuration; never a functional production build."
+    },
+    "release": {
+      "approvedOrigins": [],
+      "clientKeyPolicy": "exact",
+      "clientKey": null,
+      "notes": "HOLD: no production configuration is approved. Kody adds the exact origin and exact publishable key here upon approval."
+    }
+  }
+}

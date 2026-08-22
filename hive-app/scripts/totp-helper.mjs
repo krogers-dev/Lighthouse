@@ -51,11 +51,18 @@ function json(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
-/** wrongCode is guaranteed wrong even under adjacent-window tolerance:
- * it differs from the previous, current, AND next accepted codes. */
+/** wrongCode is guaranteed wrong for any submission within the grace
+ * interval, even across a 30s window rollover: it differs from every
+ * code the server could accept between generation and
+ * wrongCodeExpiresAtMs. Submit before that expiry or fetch a fresh one. */
+const WRONG_CODE_GRACE_SECONDS = 90;
 function codesFor(secret) {
   const now = Date.now();
-  return { code: totpCode(secret, now), wrongCode: guaranteedWrongCode(secret, now) };
+  return {
+    code: totpCode(secret, now),
+    wrongCode: guaranteedWrongCode(secret, now, 30, WRONG_CODE_GRACE_SECONDS),
+    wrongCodeExpiresAtMs: now + WRONG_CODE_GRACE_SECONDS * 1000,
+  };
 }
 
 const server = createServer((request, response) => {

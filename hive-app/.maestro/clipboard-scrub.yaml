@@ -1,0 +1,19 @@
+appId: com.myhbcfo.hive.development
+name: Overwrite the device clipboard with harmless text
+tags:
+  - cleanup
+# RETURN-4 P1-8: the enrollment flow copies the on-screen setup key to the
+# device clipboard and overwrites it immediately. If a run dies BETWEEN
+# those two steps (assertion failure, crash, SIGINT), the synthetic setup
+# key is still on the clipboard. scripts/maestro-enroll-runner.mjs runs
+# this flow from its cleanup trap so the clipboard is overwritten on every
+# exit path, not only the happy one.
+#
+# clearState makes the starting screen deterministic regardless of how the
+# interrupted run left the app: the app boots signed out, and the harmless
+# sign-in heading is what ends up on the clipboard.
+---
+- launchApp:
+    clearState: true
+- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+- copyTextFrom: 'Sign in with your authorized email. We will send a one-time code.'

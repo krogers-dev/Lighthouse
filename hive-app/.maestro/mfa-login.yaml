@@ -1,10 +1,13 @@
 appId: com.myhbcfo.hive.development
 name: Subsequent staff login verifies against the existing factor (no second QR)
-# Pre-steps on the runner:
+# Pre-steps (performed by scripts/maestro-enroll-runner.mjs):
 #   1. mfa-enroll.yaml has run for reviewer.rae@example.invalid in the
 #      SAME totp-helper session (the secret lives only in that loopback
-#      process's memory) and the app was signed out.
-#   2. OTP_CODE read from Mailpit for reviewer.rae@example.invalid.
+#      process's memory) and the app was signed out. The factor is NOT
+#      revoked between enrollment and this login — revocation is the last
+#      step of the sequence, after this flow proves the existing factor
+#      verifies.
+#   2. The email code is read from Mailpit MID-FLOW by otp-fetch.js.
 # No secret enters this flow through any channel: the script asks the
 # helper for the current code by synthetic account label only.
 ---
@@ -12,12 +15,14 @@ name: Subsequent staff login verifies against the existing factor (no second QR)
 - tapOn:
     id: 'sign-in-email'
 - inputText: 'reviewer.rae@example.invalid'
+- runScript: otp-snapshot.js
 - tapOn:
     id: 'sign-in-submit'
 - assertVisible: 'Enter your sign-in code'
+- runScript: otp-fetch.js
 - tapOn:
     id: 'otp-code'
-- inputText: ${OTP_CODE}
+- inputText: ${output.otpCode}
 - tapOn:
     id: 'otp-submit'
 # Verify mode only: an already-enrolled account must never see a second QR.

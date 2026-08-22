@@ -47,3 +47,6 @@ supabase/.temp/
 
 # Local database harness
 .cache/
+
+# Throwaway ratification fixture written by the audit-gate integration tests
+security/decisions/integration-fixture-*.json

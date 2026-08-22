@@ -7,12 +7,22 @@ name: Invite-only OTP sign-in reaches the scoped dashboard
 - tapOn:
     id: 'sign-in-email'
 - inputText: 'client.owner@example.invalid'
+# Snapshot Mailpit BEFORE requesting the code: only a message that arrives
+# after this point is accepted, so a stale code cannot be replayed.
+- runScript:
+    file: otp-snapshot.js
+    env:
+      QA_EMAIL: 'client.owner@example.invalid'
 - tapOn:
     id: 'sign-in-submit'
 - assertVisible: 'Enter your sign-in code'
+- runScript:
+    file: otp-fetch.js
+    env:
+      QA_EMAIL: 'client.owner@example.invalid'
 - tapOn:
     id: 'otp-code'
-- inputText: ${OTP_CODE}
+- inputText: ${output.otpCode}
 - tapOn:
     id: 'otp-submit'
 # client.owner holds two memberships, so explicit scope selection is forced.

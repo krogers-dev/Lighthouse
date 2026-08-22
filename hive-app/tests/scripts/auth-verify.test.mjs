@@ -18,6 +18,7 @@ function gotrueUser(overrides = {}) {
     confirmed_at: '2026-08-21T00:00:00.000000Z',
     app_metadata: { provider: 'email', providers: ['email'] },
     user_metadata: {},
+    is_anonymous: false,
     identities: [
       {
         identity_id: '11111111-2222-4333-8444-555555555555',
@@ -141,6 +142,110 @@ test('non-authenticated aud is rejected', () => {
 test('anonymous users are rejected', () => {
   const problems = verifyCanonicalUser(gotrueUser({ is_anonymous: true }), canonical);
   assert.ok(problems.some((p) => p.includes('anonymous')));
-  // Absent or false is fine.
   assert.deepEqual(verifyCanonicalUser(gotrueUser({ is_anonymous: false }), canonical), []);
+});
+
+// ---------------------------------------------------------------------------
+// RETURN-4 P2-5: exactly one TOTAL identity, exact provider binding
+// ---------------------------------------------------------------------------
+
+test('NEGATIVE: is_anonymous must be stated exactly false — absent is not a negative answer', () => {
+  const trimmed = gotrueUser();
+  delete trimmed.is_anonymous;
+  const problems = verifyCanonicalUser(trimmed, canonical);
+  assert.ok(
+    problems.some((p) => p.includes('is_anonymous is undefined')),
+    JSON.stringify(problems),
+  );
+  assert.ok(
+    verifyCanonicalUser(gotrueUser({ is_anonymous: null }), canonical).some((p) =>
+      p.includes('must state exactly false'),
+    ),
+  );
+});
+
+test('NEGATIVE: an EXTRA phone identity is rejected even though the email identity is perfect', () => {
+  const user = gotrueUser();
+  user.identities = [
+    user.identities[0],
+    {
+      identity_id: '99999999-2222-4333-8444-555555555555',
+      id: '+15555550100',
+      user_id: canonical.id,
+      identity_data: { phone: '+15555550100', sub: canonical.id },
+      provider: 'phone',
+      created_at: '2026-08-21T00:00:00.000000Z',
+      updated_at: '2026-08-21T00:00:00.000000Z',
+    },
+  ];
+  const problems = verifyCanonicalUser(user, canonical);
+  assert.ok(
+    problems.some((p) => p.includes('exactly one identity in total')),
+    JSON.stringify(problems),
+  );
+  assert.ok(
+    problems.some((p) => p.includes('phone')),
+    'the report names the extra provider',
+  );
+});
+
+test('NEGATIVE: an EXTRA OAuth identity is an extra sign-in path and is rejected', () => {
+  const user = gotrueUser();
+  user.identities = [
+    user.identities[0],
+    {
+      identity_id: '88888888-2222-4333-8444-555555555555',
+      id: 'google-subject-0001',
+      user_id: canonical.id,
+      identity_data: { email: canonical.email, sub: 'google-subject-0001' },
+      provider: 'google',
+      created_at: '2026-08-21T00:00:00.000000Z',
+      updated_at: '2026-08-21T00:00:00.000000Z',
+    },
+  ];
+  const problems = verifyCanonicalUser(user, canonical);
+  assert.ok(problems.some((p) => p.includes('exactly one identity in total')));
+  assert.ok(problems.some((p) => p.includes('extra sign-in path')));
+});
+
+test('NEGATIVE: a mutated identity_data.sub is rejected', () => {
+  const user = gotrueUser();
+  user.identities[0].identity_data.sub = 'cccccccc-0000-4000-8000-00000000ffff';
+  const problems = verifyCanonicalUser(user, canonical);
+  assert.ok(
+    problems.some((p) => p.includes('identity_data.sub')),
+    JSON.stringify(problems),
+  );
+});
+
+test('NEGATIVE: the email provider id must equal the canonical user id', () => {
+  const user = gotrueUser();
+  user.identities[0].id = 'cccccccc-0000-4000-8000-00000000ffff';
+  assert.ok(verifyCanonicalUser(user, canonical).some((p) => p.includes('email identity id')));
+});
+
+test('NEGATIVE: app_metadata provider metadata must be exactly email / ["email"]', () => {
+  assert.ok(
+    verifyCanonicalUser(
+      gotrueUser({ app_metadata: { provider: 'google', providers: ['google'] } }),
+      canonical,
+    ).some((p) => p.includes('app_metadata.provider')),
+  );
+  assert.ok(
+    verifyCanonicalUser(
+      gotrueUser({ app_metadata: { provider: 'email', providers: ['email', 'google'] } }),
+      canonical,
+    ).some((p) => p.includes('is not exactly ["email"]')),
+  );
+  assert.ok(
+    verifyCanonicalUser(gotrueUser({ app_metadata: {} }), canonical).some((p) =>
+      p.includes('app_metadata.provider'),
+    ),
+  );
+  assert.ok(
+    verifyCanonicalUser(
+      gotrueUser({ app_metadata: { provider: 'email', providers: 'email' } }),
+      canonical,
+    ).some((p) => p.includes('is not exactly ["email"]')),
+  );
 });

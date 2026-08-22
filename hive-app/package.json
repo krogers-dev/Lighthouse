@@ -38,7 +38,12 @@
     "config:check": "node scripts/candidate-config-check.mjs",
     "bundle:inspect": "node scripts/bundle-inspect.mjs",
     "maestro:validate": "node scripts/maestro-validate.mjs",
-    "bundle:inspect:candidate": "node scripts/bundle-inspect.mjs --profile candidate"
+    "bundle:inspect:candidate": "node scripts/bundle-inspect.mjs --profile candidate",
+    "env:synthetic": "node scripts/env-synthetic.mjs",
+    "export:candidate": "node scripts/candidate-export.mjs",
+    "export:candidate:qa-control": "node scripts/candidate-export.mjs --qa-control",
+    "maestro:enroll": "node scripts/maestro-enroll-runner.mjs",
+    "maestro:confinement": "node scripts/maestro-enroll-runner.mjs --prove-confinement"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.3",

@@ -61,3 +61,39 @@ test('guaranteedWrongCode differs from previous, current, and next window codes'
     assert.ok(!accepted.has(wrong), `window ${window}: ${wrong} collided`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// RETURN-4 P2-2/P2-3: ASCII pre-check and rollover-safe wrong codes
+// ---------------------------------------------------------------------------
+
+test('REGRESSION: Unicode dotless i must not case-fold into a valid alphabet', async () => {
+  const { strictBase32Decode } = await import('../../scripts/lib/totp.mjs');
+  // U+0131 uppercases to ASCII 'I'; the input is NOT valid Base32.
+  const dotless = 'MZXW6YTBOı======';
+  assert.equal(strictBase32Decode(dotless), null);
+  // The ASCII equivalent stays decodable.
+  assert.ok(strictBase32Decode('MZXW6YTBOI======') !== null);
+});
+
+test('REGRESSION: wrong code survives a window rollover 1ms after generation', async () => {
+  const { guaranteedWrongCode, totpCode } = await import('../../scripts/lib/totp.mjs');
+  const secret = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+  // Generate 1ms before a 30s boundary; submission lands after rollover.
+  for (let boundary = 4; boundary <= 203; boundary++) {
+    const generatedAt = boundary * 30_000 - 1;
+    const wrong = guaranteedWrongCode(secret, generatedAt);
+    // Every server-acceptable code for submissions up to 90s later, with
+    // one-window tolerance on each side, must differ from the wrong code.
+    for (let offsetMs = 0; offsetMs <= 90_000; offsetMs += 1000) {
+      const submitAt = generatedAt + 1 + offsetMs;
+      for (const delta of [-1, 0, 1]) {
+        const windowStart = (Math.floor(submitAt / 30_000) + delta) * 30_000;
+        assert.notEqual(
+          wrong,
+          totpCode(secret, windowStart),
+          `boundary ${boundary}, offset ${offsetMs}, delta ${delta}`,
+        );
+      }
+    }
+  }
+});

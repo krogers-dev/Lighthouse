@@ -113,14 +113,36 @@ checkpoint, milestone, release candidate, or production release.
   public web route exist. This is recorded here as a release dependency for
   the store-release milestone; the Milestone 0 settings screen exposes
   sign-out and account-access information only.
-- **Hosted OTP email template (Supabase change of June 3, 2026):** HIVE's
+- **Hosted OTP email delivery (Supabase change of June 3, 2026):** HIVE's
   sign-in email must deliver the six-digit `{{ .Token }}` via a customized
-  template. New Free-tier Supabase projects using the default email
-  provider can no longer customize email templates, so hosted staging and
-  release require a Pro-plan project or a controlled custom SMTP
-  provider, followed by black-box proof (Mailpit-style capture against
-  the hosted stack) that the delivered email contains the six-digit OTP.
-  Release HOLD dependency; the local pinned stack is unaffected.
+  template, and every authorized recipient must actually receive it. New
+  Free-tier Supabase projects using the default email provider can no
+  longer customize email templates.
+
+  **A paid plan alone does not satisfy this dependency.** The built-in
+  default email service is a non-production convenience: it delivers only
+  to project-team member addresses and is rate-limited, so authorized
+  client and staff recipients who are not on the project team would simply
+  not receive their sign-in code. Hosted staging and release therefore
+  require **either a controlled custom SMTP provider or an approved Send
+  Email Hook** — configured, owned, and reviewed by us — regardless of
+  plan tier.
+
+  Acceptance is black-box, against the hosted stack, before any hosted
+  sign-in is offered to a real recipient:
+  1. request a code for an **owned QA recipient that is NOT a project-team
+     member** (the case the default provider silently fails);
+  2. the delivered message contains **exactly one** six-digit token and no
+     magic link;
+  3. sign-in completes by **entering that code**, with no link followed;
+  4. a request for an **unknown/unauthorized email** yields no account and
+     no usable code (self-registration stays disabled).
+
+  Release **HOLD** dependency. No provider is configured now, and none may
+  be configured without Kody's exact authority for the exact destination.
+  The local pinned stack (Mailpit + the local template) is unaffected and
+  is what the current evidence covers.
+
 - Store identifiers, privacy answers, financial-features declaration,
   export compliance, reviewer accounts, and all items in the brief's
   "Decisions Claude must HOLD instead of guessing" list remain HOLD.

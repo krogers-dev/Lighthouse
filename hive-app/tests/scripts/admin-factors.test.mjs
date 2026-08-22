@@ -78,3 +78,48 @@ test('nonzero readback fails even when every deletion reported success', async (
   const result = await cleanAllFactors(admin.request, identity);
   assert.ok(result.problems.some((p) => p.includes('remain')));
 });
+
+// ---------------------------------------------------------------------------
+// RETURN-4 P1-1: adapter contract and fail-stop termination
+// ---------------------------------------------------------------------------
+
+test("CONTRACT: the real adapter shape without 'ok' is rejected as a contract violation, never misread", async () => {
+  // Exactly what the real e2e admin() once returned: {status, body}, no ok.
+  const realShape = async () => ({ status: 200, body: [] });
+  const result = await cleanAllFactors(realShape, identity);
+  assert.equal(result.problems.length, 1);
+  assert.match(result.problems[0], /violates the contract/);
+  assert.match(result.problems[0], /missing boolean 'ok'/);
+});
+
+test('requireFactorsClean THROWS on failure so nothing after it can run', async () => {
+  const { requireFactorsClean, FactorCleanupError } =
+    await import('../../scripts/lib/admin-factors.mjs');
+  const calls = [];
+  const failing = async (pathname, options = {}) => {
+    calls.push(options.method ?? 'GET');
+    return { ok: false, status: 500, body: {} };
+  };
+  let mutationRan = false;
+  await assert.rejects(
+    (async () => {
+      await requireFactorsClean(failing, identity);
+      mutationRan = true; // would represent OTP/enrollment/any mutation
+    })(),
+    FactorCleanupError,
+  );
+  assert.equal(mutationRan, false);
+  // Only the failed listing happened — no deletions, no other calls.
+  assert.deepEqual(calls, ['GET']);
+});
+
+test('requireFactorsClean resolves with the deletion count on success', async () => {
+  const { requireFactorsClean } = await import('../../scripts/lib/admin-factors.mjs');
+  let listed = 0;
+  const healthy = async (pathname, options = {}) => {
+    if ((options.method ?? 'GET') === 'DELETE') return { ok: true, status: 200, body: {} };
+    listed += 1;
+    return { ok: true, status: 200, body: listed === 1 ? [{ id: 'f1' }] : [] };
+  };
+  assert.equal(await requireFactorsClean(healthy, identity), 1);
+});

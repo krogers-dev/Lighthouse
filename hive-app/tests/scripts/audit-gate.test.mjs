@@ -54,6 +54,7 @@ function makeWaiver(overrides = {}) {
     ratifiedOn: '2026-08-02',
     ratifiedBy: 'Kody',
     approvalReference: 'Written ratification wording of 2026-08-02, recorded in decision log',
+    decisionRecordPath: 'security/decisions/waivers-2026-08-02.json',
     decisionRecordDigest: 'a'.repeat(64),
     lockfileSha256: 'a'.repeat(64),
     expires: '2026-12-01',
@@ -203,7 +204,7 @@ test('malformed vulnerability nodes are rejected field by field', () => {
 
   const noUrl = structuredClone(base);
   noUrl.vulnerabilities.demo.via = [{ name: 'demo', severity: 'high', url: 'nope' }];
-  assert.ok(validateAuditReport(noUrl).some((p) => p.includes('no advisory url')));
+  assert.ok(validateAuditReport(noUrl).some((p) => p.includes('canonical GitHub advisory url')));
 });
 
 test('INCONSISTENT summary counts are rejected', () => {
@@ -640,4 +641,239 @@ test('ratified waivers are BOUND to the approved lockfile digest', async () => {
     ),
     [],
   );
+});
+
+// ---------------------------------------------------------------------------
+// RETURN-4 P1-5: advisory URLs and via-graph resolution
+// ---------------------------------------------------------------------------
+
+test('only canonical advisory URLs yield an id — trailing slash and foreign hosts fail', async () => {
+  const { advisoryIdFromUrl } = await import('../../scripts/audit-gate.mjs');
+  assert.equal(
+    advisoryIdFromUrl('https://github.com/advisories/GHSA-test-0001-aaaa'),
+    'GHSA-test-0001-aaaa',
+  );
+  assert.equal(advisoryIdFromUrl('https://github.com/advisories/'), null);
+  assert.equal(advisoryIdFromUrl('https://github.com/advisories/GHSA-test-0001-aaaa/'), null);
+  assert.equal(advisoryIdFromUrl('https://evil.example/advisories/GHSA-test-0001-aaaa'), null);
+  assert.equal(advisoryIdFromUrl('http://github.com/advisories/GHSA-test-0001-aaaa'), null);
+  assert.equal(advisoryIdFromUrl('https://github.com/advisories/GHSA-bad'), null);
+});
+
+test('REGRESSION: a trailing-slash advisory URL cannot make a high finding disappear', () => {
+  const sneaky = report('high', 'GHSA-test-0001-aaaa', 'demo');
+  sneaky.vulnerabilities.demo.via[0].url = 'https://github.com/advisories/';
+  // Schema validation rejects it outright — never "validates then skips".
+  assert.ok(validateAuditReport(sneaky).some((p) => p.includes('canonical')));
+});
+
+function graphReport(nodes, totals) {
+  return { auditReportVersion: 2, vulnerabilities: nodes, metadata: { vulnerabilities: totals } };
+}
+const T = (moderate, high) => ({
+  info: 0,
+  low: 0,
+  moderate,
+  high,
+  critical: 0,
+  total: moderate + high,
+});
+const via = (ghsa, severity, name) => ({
+  severity,
+  name,
+  url: `https://github.com/advisories/${ghsa}`,
+});
+
+test('REGRESSION: a high node whose via is only an unresolved string cannot evaluate as zero advisories', () => {
+  const dangling = graphReport(
+    { demo: { name: 'demo', severity: 'high', via: ['ghost-package'] } },
+    T(0, 1),
+  );
+  const problems = validateAuditReport(dangling);
+  assert.ok(problems.some((p) => p.includes('does not resolve')));
+  assert.ok(problems.some((p) => p.includes('ZERO advisories')));
+});
+
+test('a via-graph CYCLE that reaches no advisory cannot hide a high node', () => {
+  // Real npm reports contain legitimate cycles (metro <-> metro-config),
+  // so a cycle is traversed safely rather than rejected outright. What
+  // must not happen is a high node resolving to nothing: that is caught
+  // directly, and it is the property the cycle rule existed to protect.
+  const cyclic = graphReport(
+    {
+      a: { name: 'a', severity: 'high', via: ['b'] },
+      b: { name: 'b', severity: 'high', via: ['a'] },
+    },
+    T(0, 2),
+  );
+  const problems = validateAuditReport(cyclic);
+  assert.ok(
+    problems.some((p) => p.includes('ZERO advisories') && p.includes('"a"')),
+    JSON.stringify(problems),
+  );
+  assert.ok(problems.some((p) => p.includes('ZERO advisories') && p.includes('"b"')));
+});
+
+test('a CYCLE that does reach a real advisory terminates and resolves it', () => {
+  // b <-> c cycle, with the advisory hanging off c. Traversal must
+  // terminate AND find the advisory through the cycle.
+  const cyclic = graphReport(
+    {
+      b: { name: 'b', severity: 'high', via: ['c'] },
+      c: {
+        name: 'c',
+        severity: 'high',
+        via: ['b', via('GHSA-test-0001-aaaa', 'high', 'c')],
+      },
+    },
+    T(0, 2),
+  );
+  assert.deepEqual(validateAuditReport(cyclic), []);
+});
+
+test('the ARCHIVED real npm report validates through the same resolver', async () => {
+  // The evidence npm actually produced for this lockfile — including its
+  // real metro cycles — must pass schema + graph validation, or the gate
+  // is unrunnable rather than strict.
+  const { readFileSync } = await import('node:fs');
+  const raw = JSON.parse(
+    readFileSync(
+      new URL('../../security/evidence/npm-audit-current.json', import.meta.url),
+      'utf8',
+    ),
+  );
+  assert.deepEqual(validateAuditReport(raw), []);
+});
+
+test('string vias resolve transitively and reconcile severities', () => {
+  const good = graphReport(
+    {
+      source: {
+        name: 'source',
+        severity: 'high',
+        via: [via('GHSA-test-0001-aaaa', 'high', 'source')],
+      },
+      parent: { name: 'parent', severity: 'high', via: ['source'] },
+    },
+    T(0, 2),
+  );
+  assert.deepEqual(validateAuditReport(good), []);
+});
+
+test('REGRESSION: a high node reaching only moderate advisories is a severity conflict', () => {
+  const conflicted = graphReport(
+    {
+      source: {
+        name: 'source',
+        severity: 'moderate',
+        via: [via('GHSA-modx-0003-cccc', 'moderate', 'source')],
+      },
+      parent: { name: 'parent', severity: 'high', via: ['source'] },
+    },
+    T(1, 1),
+  );
+  assert.ok(
+    validateAuditReport(conflicted).some(
+      (p) => p.includes('does not reconcile') && p.includes('via graph'),
+    ),
+  );
+});
+
+// ---------------------------------------------------------------------------
+// RETURN-4 P1-7: governed image extensions with Metro drift protection
+// ---------------------------------------------------------------------------
+
+test('SVG and PSD are governed: rejected while the compensating control is active', () => {
+  const pngHead = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const files = ['assets/vector/logo.svg', 'assets/source/mock.psd', 'assets/images/icon.png'];
+  const failures = checkProhibitedAssets(IMAGE_SIZE_MATCH, files, (f) =>
+    f.endsWith('.png') ? pngHead : Buffer.from('anything'),
+  );
+  assert.equal(failures.length, 2);
+  assert.ok(failures.some((f) => f.includes('logo.svg')));
+  assert.ok(failures.some((f) => f.includes('mock.psd')));
+});
+
+test('DRIFT: every image-like extension in the pinned Metro defaults is governed', async () => {
+  const { IMAGE_EXTENSIONS, PROHIBITED_ASSET_EXTENSIONS } =
+    await import('../../scripts/audit-gate.mjs');
+  const { readFileSync } = await import('node:fs');
+  const defaults = readFileSync(
+    new URL('../../node_modules/metro-config/src/defaults/defaults.js', import.meta.url),
+    'utf8',
+  );
+  // Every known raster/vector image format name that appears in the
+  // pinned metro-config defaults must be covered by the governed or
+  // prohibited sets.
+  const IMAGE_FORMAT_NAMES = [
+    'png',
+    'jpg',
+    'jpeg',
+    'bmp',
+    'gif',
+    'webp',
+    'psd',
+    'svg',
+    'tiff',
+    'tif',
+    'heic',
+    'heif',
+    'avif',
+    'jxl',
+    'ico',
+    'icns',
+    'ktx',
+    'astc',
+    'exr',
+    'pvr',
+  ];
+  const governed = new Set([...IMAGE_EXTENSIONS, ...PROHIBITED_ASSET_EXTENSIONS]);
+  for (const format of IMAGE_FORMAT_NAMES) {
+    if (new RegExp(`['\\"]${format}['\\"]`).test(defaults)) {
+      assert.ok(governed.has(`.${format}`), `metro default image ext .${format} is ungoverned`);
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// RETURN-4 P1-6: ratification is a verifiable act, not a self-written field
+// ---------------------------------------------------------------------------
+
+test('NEGATIVE: a ratification dated in the FUTURE is rejected', () => {
+  const problems = validateWaivers(
+    { waivers: [makeWaiver({ ratifiedOn: '2026-09-15' })] },
+    '2026-08-21',
+  );
+  assert.ok(
+    problems.some((p) => p.includes('future')),
+    JSON.stringify(problems),
+  );
+});
+
+test('NEGATIVE: ratification AFTER the waiver expiry is rejected', () => {
+  const problems = validateWaivers(
+    {
+      waivers: [
+        makeWaiver({ proposedOn: '2026-01-01', expires: '2026-06-01', ratifiedOn: '2026-08-02' }),
+      ],
+    },
+    '2026-08-21',
+  );
+  assert.ok(
+    problems.some((p) => p.includes('after expiry')),
+    JSON.stringify(problems),
+  );
+});
+
+test('NEGATIVE: a ratified waiver must name a decision record under security/decisions/', () => {
+  for (const bad of [undefined, '', 'notes/somewhere.json', '/etc/passwd', 'security/decisions']) {
+    const problems = validateWaivers(
+      { waivers: [makeWaiver({ decisionRecordPath: bad })] },
+      '2026-08-21',
+    );
+    assert.ok(
+      problems.some((p) => p.includes('decisionRecordPath')),
+      `expected decisionRecordPath rejection for ${JSON.stringify(bad)}; got ${JSON.stringify(problems)}`,
+    );
+  }
 });

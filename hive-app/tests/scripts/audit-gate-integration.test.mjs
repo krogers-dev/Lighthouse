@@ -5,11 +5,13 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+
+import { manifestSha256 } from '../../scripts/lib/ratification.mjs';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const gate = path.join(appRoot, 'scripts', 'audit-gate.mjs');
@@ -72,6 +74,22 @@ const REAL_LOCKFILE_SHA256 = createHash('sha256')
   .update(readFileSync(path.join(appRoot, 'package-lock.json')))
   .digest('hex');
 
+// ---------------------------------------------------------------------------
+// RETURN-4 P1-6: a ratified waiver must resolve to a REAL decision record,
+// and that record's digest must ALSO arrive out-of-band. The harness builds
+// a complete, internally consistent approval world so the verified path is
+// exercised end to end — and each negative removes exactly one binding.
+// ---------------------------------------------------------------------------
+
+const DECISION_FILE = `integration-fixture-${process.pid}.json`;
+const DECISION_PATH = `security/decisions/${DECISION_FILE}`;
+const DECISION_ABS = path.join(appRoot, DECISION_PATH);
+const CANDIDATE_SHA = 'f'.repeat(40);
+
+const RAW_AUDIT_SHA256 = createHash('sha256')
+  .update(readFileSync(path.join(appRoot, 'security', 'evidence', 'npm-audit-current.json')))
+  .digest('hex');
+
 const VALID_WAIVER = {
   advisory: 'GHSA-aaaa-bbbb-cccc',
   package: 'demo',
@@ -83,6 +101,7 @@ const VALID_WAIVER = {
   ratifiedOn: '2026-08-02',
   ratifiedBy: 'Kody',
   approvalReference: 'Synthetic written ratification record for integration tests',
+  decisionRecordPath: DECISION_PATH,
   decisionRecordDigest: 'a'.repeat(64),
   lockfileSha256: REAL_LOCKFILE_SHA256,
   expires: '2099-01-01',
@@ -95,7 +114,7 @@ const PROPOSED_WAIVER = {
   ratifiedOn: undefined,
 };
 
-function runGate(mode, report, waivers) {
+function runGate(mode, report, waivers, approval = {}) {
   const fake = makeFakeNpm(mode);
   const waiverPath = makeWaivers(waivers);
   const result = spawnSync('node', [gate], {
@@ -106,9 +125,41 @@ function runGate(mode, report, waivers) {
       FAKE_NPM_MODE: mode,
       FAKE_NPM_REPORT: report ?? '',
       HIVE_WAIVERS_PATH: waiverPath,
+      HIVE_CANDIDATE_SHA: approval.candidateSha ?? CANDIDATE_SHA,
+      HIVE_APPROVAL_DIGESTS: approval.digests ?? '',
     },
   });
   return result;
+}
+
+/** Build the complete approval world for one waiver set: write the
+ * decision record, return the ratified waiver bound to it plus the
+ * out-of-band digest. `decisionOverrides` breaks exactly one binding. */
+function withApproval(waiverOverrides = {}, decisionOverrides = {}) {
+  const waiver = { ...VALID_WAIVER, ...waiverOverrides };
+  const substance = manifestSha256([waiver]);
+  const decision = {
+    approver: 'Kody',
+    role: 'Security owner (synthetic integration fixture)',
+    action: 'waiver-ratification',
+    manifestSha256: substance,
+    candidate: CANDIDATE_SHA,
+    lockfileSha256: REAL_LOCKFILE_SHA256,
+    rawAuditSha256: RAW_AUDIT_SHA256,
+    destination: 'HIVE Milestone 0 audit lane (synthetic integration fixture)',
+    approvedAt: `${waiver.ratifiedOn}T10:00:00Z`,
+    expires: waiver.expires,
+    ...decisionOverrides,
+  };
+  const raw = Buffer.from(JSON.stringify(decision), 'utf8');
+  mkdirSync(path.dirname(DECISION_ABS), { recursive: true });
+  writeFileSync(DECISION_ABS, raw);
+  const digest = createHash('sha256').update(raw).digest('hex');
+  return { waiver: { ...waiver, decisionRecordDigest: digest }, digest, decision };
+}
+
+function clearApproval() {
+  rmSync(DECISION_ABS, { force: true });
 }
 
 test('clean report with no waivers passes', () => {
@@ -116,10 +167,83 @@ test('clean report with no waivers passes', () => {
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('RATIFIED waived high finding passes and is reported as ratified', () => {
-  const result = runGate('findings', HIGH_REPORT, [VALID_WAIVER]);
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /waived \(ratified 2026-08-02\): GHSA-aaaa-bbbb-cccc/);
+test('RATIFIED waived high finding passes ONLY with a verifiable decision record', () => {
+  try {
+    const { waiver, digest } = withApproval();
+    const result = runGate('findings', HIGH_REPORT, [waiver], { digests: digest });
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /waived \(ratified 2026-08-02/);
+    assert.match(result.stdout, /GHSA-aaaa-bbbb-cccc/);
+  } finally {
+    clearApproval();
+  }
+});
+
+test('NEGATIVE: a self-declared ratification with NO decision record fails (a repo field is not authority)', () => {
+  clearApproval();
+  const result = runGate('findings', HIGH_REPORT, [VALID_WAIVER], { digests: 'a'.repeat(64) });
+  assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /does not exist/);
+});
+
+test('NEGATIVE: without the OUT-OF-BAND digest an internally consistent record does not clear HOLD', () => {
+  try {
+    const { waiver } = withApproval();
+    const result = runGate('findings', HIGH_REPORT, [waiver], { digests: '' });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /out-of-band/);
+  } finally {
+    clearApproval();
+  }
+});
+
+test('NEGATIVE: a decision record MUTATED after ratification invalidates the approval', () => {
+  try {
+    const { waiver, digest } = withApproval();
+    // Same path, different bytes: the recorded digest no longer matches.
+    writeFileSync(
+      DECISION_ABS,
+      JSON.stringify({ approver: 'Kody', destination: 'somewhere else entirely' }),
+    );
+    const result = runGate('findings', HIGH_REPORT, [waiver], { digests: digest });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /digest mismatch/);
+  } finally {
+    clearApproval();
+  }
+});
+
+test('NEGATIVE: an approval for a DIFFERENT candidate does not approve this one', () => {
+  try {
+    const { waiver, digest } = withApproval({}, { candidate: 'e'.repeat(40) });
+    const result = runGate('findings', HIGH_REPORT, [waiver], { digests: digest });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /not the one under verification/);
+  } finally {
+    clearApproval();
+  }
+});
+
+test('NEGATIVE: an unauthorized approver cannot ratify, however consistent the record', () => {
+  try {
+    const { waiver, digest } = withApproval({ ratifiedBy: 'Mallory' }, { approver: 'Mallory' });
+    const result = runGate('findings', HIGH_REPORT, [waiver], { digests: digest });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /not an authorized approver/);
+  } finally {
+    clearApproval();
+  }
+});
+
+test('NEGATIVE: an approval bound to a DIFFERENT raw-audit archive fails', () => {
+  try {
+    const { waiver, digest } = withApproval({}, { rawAuditSha256: '7'.repeat(64) });
+    const result = runGate('findings', HIGH_REPORT, [waiver], { digests: digest });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /raw-audit digest/);
+  } finally {
+    clearApproval();
+  }
 });
 
 test('PROPOSED waiver produces HOLD with exit 3, never approval wording', () => {
@@ -131,10 +255,19 @@ test('PROPOSED waiver produces HOLD with exit 3, never approval wording', () => 
 });
 
 test('TAMPERED waiver package fails against the live report', () => {
-  const tampered = { ...VALID_WAIVER, package: 'left-pad' };
-  const result = runGate('findings', HIGH_REPORT, [tampered]);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /does not match the live report/);
+  try {
+    // A fully approved world, then the package is edited: the finding no
+    // longer matches the live report AND the manifest digest no longer
+    // matches what was approved.
+    const { waiver, digest } = withApproval();
+    const tampered = { ...waiver, package: 'left-pad' };
+    const result = runGate('findings', HIGH_REPORT, [tampered], { digests: digest });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /does not match the live report/);
+    assert.match(result.stderr, /material change invalidates the approval/);
+  } finally {
+    clearApproval();
+  }
 });
 
 test('actual spawn ENOENT (npm missing from PATH) is an engine failure', () => {
@@ -228,9 +361,14 @@ test('duplicate waiver entries fail', () => {
 });
 
 test('orphaned waiver fails when the advisory is no longer present', () => {
-  const result = runGate('clean', CLEAN_REPORT, [VALID_WAIVER]);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /orphaned waiver/);
+  try {
+    const { waiver, digest } = withApproval();
+    const result = runGate('clean', CLEAN_REPORT, [waiver], { digests: digest });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /orphaned waiver/);
+  } finally {
+    clearApproval();
+  }
 });
 
 test('malformed waiver fields fail', () => {
@@ -242,8 +380,12 @@ test('malformed waiver fields fail', () => {
 });
 
 test('a ratified waiver bound to a DIFFERENT lockfile digest fails (re-approval required)', () => {
-  const stale = { ...VALID_WAIVER, lockfileSha256: 'b'.repeat(64) };
-  const result = runGate('findings', HIGH_REPORT, [stale]);
-  assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
-  assert.match(result.stderr, /different lockfile digest/);
+  try {
+    const { waiver, digest } = withApproval({ lockfileSha256: 'b'.repeat(64) });
+    const result = runGate('findings', HIGH_REPORT, [waiver], { digests: digest });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /different lockfile digest/);
+  } finally {
+    clearApproval();
+  }
 });
