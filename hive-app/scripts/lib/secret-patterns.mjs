@@ -191,12 +191,12 @@ export function validateAllowlist(entries, todayIso) {
           problems.push(`${label}: ratification after expiry is rejected`);
         }
       }
-      if (
-        typeof entry.decisionRecordPath !== 'string' ||
-        !entry.decisionRecordPath.startsWith('security/decisions/')
-      ) {
+      // RETURN-5 ruling: the decision record lives OUTSIDE the
+      // repository and is supplied out-of-band, so an entry must not
+      // name a location it controls.
+      if (typeof entry.decisionRecordPath === 'string' && entry.decisionRecordPath.trim() !== '') {
         problems.push(
-          `${label}: ratified entries require decisionRecordPath under security/decisions/`,
+          `${label}: decisionRecordPath is no longer accepted — the decision record is supplied out-of-band, never committed`,
         );
       }
       if (

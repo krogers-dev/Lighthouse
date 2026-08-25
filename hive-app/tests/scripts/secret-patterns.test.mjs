@@ -70,7 +70,6 @@ function validEntry(overrides = {}) {
     proposedOn: '2026-08-20',
     ratifiedOn: '2026-08-21',
     ratifiedBy: 'Kody',
-    decisionRecordPath: 'security/decisions/history-exceptions-2026-08-21.json',
     decisionRecordDigest: 'a'.repeat(64),
     expiry: '2026-11-21',
     retest: 'Re-run secrets:scan monthly and at expiry.',
@@ -293,12 +292,13 @@ test('NEGATIVE: ratification AFTER the exception expiry is rejected', () => {
   assert.deepEqual(future, []);
 });
 
-test('NEGATIVE: a ratified history exception must name a decision record under security/decisions/', () => {
-  for (const bad of [undefined, '', 'notes/elsewhere.json', '../security/decisions/x.json']) {
+test('NEGATIVE: a ratified history exception may not name a decision record path (RETURN-5)', () => {
+  for (const bad of ['security/decisions/x.json', 'notes/elsewhere.json', '/etc/passwd']) {
     const problems = validateAllowlist([validEntry({ decisionRecordPath: bad })], TODAY);
     assert.ok(
-      problems.some((p) => p.includes('decisionRecordPath')),
-      `expected rejection for ${JSON.stringify(bad)}; got ${JSON.stringify(problems)}`,
+      problems.some((p) => p.includes('no longer accepted')),
+      `expected path rejection for ${JSON.stringify(bad)}; got ${JSON.stringify(problems)}`,
     );
   }
+  assert.deepEqual(validateAllowlist([validEntry()], TODAY), []);
 });

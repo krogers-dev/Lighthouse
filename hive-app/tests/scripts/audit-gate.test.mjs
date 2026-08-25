@@ -54,7 +54,6 @@ function makeWaiver(overrides = {}) {
     ratifiedOn: '2026-08-02',
     ratifiedBy: 'Kody',
     approvalReference: 'Written ratification wording of 2026-08-02, recorded in decision log',
-    decisionRecordPath: 'security/decisions/waivers-2026-08-02.json',
     decisionRecordDigest: 'a'.repeat(64),
     lockfileSha256: 'a'.repeat(64),
     expires: '2026-12-01',
@@ -865,15 +864,20 @@ test('NEGATIVE: ratification AFTER the waiver expiry is rejected', () => {
   );
 });
 
-test('NEGATIVE: a ratified waiver must name a decision record under security/decisions/', () => {
-  for (const bad of [undefined, '', 'notes/somewhere.json', '/etc/passwd', 'security/decisions']) {
+test('NEGATIVE: a ratified waiver may not name a decision record path (RETURN-5)', () => {
+  // The record lives outside the repository and is supplied out-of-band;
+  // an entry that names a location points at something the implementer
+  // controls, which is the model this replaced.
+  for (const bad of ['security/decisions/waivers.json', 'notes/somewhere.json', '/etc/passwd']) {
     const problems = validateWaivers(
       { waivers: [makeWaiver({ decisionRecordPath: bad })] },
       '2026-08-21',
     );
     assert.ok(
-      problems.some((p) => p.includes('decisionRecordPath')),
-      `expected decisionRecordPath rejection for ${JSON.stringify(bad)}; got ${JSON.stringify(problems)}`,
+      problems.some((p) => p.includes('no longer accepted')),
+      `expected path rejection for ${JSON.stringify(bad)}; got ${JSON.stringify(problems)}`,
     );
   }
+  // Absent is correct, and still requires the digest.
+  assert.deepEqual(validateWaivers({ waivers: [makeWaiver()] }, '2026-08-21'), []);
 });

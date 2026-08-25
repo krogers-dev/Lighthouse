@@ -23,13 +23,13 @@
  * pending approval is never treated as approval (RETURN-2 area 6).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { assertCompleteHistory, scanHistoryAt } from './lib/history-scan.mjs';
-import { manifestSha256, verifyRatification } from './lib/ratification.mjs';
+import { loadApprovalRecords, manifestSha256, verifyRatification } from './lib/ratification.mjs';
 import {
   SECRET_PATTERNS,
   allowlistHolds,
@@ -223,14 +223,19 @@ if (ratifiedEntries.length > 0) {
       .map((digest) => digest.trim())
       .filter(Boolean),
   );
+  // The approver's decision records, supplied out-of-band. A record
+  // inside the repository is refused by the loader (RETURN-5 ruling).
+  const supplied = loadApprovalRecords(process.env.HIVE_APPROVAL_RECORDS, {
+    realpath: (target) => realpathSync(target),
+    readFile: (target) => readFileSync(target),
+    repoRoot: realpathSync(appRoot),
+  });
+  for (const problem of supplied.problems) {
+    failed = true;
+    console.error(`FAIL ${problem}`);
+  }
   const context = {
-    readFile: (relative) => {
-      try {
-        return readFileSync(path.join(appRoot, relative));
-      } catch {
-        return null;
-      }
-    },
+    approvalRecords: supplied.records,
     todayIso,
     expectedAction: 'history-exception-ratification',
     manifestSha256: manifestSha256(effectiveAllowlist),

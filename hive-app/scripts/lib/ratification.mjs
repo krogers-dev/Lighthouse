@@ -1,22 +1,35 @@
-/** Verifiable ratification (RETURN-4 P1-6). A repository field authored
- * by the implementer is not authority: clearing HOLD requires resolving a
- * real, immutable decision artifact and proving every binding.
+/** Verifiable ratification (RETURN-4 P1-6, revised by the RETURN-5
+ * ruling to the OUT-OF-BAND model).
  *
- * A ratified entry must reference a decision record
- * (`decisionRecordPath` under security/decisions/) whose recomputed
- * sha256 equals `decisionRecordDigest`. The record must bind: the
- * authorized approver (who must equal `ratifiedBy`), their role, the
- * exact action, the exact manifest digest of the approved entries, the
- * candidate commit, the lockfile digest, the raw-audit digest where
- * applicable, the destination, the approval time, and the expiry. Any
- * material change invalidates the approval.
+ * A repository field authored by the implementer is not authority, and
+ * neither is a decision record committed beside the candidate it
+ * approves: a record inside a commit cannot name that commit's own hash,
+ * so an in-repo record can only ever bind some earlier commit. The
+ * approval therefore lives OUTSIDE the repository entirely.
  *
- * Trust anchor: the decision digest must ALSO be presented out-of-band
- * at verification time (HIVE_APPROVAL_DIGESTS, supplied by the approver
- * through a channel the implementer does not control). No signing key is
- * invented here; a fabricated in-repo record fails the out-of-band check
- * even if internally consistent. Pure over injected IO; unit-tested in
- * tests/scripts/ratification.test.mjs.
+ * The flow: the corrective child commit is built and pushed with every
+ * entry still `proposed`; the approver then issues a decision record
+ * naming that child's SHA and supplies it — with its digest — through a
+ * channel the implementer does not control. Verification at the child
+ * then resolves cleanly, because the record was written after the commit
+ * it approves existed.
+ *
+ * At verification time the approver supplies:
+ *   HIVE_APPROVAL_RECORDS  comma-separated paths to decision record files
+ *                          that MUST live outside the repository
+ *   HIVE_APPROVAL_DIGESTS  the sha256 digests, stated independently
+ *
+ * A ratified entry carries only `decisionRecordDigest`; it names no path,
+ * because it must not be able to point at anything it controls. The
+ * supplied record must bind: the authorized approver (who must equal
+ * `ratifiedBy`), their role, the exact action, the exact manifest digest
+ * of the approved entries, the candidate commit, the lockfile digest, the
+ * raw-audit digest where applicable, the destination, the approval time,
+ * and the expiry. Any material change invalidates the approval.
+ *
+ * No signing key is invented here. A record committed into the repository
+ * is REFUSED outright, however internally consistent it is. Pure over
+ * injected IO; unit-tested in tests/scripts/ratification.test.mjs.
  */
 import { createHash } from 'node:crypto';
 
@@ -68,7 +81,7 @@ export function manifestSha256(entries) {
 
 /** Verify one ratified entry against its decision artifact and bindings.
  * context: {
- *   readFile(path) -> Buffer|null,
+ *   approvalRecords,          // Map<digest, Buffer> supplied OUT-OF-BAND
  *   todayIso,
  *   expectedAction,           // 'waiver-ratification' | 'history-exception-ratification'
  *   manifestSha256,           // digest of the CURRENT entry set
@@ -82,28 +95,40 @@ export function verifyRatification(entry, context) {
   const problems = [];
   const label = `ratification of ${entry.advisory ?? entry.blob ?? 'entry'}`;
 
-  if (
-    typeof entry.decisionRecordPath !== 'string' ||
-    !entry.decisionRecordPath.startsWith('security/decisions/')
-  ) {
-    return [`${label}: decisionRecordPath must point into security/decisions/`];
+  // An entry may not name a location: it must not be able to point at
+  // material the implementer controls. Any surviving path field is a
+  // leftover from the in-repo model and is refused.
+  if (typeof entry.decisionRecordPath === 'string' && entry.decisionRecordPath.trim() !== '') {
+    problems.push(
+      `${label}: decisionRecordPath is no longer accepted — the decision record is supplied out-of-band (HIVE_APPROVAL_RECORDS), never committed beside the candidate it approves`,
+    );
   }
-  const raw = context.readFile(entry.decisionRecordPath);
+  const digest = entry.decisionRecordDigest;
+  if (!SHA256_HEX.test(digest ?? '')) {
+    return [
+      ...problems,
+      `${label}: decisionRecordDigest must be a sha256 hex digest of the approver's decision record`,
+    ];
+  }
+  const raw = context.approvalRecords?.get(digest) ?? null;
   if (raw === null) {
-    return [`${label}: decision record ${entry.decisionRecordPath} does not exist`];
+    return [
+      ...problems,
+      `${label}: no out-of-band decision record with digest ${digest.slice(0, 12)}… was supplied (HIVE_APPROVAL_RECORDS) — an entry claiming ratification proves nothing on its own`,
+    ];
   }
   const recomputed = sha256Hex(raw);
-  if (recomputed !== entry.decisionRecordDigest) {
-    problems.push(
-      `${label}: decision record digest mismatch — the record changed after ratification (or the digest was fabricated)`,
-    );
-    return problems;
+  if (recomputed !== digest) {
+    return [
+      ...problems,
+      `${label}: decision record digest mismatch — the supplied record is not the approved one`,
+    ];
   }
-  // Out-of-band anchor: the digest must be presented through the trusted
-  // channel at verification time.
+  // Second anchor: the digest must ALSO be stated independently, so
+  // handing the gate a file is not by itself an approval.
   if (!context.approvalDigests?.has(recomputed)) {
     problems.push(
-      `${label}: approval material not presented out-of-band (HIVE_APPROVAL_DIGESTS) — a repository record alone is not authority`,
+      `${label}: approval digest not presented out-of-band (HIVE_APPROVAL_DIGESTS) — supplying a record file alone is not authority`,
     );
   }
   let decision;
@@ -172,4 +197,55 @@ export function verifyRatification(entry, context) {
     problems.push(`${label}: decision expiry does not match the entry expiry`);
   }
   return problems;
+}
+
+/** Load the decision records the approver supplied out-of-band.
+ *
+ * The one structural rule that makes this model real: a record inside the
+ * repository is REFUSED. Approval material must live outside the artifact
+ * it approves — otherwise it is back to a record that cannot name the
+ * commit carrying it, and back to the implementer controlling both sides.
+ *
+ * `spec` is the raw HIVE_APPROVAL_RECORDS value (comma-separated paths).
+ * `io` injects { realpath, readFile, repoRoot } for testability.
+ * Returns { records: Map<digest, Buffer>, problems: string[] }. */
+export function loadApprovalRecords(spec, io) {
+  const records = new Map();
+  const problems = [];
+  const paths = String(spec ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  for (const candidatePath of paths) {
+    let resolved;
+    try {
+      resolved = io.realpath(candidatePath);
+    } catch {
+      problems.push(`approval record ${candidatePath} does not exist`);
+      continue;
+    }
+    if (isInside(io.repoRoot, resolved)) {
+      problems.push(
+        `approval record ${candidatePath} is inside the repository — approval material must live outside the candidate it approves`,
+      );
+      continue;
+    }
+    let buffer;
+    try {
+      buffer = io.readFile(resolved);
+    } catch {
+      problems.push(`approval record ${candidatePath} is unreadable`);
+      continue;
+    }
+    records.set(sha256Hex(buffer), buffer);
+  }
+  return { records, problems };
+}
+
+/** Path containment without string-prefix confusion: `/repo-evil` is not
+ * inside `/repo` (the same class of bug as the origin suffix hosts). */
+function isInside(root, target) {
+  if (typeof root !== 'string' || root === '') return false;
+  const normalizedRoot = root.endsWith('/') ? root.slice(0, -1) : root;
+  return target === normalizedRoot || target.startsWith(`${normalizedRoot}/`);
 }

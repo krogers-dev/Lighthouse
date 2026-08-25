@@ -32,9 +32,9 @@
  * (tests/scripts/audit-gate-integration.test.mjs).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { manifestSha256, verifyRatification } from './lib/ratification.mjs';
+import { loadApprovalRecords, manifestSha256, verifyRatification } from './lib/ratification.mjs';
 import { createHash } from 'node:crypto';
-import { openSync, readSync, closeSync, readFileSync } from 'node:fs';
+import { openSync, readSync, closeSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -326,12 +326,15 @@ export function validateWaivers(waiverFile, today) {
           problems.push(`${label}: ratification after expiry is rejected`);
         }
       }
+      // RETURN-5 ruling: the decision record lives OUTSIDE the
+      // repository and is supplied out-of-band, so a waiver must not
+      // name a location it controls.
       if (
-        typeof waiver.decisionRecordPath !== 'string' ||
-        !waiver.decisionRecordPath.startsWith('security/decisions/')
+        typeof waiver.decisionRecordPath === 'string' &&
+        waiver.decisionRecordPath.trim() !== ''
       ) {
         problems.push(
-          `${label}: ratified entries require decisionRecordPath under security/decisions/`,
+          `${label}: decisionRecordPath is no longer accepted — the decision record is supplied out-of-band, never committed`,
         );
       }
       if (
@@ -720,14 +723,16 @@ if (isMain) {
         .map((digest) => digest.trim())
         .filter(Boolean),
     );
+    // The approver's decision records, supplied out-of-band. A record
+    // inside the repository is refused by the loader (RETURN-5 ruling).
+    const supplied = loadApprovalRecords(process.env.HIVE_APPROVAL_RECORDS, {
+      realpath: (target) => realpathSync(target),
+      readFile: (target) => readFileSync(target),
+      repoRoot: realpathSync(appRoot),
+    });
+    for (const problem of supplied.problems) failures.push(problem);
     const context = {
-      readFile: (relative) => {
-        try {
-          return readFileSync(path.join(appRoot, relative));
-        } catch {
-          return null;
-        }
-      },
+      approvalRecords: supplied.records,
       todayIso: today,
       expectedAction: 'waiver-ratification',
       manifestSha256: manifestSha256(waiverFile.waivers ?? []),
