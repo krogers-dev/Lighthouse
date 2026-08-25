@@ -104,3 +104,66 @@ select app_private.append_audit(
   'case:eeeeeeee-0000-4000-8000-0000000000a1',
   '{"note":"synthetic seed"}'::jsonb
 );
+
+-- ---------------------------------------------------------------------------
+-- Milestone 1 read surfaces (WO-002 R2, R3)
+--
+-- Requests and activity for the A1 case, plus deliberately OUT-OF-SCOPE
+-- rows on B1 and B2 so every isolation assertion is a real negative
+-- rather than a set that happens to be the whole table (the RETURN-4 P2-4
+-- lesson). No free text in activity by design — kinds and roles only.
+-- ---------------------------------------------------------------------------
+
+insert into public.requests
+  (id, environment_id, client_id, entity_id, case_id, title, detail, owner_role, status, requested_on, due_on) values
+  ('dddddddd-0000-4000-8000-0000000000a1', '11111111-0000-4000-8000-000000000001',
+   'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-1111-4000-8000-000000000001',
+   'eeeeeeee-0000-4000-8000-0000000000a1',
+   'Bank statement for the closing month (Synthetic)',
+   'The final month statement is needed to complete the records (Synthetic).',
+   'client_user', 'OPEN', '2026-08-10', '2026-09-10'),
+  ('dddddddd-0000-4000-8000-0000000000a2', '11111111-0000-4000-8000-000000000001',
+   'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-1111-4000-8000-000000000001',
+   'eeeeeeee-0000-4000-8000-0000000000a1',
+   'Confirm the vehicle expense category (Synthetic)',
+   'One category needs your confirmation before review (Synthetic).',
+   'client_user', 'ANSWERED', '2026-08-05', null),
+  -- Out of scope: client B / entity B1.
+  ('dddddddd-0000-4000-8000-0000000000b1', '11111111-0000-4000-8000-000000000001',
+   'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-1111-4000-8000-000000000001',
+   'eeeeeeee-0000-4000-8000-0000000000b1',
+   'Quarterly packet source documents (Synthetic)',
+   'Source documents for the quarterly packet (Synthetic).',
+   'preparer', 'OPEN', '2026-08-12', null),
+  -- Out of scope: entity B2, which NO seeded client user can reach.
+  ('dddddddd-0000-4000-8000-0000000000b2', '11111111-0000-4000-8000-000000000001',
+   'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-2222-4000-8000-000000000002',
+   'eeeeeeee-0000-4000-8000-0000000000b2',
+   'Entity setup documents (Synthetic)',
+   'Formation documents for the new entity (Synthetic).',
+   'intake', 'OPEN', '2026-08-14', null);
+
+insert into public.activity_events
+  (id, environment_id, client_id, entity_id, case_id, event_kind, actor_role, occurred_at) values
+  ('cccccccc-1111-4000-8000-0000000000a1', '11111111-0000-4000-8000-000000000001',
+   'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-1111-4000-8000-000000000001',
+   'eeeeeeee-0000-4000-8000-0000000000a1', 'case.status_changed', 'preparer',
+   '2026-08-01T15:00:00Z'),
+  ('cccccccc-1111-4000-8000-0000000000a2', '11111111-0000-4000-8000-000000000001',
+   'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-1111-4000-8000-000000000001',
+   'eeeeeeee-0000-4000-8000-0000000000a1', 'request.opened', 'intake',
+   '2026-08-10T16:30:00Z'),
+  ('cccccccc-1111-4000-8000-0000000000a3', '11111111-0000-4000-8000-000000000001',
+   'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-1111-4000-8000-000000000001',
+   'eeeeeeee-0000-4000-8000-0000000000a1', 'request.answered', 'client_user',
+   '2026-08-11T09:15:00Z'),
+  -- Out of scope: client B / entity B1.
+  ('cccccccc-1111-4000-8000-0000000000b1', '11111111-0000-4000-8000-000000000001',
+   'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-1111-4000-8000-000000000001',
+   'eeeeeeee-0000-4000-8000-0000000000b1', 'request.opened', 'preparer',
+   '2026-08-12T11:00:00Z'),
+  -- Out of scope: entity B2.
+  ('cccccccc-1111-4000-8000-0000000000b2', '11111111-0000-4000-8000-000000000001',
+   'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-2222-4000-8000-000000000002',
+   'eeeeeeee-0000-4000-8000-0000000000b2', 'case.status_changed', 'intake',
+   '2026-08-14T13:45:00Z');

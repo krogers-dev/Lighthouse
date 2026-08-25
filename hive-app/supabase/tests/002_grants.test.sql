@@ -26,13 +26,26 @@ select ok(
   ),
   'authenticated holds no write privilege on any public table');
 
--- 3. authenticated has SELECT on exactly the seven readable tables.
+-- 3. authenticated has SELECT on exactly the readable tables — by NAME,
+-- not by count. A count only proves how many tables are readable; naming
+-- them proves WHICH, so swapping one grant for another cannot pass.
 select is(
-  (select count(*)::int from pg_tables t
+  (select array_agg(t.tablename::text order by t.tablename) from pg_tables t
     where t.schemaname = 'public'
       and has_table_privilege(
         'authenticated', format('%I.%I', t.schemaname, t.tablename), 'SELECT')),
-  7, 'authenticated can select exactly the seven granted tables');
+  array[
+    'activity_events',
+    'case_attention_items',
+    'case_next_actions',
+    'cases',
+    'clients',
+    'entities',
+    'environments',
+    'memberships',
+    'requests'
+  ],
+  'authenticated can select exactly the nine granted tables, by name');
 
 -- 4. audit receipts accept no client read at all.
 select ok(

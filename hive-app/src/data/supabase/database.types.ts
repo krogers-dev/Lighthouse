@@ -13,6 +13,39 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      activity_events: {
+        Row: {
+          id: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          event_kind: string;
+          actor_role: string;
+          occurred_at: string;
+        };
+        Insert: {
+          id?: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          event_kind: string;
+          actor_role: string;
+          occurred_at?: string;
+        };
+        Update: {
+          id?: string;
+          environment_id?: string;
+          client_id?: string;
+          entity_id?: string;
+          case_id?: string;
+          event_kind?: string;
+          actor_role?: string;
+          occurred_at?: string;
+        };
+        Relationships: [];
+      };
       audit_receipts: {
         Row: {
           id: string;
@@ -237,6 +270,51 @@ export interface Database {
           client_id?: string;
           entity_id?: string;
           role?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      requests: {
+        Row: {
+          id: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          title: string;
+          detail: string;
+          owner_role: string;
+          status: string;
+          requested_on: string;
+          due_on: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          title: string;
+          detail: string;
+          owner_role: string;
+          status?: string;
+          requested_on: string;
+          due_on?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          environment_id?: string;
+          client_id?: string;
+          entity_id?: string;
+          case_id?: string;
+          title?: string;
+          detail?: string;
+          owner_role?: string;
+          status?: string;
+          requested_on?: string;
+          due_on?: string | null;
           created_at?: string;
         };
         Relationships: [];

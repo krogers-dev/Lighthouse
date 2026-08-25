@@ -24,8 +24,10 @@
  * Coverage (areas 1 and 4): every seeded account's OTP + JWT-sub binding;
  * repeated OTP for one user; the unknown-email negative; the full staff
  * TOTP path; and real-JWT PostgREST evidence for BOTH mixed-role users at
- * AAL1 (zero rows across all six protected tables, own membership rows
- * only) and AAL2 (exact permitted reach, zero wrong-scope rows).
+ * AAL1 (zero rows across all EIGHT protected tables — the six Milestone 0
+ * tables plus the Milestone 1 requests and activity_events surfaces — own
+ * membership rows only) and AAL2 (exact permitted reach, zero wrong-scope
+ * rows).
  *
  * Usage: node scripts/local-supabase.mjs e2e  (wires env in memory).
  */
@@ -332,6 +334,19 @@ const NEXT_ACTIONS = {
  * mixed.cross's reach, so "exact reach" for those two tables was
  * satisfied by a set that happened to be the whole table; an
  * entity-level leak into B2 would not have been detected. */
+/** Milestone 1 fixture ids (WO-002 R2/R3). The B2 rows appear in NO reach
+ * set below, exactly like the B2 attention item and next action. */
+const REQUESTS = {
+  a1: 'dddddddd-0000-4000-8000-0000000000a1',
+  a2: 'dddddddd-0000-4000-8000-0000000000a2',
+  b1: 'dddddddd-0000-4000-8000-0000000000b1',
+};
+const ACTIVITY = {
+  a1: 'cccccccc-1111-4000-8000-0000000000a1',
+  a2: 'cccccccc-1111-4000-8000-0000000000a2',
+  a3: 'cccccccc-1111-4000-8000-0000000000a3',
+  b1: 'cccccccc-1111-4000-8000-0000000000b1',
+};
 const REACH = {
   aOnly: {
     environments: [SCOPE.environmentId],
@@ -340,6 +355,8 @@ const REACH = {
     cases: [CASES.a1],
     case_attention_items: [ATTENTION.a1],
     case_next_actions: [NEXT_ACTIONS.a1],
+    requests: [REQUESTS.a1, REQUESTS.a2],
+    activity_events: [ACTIVITY.a1, ACTIVITY.a2, ACTIVITY.a3],
   },
   aAndB1: {
     environments: [SCOPE.environmentId],
@@ -348,6 +365,8 @@ const REACH = {
     cases: [CASES.a1, CASES.b1],
     case_attention_items: [ATTENTION.a1, ATTENTION.b1],
     case_next_actions: [NEXT_ACTIONS.a1, NEXT_ACTIONS.b1],
+    requests: [REQUESTS.a1, REQUESTS.a2, REQUESTS.b1],
+    activity_events: [ACTIVITY.a1, ACTIVITY.a2, ACTIVITY.a3, ACTIVITY.b1],
   },
 };
 const PROTECTED_TABLES = [
@@ -357,6 +376,9 @@ const PROTECTED_TABLES = [
   'cases',
   'case_attention_items',
   'case_next_actions',
+  // Milestone 1 read surfaces, held to the same reach proofs.
+  'requests',
+  'activity_events',
 ];
 
 function idsOf(rows) {
@@ -366,7 +388,7 @@ function sameSet(actual, expected) {
   return actual.size === expected.length && expected.every((id) => actual.has(id));
 }
 
-/** AAL1 for a user holding any staff membership: zero rows from all six
+/** AAL1 for a user holding any staff membership: zero rows from all eight
  * protected tables; exactly the own membership rows (area 4). */
 async function assertStaffAal1(identity, session) {
   for (const table of PROTECTED_TABLES) {
@@ -515,7 +537,7 @@ for (const identity of SYNTHETIC_IDENTITIES) {
 }
 
 // 5. Mixed-role users with real JWTs (area 4): AAL1 zero-rows across all
-//    six protected tables + exact own memberships; AAL2 exact reach and
+//    eight protected tables + exact own memberships; AAL2 exact reach and
 //    zero wrong-scope rows — all via the refreshed token.
 {
   const identity = byEmail.get('mixed.cross@example.invalid');
