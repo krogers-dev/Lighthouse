@@ -1,0 +1,160 @@
+# HIVE
+
+A client clarity and controlled-workflow app for Honeybee Accounting
+clients and staff. What HIVE is and is not is defined in
+[PRODUCT.md](PRODUCT.md); the boundaries it must never cross are in
+[SECURITY.md](SECURITY.md); the permanent build instructions are in
+[CLAUDE.md](CLAUDE.md).
+
+**Everything in this repository runs on synthetic data.** Every identity is
+an `example.invalid` address and every label is marked `(Synthetic)`.
+Production data, integrations, signing, submission, and release are HOLD.
+
+## Where the work stands
+
+| Milestone                      | State                                                                       |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| 0 — Identity and isolation     | Implemented; **RETURN** — corrective work reviewed, device evidence pending |
+| 1 — Read-only client dashboard | **In progress** — Requests, Activity, Help, and navigation are built        |
+| 2+                             | Not started                                                                 |
+
+### What you can see today
+
+Sign in with a synthetic account, pick a workspace, and move between the
+five destinations: **Home**, **Requests**, **Activity**, **Help**,
+**Account**. Requests and Activity read live from the local Supabase
+stack, scoped to the selected workspace.
+
+Milestone 1 is **read-only**. There is no respond, upload, or edit control
+anywhere in the binary — absent, not disabled or hidden.
+
+## Prerequisites
+
+The toolchain is pinned, and `npm run verify:toolchain` enforces it.
+
+| Tool           | Version    | Notes                                     |
+| -------------- | ---------- | ----------------------------------------- |
+| Node           | 22.23.2    | Exact; `devEngines` refuses anything else |
+| npm            | 10.9.8     | One lockfile, exact pins                  |
+| Docker         | any recent | Runs the local Supabase stack             |
+| Xcode          | current    | For the iOS development build             |
+| Android Studio | current    | For the Android development build         |
+
+Use a **development build**, not Expo Go — the app depends on native
+SecureStore behavior that Expo Go cannot provide.
+
+## Running it
+
+```bash
+npm ci
+npm run env:synthetic          # writes a synthetic .env.local (0600, gitignored)
+node scripts/local-supabase.mjs up
+node scripts/local-supabase.mjs seed
+npx expo run:ios               # or: npx expo run:android
+```
+
+`env:synthetic` writes the loopback URL and a synthetic publishable-shaped
+key. It is not a credential and the values are nonfunctional outside the
+local stack. If you have your own `.env.local` it refuses to overwrite it
+without `--force`.
+
+Sign-in codes are delivered to the local Mailpit at
+http://127.0.0.1:54324 — nothing leaves the machine.
+
+Seeded synthetic accounts:
+
+| Account                           | Sees                                                         |
+| --------------------------------- | ------------------------------------------------------------ |
+| `client.owner@example.invalid`    | Two workspaces (entities A1 and A2), so the chooser appears  |
+| `client.second@example.invalid`   | One workspace under a different client                       |
+| `reviewer.rae@example.invalid`    | Staff; requires TOTP and AAL2 before any protected row       |
+| `preparer.pat@example.invalid`    | Staff across two different clients                           |
+| `mixed.cross@example.invalid`     | Client on one entity, staff on another — the mixed-role path |
+| `nomember.norman@example.invalid` | Nothing — the zero-access path                               |
+
+`intake.beth@example.invalid` and `approver.avery@example.invalid` are
+seeded too; the full matrix is `scripts/lib/synthetic-identities.mjs`.
+
+Staff accounts enrol TOTP on first sign-in. `node scripts/totp-helper.mjs`
+generates codes for the synthetic accounts during QA; the secret stays in
+that process's memory and never reaches a file, a log, or a screenshot.
+
+### The web target does not run the app
+
+`expo export` produces a web bundle, and it is useful for inspection, but
+the app deliberately will not run there:
+
+- a **production-variant** export refuses to start at all, because the
+  loopback URL is not allowed outside a development build (you get the
+  configuration-fatal screen);
+- a **development-variant** export reaches storage quarantine, because
+  `expo-secure-store` has no web implementation, so the session store
+  fails its verification and the app refuses to show protected UI.
+
+Both are the designed fail-closed behaviors, and both are confirmed by
+rendering the export in a browser. Web is an export and inspection target
+only; iOS and Android are the product.
+
+## Checks
+
+```bash
+npm run verify:toolchain    # pinned versions
+npm run lint                # eslint, zero warnings
+npm run format:check        # prettier
+npm run typecheck           # strict TypeScript
+npm test                    # jest: unit, component, contract
+npm run test:scripts        # node:test: the gates and harnesses themselves
+npm run maestro:validate    # every device flow, parsed and schema-checked
+npm run config:check        # profile configuration
+npm run secrets:scan        # tracked files AND full Git history
+npm run audit:gate          # dependency advisories
+npm run db:types:check      # committed types match the schema
+```
+
+Database tests need the local harness:
+
+```bash
+node scripts/db-local.mjs reset && node scripts/db-local.mjs test   # pgTAP
+node scripts/local-supabase.mjs e2e                                 # black-box auth, needs Docker
+```
+
+### Exit codes are part of the contract
+
+`0` pass · `1` findings · `2` engine failure · `3` explicit HOLD.
+
+`secrets:scan` and `audit:gate` currently exit **3**. That is correct and
+expected: both have exceptions that are recorded and `proposed` but not
+ratified, and a pending approval is never treated as an approval. See
+[security/APPROVALS.md](security/APPROVALS.md) for what clearing them
+requires.
+
+## Layout
+
+```
+app/            Expo Router routes — thin; one screen component each
+src/auth/       Auth state machine, lifecycle controller, secure storage
+src/data/       Supabase client and scope-bound repositories
+src/features/   Screens and views, one folder per feature
+src/tenancy/    ScopeKey, scoped clearing registry
+src/ui/         Primitives, tokens, theme (Brand Kit v2.0)
+supabase/       Migrations, RLS policies, seed, pgTAP suites
+scripts/        Gates and local harnesses
+.maestro/       Device flows
+security/       Waivers, exceptions, approved configuration, evidence
+docs/plans/     Dated execution records
+```
+
+## Conventions worth knowing before you change anything
+
+- **Every protected read is bound to a ScopeKey**, and a late response
+  from an abandoned scope or membership must never render. That logic
+  lives once, in `src/features/shared/useScopedLoad.ts`.
+- **Activity stores no free text.** Rows carry an enumerated event kind, a
+  role, and a timestamp; the app owns the wording. Client-facing wording
+  lives in `src/features/shared/labels.ts` and can be rewritten without
+  touching a screen, a query, or a migration.
+- **Server dates are parsed by parts**, never through `Date`, so a date
+  the server recorded does not shift with the device's timezone.
+- **Screens say what data is "recorded through"**, not "as of": the device
+  clock is not server truth.
+- Adding a dependency goes through the ADR dependency rule first.
