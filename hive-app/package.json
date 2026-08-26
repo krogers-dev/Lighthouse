@@ -30,6 +30,7 @@
     "test": "jest",
     "test:scripts": "node --test \"tests/scripts/*.test.mjs\"",
     "verify:toolchain": "node scripts/verify-toolchain.mjs",
+    "preflight:device": "node scripts/preflight-device.mjs",
     "audit:gate": "node scripts/audit-gate.mjs",
     "secrets:scan": "node scripts/secret-scan.mjs",
     "supabase:local": "node scripts/local-supabase.mjs",

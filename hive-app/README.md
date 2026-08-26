@@ -45,6 +45,17 @@ SecureStore behavior that Expo Go cannot provide.
 
 ## Running it
 
+Check the machine first — the device lanes need tooling this repository
+cannot pin:
+
+```bash
+npm run preflight:device    # reports what is missing; installs nothing
+```
+
+It exits 0 when Docker, a simulator or emulator, and Maestro are all
+present, and 1 with a list when they are not. It is report-only by
+design: what gets installed on your machine is your call.
+
 ```bash
 npm ci
 npm run env:synthetic          # writes a synthetic .env.local (0600, gitignored)
@@ -98,6 +109,7 @@ only; iOS and Android are the product.
 ## Checks
 
 ```bash
+npm run preflight:device    # device-lane tooling on THIS machine
 npm run verify:toolchain    # pinned versions
 npm run lint                # eslint, zero warnings
 npm run format:check        # prettier
