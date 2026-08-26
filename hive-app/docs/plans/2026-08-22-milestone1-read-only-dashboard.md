@@ -228,13 +228,14 @@ clears it.
 
 What that splits the outstanding evidence into:
 
-| Lane                                     | On a Windows desktop                                              |
-| ---------------------------------------- | ----------------------------------------------------------------- |
-| A3 — black-box e2e through PostgREST     | **Reachable.** Docker plus Node; no Apple toolchain involved      |
-| A5 — Android half, and the Android build | **Reachable.** Android Studio, an AVD with WHPX, and Maestro      |
-| A5 — iOS half, and the iOS build         | **HOLD.** Needs a Mac, a hosted Mac runner, or a cloud build lane |
-| Screen-reader QA — TalkBack              | **Reachable** on the Android emulator or a physical device        |
-| Screen-reader QA — VoiceOver             | **HOLD.** Same hardware dependency as the iOS build               |
+| Lane                                     | On a Windows desktop                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| A3 — black-box e2e through PostgREST     | **Reachable.** Docker plus Node; no Apple toolchain involved                                     |
+| A5 — Android half, and the Android build | **Reachable.** Android Studio, an AVD with WHPX, and Maestro                                     |
+| A5 — iOS half (running the flows)        | **HOLD.** Needs a Mac or a hosted Mac runner — see the EAS note below, which does NOT close this |
+| The iOS build compiling at all           | **HOLD, but cheaply cleared** by a cloud build — see the EAS note below                          |
+| Screen-reader QA — TalkBack              | **Reachable** on the Android emulator or a physical device                                       |
+| Screen-reader QA — VoiceOver             | **HOLD.** Same hardware dependency as the iOS build                                              |
 
 So the brief's "dependable iOS and Android app" has a hardware gap on the
 iOS side. It is an approval and procurement question (owner Kody), not an
@@ -242,8 +243,73 @@ engineering one. `preflight:device` reports it as BLOCKED rather than as a
 finding, so it stays visible on every run without training anyone to
 ignore a permanent failure.
 
+### Option considered: EAS Build for the iOS half
+
+> **Unverified.** `docs.expo.dev`, `expo.dev`, and `maestro.mobile.dev` are
+> all blocked by this container's network egress policy, so none of the
+> specifics below were confirmed against current vendor documentation.
+> They come from model training with a May 2026 cutoff, and the source
+> order in CLAUDE.md puts current official vendor docs above that. Confirm
+> every line before committing money, an account, or a plan to it.
+
+EAS Build compiles iOS on hosted macOS workers, so it does remove the
+need for a Mac to **produce** a build. It does not remove the need for one
+to **run** a build, and "the iOS half" is three separate things:
+
+| Question                            | What EAS Build answers                                                                                                     |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Does the iOS target compile at all? | **Yes** — and this is currently unknown, because nobody has ever built this app for iOS                                    |
+| Can the app be run and looked at?   | **No** — see the artifact split below                                                                                      |
+| Can the iOS Maestro flows execute?  | **Probably not.** Maestro's iOS driver is understood to require macOS (XCUITest/idb). This is the load-bearing uncertainty |
+
+The trap is which artifact a profile produces. A **simulator** profile
+needs no Apple Developer account and no signing, but yields a `.app` that
+only runs on a macOS Simulator — which is exactly the thing a Windows
+desktop does not have. A **device** `.ipa` runs on a physical iPhone, but
+requires Apple Developer Program membership and signing credentials.
+
+Two authority gates sit above the technical answer, and neither is
+cleared by paying for a plan:
+
+- **Signing is HOLD** under CLAUDE.md ("production data, integrations,
+  signing, submission, and release are HOLD"). The device `.ipa` path
+  needs Kody's explicit authority, not a subscription.
+- **Account, terms, and spend.** Creating an Expo account and accepting
+  EAS terms is squarely inside "never alter accounts, accept terms, spend,
+  publish, deploy, message ... without exact authority". EAS Build also
+  uploads the project to Expo's servers to build it. Everything here is
+  synthetic so nothing sensitive moves, but it is still an outward
+  transfer of the codebase to a third party, and that is a decision.
+
+One precision, because the two are easy to conflate: the brief and ADR
+0001 exclude **EAS Update** (over-the-air delivery). They do not name
+**EAS Build**, which is a different product. So EAS Build is not
+pre-excluded — but "no OTA lane until signing, rollout, rollback, and
+approval are tested" sets the posture for anything in that family.
+
+**Recommendation.** A simulator-profile EAS build is worth doing on its
+own merits: it needs an account and terms acceptance but no Apple account
+and no signing, and it answers a question that is currently completely
+open — whether this app compiles for iOS at all. That is real movement on
+the VERIFICATION gate for a small authority ask. It does **not** deliver a
+runnable app, VoiceOver QA, or iOS Maestro coverage; for those, a Mac mini
+or a hosted Mac runner is the honest answer, and signing stays HOLD either
+way.
+
+No `eas.json` has been written. There is no EAS configuration anywhere in
+this repository, and adding one would encode a decision that belongs to
+Kody rather than to the build.
+
 ## Next
 
-Device-lane evidence for both milestones on a machine with Docker and a
-simulator, owner Kody, which is what closes A3, A5, and the hardware half
-of A4 in one pass. The run path is in README.md.
+Device-lane evidence for both milestones, owner Kody. Three decisions are
+waiting, and they are independent of each other:
+
+1. **Android and A3 on the Windows desktop** — no approval needed beyond
+   installing tooling; `npm run preflight:device` reports what is missing.
+2. **A simulator-profile EAS build** to establish that iOS compiles —
+   needs an Expo account and terms acceptance, nothing else.
+3. **A Mac or hosted Mac runner** for anything that has to RUN on iOS —
+   VoiceOver QA, the iOS Maestro flows, TestFlight later.
+
+The run path for (1) is in README.md.
