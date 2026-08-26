@@ -77,6 +77,53 @@ The generated iOS project has been verified here: `expo prebuild
 `NSAllowsArbitraryLoads=false` in the Info.plist. Compiling that project
 is what has never been done.
 
+### The Android lane, end to end
+
+Everything below runs on Windows, macOS, or Linux. This is the lane that
+closes A3 (black-box e2e) and the Android half of A5 (Maestro flows).
+
+```bash
+npm run preflight:device                       # what is missing on this machine
+npm ci
+npm run env:synthetic -- --android-emulator    # writes the 10.0.2.2 origin
+node scripts/local-supabase.mjs up
+node scripts/local-supabase.mjs seed
+npx expo run:android                           # development build, not Expo Go
+```
+
+**`--android-emulator` is not optional on an emulator.** Inside one,
+`127.0.0.1` is the emulator itself; the host's loopback is `10.0.2.2`.
+Without the flag the app is pointed at a stack that is not there, and the
+failure looks like the backend being down rather than like an address
+being wrong. Both origins are approved for development in
+`security/approved-config.json` and name the same stack.
+
+On a **physical Android device over adb**, neither address works — the
+phone is not the host. Use `adb reverse tcp:54321 tcp:54321` and the
+plain `npm run env:synthetic` origin, so `127.0.0.1` on the device is
+forwarded to the host.
+
+Then the flows, once Maestro is installed:
+
+```bash
+npm run maestro:validate                       # structural, no device needed
+maestro test .maestro/sign-in.yaml             # and the rest
+```
+
+#### What the Android build does to cleartext
+
+The Expo/React Native template ships a debug manifest that sets
+`android:usesCleartextTraffic="true"` — plaintext HTTP to **every** host,
+in debug builds. SECURITY.md requires Android cleartext denial to be
+preserved, so `plugins/with-android-debug-loopback.js` replaces that
+blanket permission with a network security config that denies cleartext
+by default and excepts only `10.0.2.2`, `127.0.0.1`, and `localhost`.
+
+It applies to the `debug` and `debugOptimized` source sets only. Gradle
+build types do not inherit source sets, which is why both are named; a
+**release** build is untouched and carries no cleartext exception of any
+kind. `npm run config:check` fails if the plugin stops being registered.
+
 ### Running iOS still needs a Mac
 
 Xcode runs only on macOS, so running the app on iOS, the iOS simulator,
@@ -113,7 +160,7 @@ npm ci
 npm run env:synthetic          # writes a synthetic .env.local (0600, gitignored)
 node scripts/local-supabase.mjs up
 node scripts/local-supabase.mjs seed
-npx expo run:android           # macOS only: npx expo run:ios
+npx expo run:android           # see the Android lane below; macOS only: npx expo run:ios
 ```
 
 `env:synthetic` writes the loopback URL and a synthetic publishable-shaped

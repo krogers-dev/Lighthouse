@@ -22,6 +22,7 @@ const devExpo = {
       },
     ],
     './plugins/with-android-no-backup',
+    './plugins/with-android-debug-loopback',
   ],
 };
 
@@ -36,7 +37,7 @@ test('release profile rejects development identifiers', () => {
   assert.ok(problems.some((p) => p.includes('development display name')));
 });
 
-test('android API 36, the no-backup plugin, and iOS 16.4 are enforced', () => {
+test('android API 36, both manifest plugins, and iOS 16.4 are enforced', () => {
   const stale = {
     ...devExpo,
     plugins: [
@@ -52,6 +53,9 @@ test('android API 36, the no-backup plugin, and iOS 16.4 are enforced', () => {
   const problems = checkAppConfig(stale, 'development');
   assert.ok(problems.some((p) => p.includes('SDK must be 36')));
   assert.ok(problems.some((p) => p.includes('with-android-no-backup')));
+  // Without this one, a debug build keeps the template's BLANKET
+  // cleartext permission instead of the loopback-only exception.
+  assert.ok(problems.some((p) => p.includes('with-android-debug-loopback')));
   assert.ok(problems.some((p) => p.includes('16.4')));
 });
 

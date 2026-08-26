@@ -243,6 +243,57 @@ engineering one. `preflight:device` reports it as BLOCKED rather than as a
 finding, so it stays visible on every run without training anyone to
 ignore a permanent failure.
 
+### The Android lane, and two things found by actually attempting it
+
+Set up 2026-08-26. Nobody had run an Android build before, and doing the
+setup surfaced two facts that no amount of reading would have.
+
+**The emulator cannot reach the stack at `127.0.0.1`.** Inside an Android
+emulator that address is the emulator itself; the host's loopback is
+`10.0.2.2`. `env:synthetic` wrote only `127.0.0.1`, so the lane would have
+failed looking exactly like a backend outage rather than an addressing
+mistake. `security/approved-config.json` now approves both origins for
+**development only** — they name the same stack, and `src/core/env.ts`
+already classified `10.0.2.2` as loopback, so the intent was understood
+even though nothing produced it. `npm run env:synthetic -- --android-emulator`
+selects it. On a physical device over adb neither address works: that
+needs `adb reverse tcp:54321 tcp:54321` and the plain origin.
+
+**The template opens cleartext far wider than expected — the opposite of
+what was assumed.** The initial read of the generated main manifest
+suggested targetSdk 36 would deny cleartext and block the local stack.
+That was wrong for the build that actually runs. The Expo/React Native
+template ships a _debug source-set_ manifest containing
+`android:usesCleartextTraffic="true"`, which permits plaintext HTTP to
+**every host** in a debug build. So cleartext was never the blocker; it
+was already wide open, which SECURITY.md's "preserve Android cleartext
+denial" does not contemplate.
+
+`plugins/with-android-debug-loopback.js` therefore **narrows** rather
+than enables: it swaps the blanket attribute for a network security
+config denying cleartext by default with exactly three exceptions
+(`10.0.2.2`, `127.0.0.1`, `localhost`). It patches the manifest in place
+rather than rewriting it — an earlier version wrote the file wholesale
+and silently dropped the `SYSTEM_ALERT_WINDOW` permission the React
+Native dev menu needs. It throws if the template ever stops shipping the
+blanket attribute, because doing nothing quietly would leave someone
+believing cleartext was narrowed when nothing had run.
+
+It covers `debug` **and** `debugOptimized`: those are separate Gradle
+build types and source sets do not inherit, so covering only `debug`
+would leave the second on the blanket permission. A **release** build is
+untouched and carries no cleartext exception of any kind — the main
+manifest is deliberately left alone, which is what makes that true.
+
+`config:check` fails if the plugin stops being registered, and the
+transform is unit-tested against the captured template text since no
+Android toolchain exists in the container.
+
+**For Kody:** this is a net tightening of the debug posture, but it is
+still a change to how the app treats cleartext, and security decisions
+are yours. The narrow config replaces a blanket permission that was
+already there; nothing that was previously denied is now permitted.
+
 ### Option considered: EAS Build for the iOS half
 
 > **Unverified.** `docs.expo.dev`, `expo.dev`, and `maestro.mobile.dev` are

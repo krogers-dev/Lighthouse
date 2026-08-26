@@ -50,7 +50,8 @@
           }
         }
       ],
-      "./plugins/with-android-no-backup"
+      "./plugins/with-android-no-backup",
+      "./plugins/with-android-debug-loopback"
     ],
     "experiments": {
       "typedRoutes": true

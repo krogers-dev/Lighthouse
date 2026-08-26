@@ -83,6 +83,14 @@ export function checkAppConfig(expo, profile) {
   }
   // expo-build-properties (SDK 57 line) has no allowBackup switch; the
   // local manifest plugin carries it and must stay registered.
+  // Without this plugin an Android debug build cannot reach the local
+  // stack at all: cleartext is denied from targetSdk 28 and the stack is
+  // plain HTTP on loopback. Its absence is a broken lane, not a hardening.
+  if (!plugins.includes('./plugins/with-android-debug-loopback')) {
+    problems.push(
+      'the with-android-debug-loopback plugin must be registered (debug builds cannot reach the loopback stack without it, and it is what keeps the cleartext exception debug-only)',
+    );
+  }
   if (!plugins.includes('./plugins/with-android-no-backup')) {
     problems.push(
       'the with-android-no-backup plugin must be registered (auth material must not be backed up)',
