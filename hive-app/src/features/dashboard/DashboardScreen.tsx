@@ -7,7 +7,7 @@
  * useScopedLoad, shared with the Milestone 1 read screens. */
 import React, { useCallback } from 'react';
 
-import type { DashboardLoader, DashboardSnapshot } from '@/data/supabase/repositories';
+import type { CaseSummary, DashboardLoader, ScopedList } from '@/data/supabase/repositories';
 import { useScopedLoad } from '@/features/shared/useScopedLoad';
 import type { ScopeKey } from '@/tenancy/scope-key';
 
@@ -17,13 +17,13 @@ export interface DashboardScreenProps {
   repository: DashboardLoader;
 }
 
-const isEmptySnapshot = (snapshot: DashboardSnapshot): boolean => snapshot.caseStatus === null;
+const isEmpty = (list: ScopedList<CaseSummary>): boolean => list.items.length === 0;
 
 export function DashboardScreen({ repository }: DashboardScreenProps): React.JSX.Element | null {
   const load = useCallback((scope: ScopeKey) => repository.load(scope), [repository]);
   const { scope, state, data, error, workspaceName, retry, switchScope } = useScopedLoad(
     load,
-    isEmptySnapshot,
+    isEmpty,
   );
 
   if (!scope) return null;
@@ -32,7 +32,7 @@ export function DashboardScreen({ repository }: DashboardScreenProps): React.JSX
     <DashboardView
       state={state}
       workspaceName={workspaceName}
-      snapshot={data}
+      data={data}
       error={error}
       onRetry={retry}
       onSwitchScope={switchScope}

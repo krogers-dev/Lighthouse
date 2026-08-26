@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { SafeError } from '@/core/errors';
 import type { ActivityEntry, ScopedList } from '@/data/supabase/repositories';
@@ -49,6 +49,13 @@ describe('ActivityView', () => {
     expect(screen.getByTestId('activity-recorded-through')).toHaveTextContent(
       'Recorded through August 11, 2026',
     );
+  });
+
+  it('offers a reload affordance on the screen itself, not only in an error state', async () => {
+    const onRetry = jest.fn();
+    await render(<ActivityView {...baseProps} state="ready" data={data} onRetry={onRetry} />);
+    fireEvent.press(screen.getByTestId('activity-refresh'));
+    expect(onRetry).toHaveBeenCalled();
   });
 
   it('replaces content when offline rather than ageing it', async () => {

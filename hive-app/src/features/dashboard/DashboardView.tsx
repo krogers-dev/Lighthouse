@@ -1,25 +1,22 @@
-/** The authorized Home view: one status, one attention item, one next
- * action. Pure and props-driven; every screen state is explicit. No
- * financial values, no live claims, no external side effects. */
+/** The authorized Home view: the scope's cases, newest first, each with
+ * one status, one attention item, and one owned next action (WO-002 R1).
+ * Pure and props-driven; every screen state is explicit. No financial
+ * values, no live claims, no external side effects. */
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import type { SafeError } from '@/core/errors';
-import type { CaseStatus, DashboardSnapshot } from '@/data/supabase/repositories';
-import type { MembershipRole } from '@/tenancy/types';
+import type { CaseSummary, ScopedList } from '@/data/supabase/repositories';
 import {
-  AppText,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  OfflineState,
-  StatusBadge,
-  useThemeColors,
-} from '@/ui';
-import { radii, spacing } from '@/ui/tokens';
-import type { StatusKind } from '@/ui/primitives/StatusBadge';
-
+  CASE_STATUS_PRESENTATION,
+  OWNER_LABEL,
+  formatServerTimestamp,
+  recordedThroughLabel,
+} from '@/features/shared/labels';
+import { ScopedStates } from '@/features/shared/ScopedStates';
 import type { ScopedLoadStateName } from '@/features/shared/useScopedLoad';
+import { AppText, Button, EmptyState, StatusBadge, useThemeColors } from '@/ui';
+import { radii, spacing } from '@/ui/tokens';
 
 /** The dashboard shows exactly the shared scoped-load states. */
 export type DashboardStateName = ScopedLoadStateName;
@@ -27,7 +24,7 @@ export type DashboardStateName = ScopedLoadStateName;
 export interface DashboardViewProps {
   state: DashboardStateName;
   workspaceName: string;
-  snapshot?: DashboardSnapshot;
+  data?: ScopedList<CaseSummary>;
   error?: SafeError;
   onRetry: () => void;
   onSwitchScope?: () => void;
@@ -35,42 +32,63 @@ export interface DashboardViewProps {
 
 const styles = StyleSheet.create({
   container: { gap: spacing.lg },
+  list: { gap: spacing.sm },
   card: {
     borderRadius: radii.lg,
+    borderWidth: 1,
     padding: spacing.md,
     gap: spacing.sm,
   },
+  block: { gap: spacing.xs },
 });
 
-const STATUS_PRESENTATION: Record<CaseStatus, { kind: StatusKind; label: string }> = {
-  DRAFT: { kind: 'neutral', label: 'Being set up' },
-  INTAKE_RECORDED: { kind: 'neutral', label: 'Received' },
-  EVIDENCE_PENDING: { kind: 'attention', label: 'Waiting on records' },
-  READY_FOR_REVIEW: { kind: 'neutral', label: 'Ready for review' },
-  IN_REVIEW: { kind: 'neutral', label: 'In review' },
-  APPROVAL_PENDING: { kind: 'neutral', label: 'Awaiting approval' },
-  APPROVED: { kind: 'stable', label: 'Approved' },
-  RETURNED: { kind: 'attention', label: 'Needs another pass' },
-  HOLD: { kind: 'blocked', label: 'On hold' },
-};
-
-const OWNER_LABEL: Record<MembershipRole, string> = {
-  client_user: 'You',
-  intake: 'Honeybee intake',
-  preparer: 'Your preparer',
-  reviewer: 'Reviewer',
-  approver: 'Approver',
-};
+function CaseCard({ item }: { item: CaseSummary }): React.JSX.Element {
+  const colors = useThemeColors();
+  const presentation = CASE_STATUS_PRESENTATION[item.status];
+  return (
+    <View
+      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.divider }]}
+      testID={`dashboard-case-${item.id}`}
+    >
+      <AppText variant="heading">{item.title}</AppText>
+      <StatusBadge kind={presentation.kind} label={presentation.label} />
+      <AppText variant="caption" tone="secondary">
+        {`Status changed ${formatServerTimestamp(item.statusChangedAt)}`}
+      </AppText>
+      {item.attentionSummary ? (
+        <View style={styles.block}>
+          <AppText variant="label">Needs attention</AppText>
+          <AppText variant="body">{item.attentionSummary}</AppText>
+        </View>
+      ) : (
+        <AppText variant="body" tone="secondary">
+          Nothing is waiting on you right now.
+        </AppText>
+      )}
+      {item.nextActionSummary ? (
+        <View style={styles.block}>
+          <AppText variant="label">Next action</AppText>
+          <AppText variant="body">{item.nextActionSummary}</AppText>
+          {item.nextActionOwnerRole ? (
+            <AppText variant="caption" tone="secondary">
+              {`Owner: ${OWNER_LABEL[item.nextActionOwnerRole]}`}
+            </AppText>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 export function DashboardView({
   state,
   workspaceName,
-  snapshot,
+  data,
   error,
   onRetry,
   onSwitchScope,
 }: DashboardViewProps): React.JSX.Element {
-  const colors = useThemeColors();
+  const recordedThrough = recordedThroughLabel(data?.recordedThrough ?? null);
   return (
     <View style={styles.container} testID="dashboard">
       <AppText variant="title" accessibilityRole="header">
@@ -80,43 +98,14 @@ export function DashboardView({
         {workspaceName}
       </AppText>
 
-      {state === 'loading' ? (
-        <LoadingState label="Loading your view" testID="dashboard-loading" />
-      ) : null}
-
-      {state === 'offline' ? <OfflineState onRetry={onRetry} testID="dashboard-offline" /> : null}
-
-      {state === 'expired' ? (
-        <EmptyState
-          title="Session ended"
-          body="Your session ended. Sign in again to continue."
-          testID="dashboard-expired"
-        />
-      ) : null}
-
-      {state === 'denied' ? (
-        <EmptyState
-          title="No access to this workspace"
-          body="Your access here has changed. If this seems wrong, contact Honeybee Accounting."
-          actionLabel={onSwitchScope ? 'Choose a workspace' : undefined}
-          onAction={onSwitchScope}
-          testID="dashboard-denied"
-        />
-      ) : null}
-
-      {state === 'stale_scope' ? (
-        <EmptyState
-          title="Your access changed"
-          body="This workspace is no longer available to you. Choose a workspace to continue."
-          actionLabel={onSwitchScope ? 'Choose a workspace' : undefined}
-          onAction={onSwitchScope}
-          testID="dashboard-stale"
-        />
-      ) : null}
-
-      {state === 'error' && error ? (
-        <ErrorState error={error} onRetry={onRetry} testID="dashboard-error" />
-      ) : null}
+      <ScopedStates
+        state={state}
+        testIDPrefix="dashboard"
+        loadingLabel="Loading your view"
+        error={error}
+        onRetry={onRetry}
+        onSwitchScope={onSwitchScope}
+      />
 
       {state === 'empty' ? (
         <EmptyState
@@ -126,41 +115,25 @@ export function DashboardView({
         />
       ) : null}
 
-      {state === 'ready' && snapshot && snapshot.caseStatus ? (
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: colors.surface, borderColor: colors.divider, borderWidth: 1 },
-          ]}
-          testID="dashboard-ready"
-        >
-          <AppText variant="heading">{snapshot.caseTitle ?? 'Current work'}</AppText>
-          <StatusBadge
-            kind={STATUS_PRESENTATION[snapshot.caseStatus].kind}
-            label={STATUS_PRESENTATION[snapshot.caseStatus].label}
-            testID="dashboard-status"
-          />
-          {snapshot.attentionSummary ? (
-            <View>
-              <AppText variant="label">Needs attention</AppText>
-              <AppText variant="body">{snapshot.attentionSummary}</AppText>
-            </View>
-          ) : (
-            <AppText variant="body" tone="secondary">
-              Nothing is waiting on you right now.
+      {state === 'ready' && data ? (
+        <View style={styles.list} testID="dashboard-list">
+          {data.items.map((item) => (
+            <CaseCard key={item.id} item={item} />
+          ))}
+        </View>
+      ) : null}
+
+      {/* R7: a reload affordance on the screen itself, not only inside an
+          error state. There is no background polling, so this is the only
+          way content refreshes. */}
+      {state === 'ready' || state === 'empty' ? (
+        <View style={styles.block}>
+          {recordedThrough ? (
+            <AppText variant="caption" tone="secondary" testID="dashboard-recorded-through">
+              {recordedThrough}
             </AppText>
-          )}
-          {snapshot.nextActionSummary ? (
-            <View>
-              <AppText variant="label">Next action</AppText>
-              <AppText variant="body">{snapshot.nextActionSummary}</AppText>
-              {snapshot.nextActionOwnerRole ? (
-                <AppText variant="caption" tone="secondary">
-                  {`Owner: ${OWNER_LABEL[snapshot.nextActionOwnerRole]}`}
-                </AppText>
-              ) : null}
-            </View>
           ) : null}
+          <Button kind="secondary" label="Refresh" onPress={onRetry} testID="dashboard-refresh" />
         </View>
       ) : null}
     </View>

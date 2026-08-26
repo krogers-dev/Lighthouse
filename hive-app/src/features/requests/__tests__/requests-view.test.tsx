@@ -92,6 +92,24 @@ describe('RequestsView', () => {
     expect(screen.queryByTestId('requests-recorded-through')).toBeNull();
   });
 
+  it('offers a reload affordance on the screen itself, not only in an error state', async () => {
+    const onRetry = jest.fn();
+    await render(<RequestsView {...baseProps} state="ready" data={data} onRetry={onRetry} />);
+    fireEvent.press(screen.getByTestId('requests-refresh'));
+    expect(onRetry).toHaveBeenCalled();
+    // And in the empty state, where there is nothing to be current about.
+    const empty = await render(
+      <RequestsView
+        {...baseProps}
+        state="empty"
+        data={{ items: [], recordedThrough: null }}
+        onRetry={onRetry}
+      />,
+    );
+    expect(empty.getByTestId('requests-refresh')).toBeTruthy();
+    expect(empty.queryByTestId('requests-recorded-through')).toBeNull();
+  });
+
   it('ships no respond, upload, or edit control anywhere', async () => {
     await render(<RequestsView {...baseProps} state="ready" data={data} />);
     for (const forbidden of ['Respond', 'Reply', 'Upload', 'Attach', 'Edit', 'Send']) {

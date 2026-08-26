@@ -1,0 +1,34 @@
+appId: com.myhbcfo.hive.development
+name: Revoked membership denies the read surfaces without showing stale rows
+tags:
+  - milestone1
+# Pre-steps:
+#   1. Seeded stack up; signed in as client.owner@example.invalid with the
+#      Harbor Light Bakery workspace selected (sign-in.yaml).
+#   2. WHILE THE APP IS OPEN on Requests, revoke that membership
+#      server-side, from the operator machine:
+#        node scripts/local-supabase.mjs seed --revoke client.owner@example.invalid entityA1
+#      (any server-side membership delete for the selected scope does it).
+#
+# The point: authorization is enforced by RLS, never by the UI. Once the
+# membership is gone the rows are gone, and the screen must say the access
+# changed rather than continue showing what it fetched a moment earlier.
+---
+- launchApp:
+    clearState: false
+- tapOn:
+    id: 'nav-requests'
+- assertVisible:
+    id: 'requests-list'
+# Membership revoked out-of-band at this point; reload.
+- tapOn:
+    id: 'requests-refresh'
+- extendedWaitUntil:
+    visible:
+      id: 'requests-stale'
+    timeout: 20000
+# No previously fetched row survives the revocation.
+- assertNotVisible:
+    id: 'requests-list'
+- assertNotVisible: 'Bank statement for the closing month \(Synthetic\)'
+- assertVisible: 'Choose a workspace'

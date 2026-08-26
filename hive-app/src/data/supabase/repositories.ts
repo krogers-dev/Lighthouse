@@ -23,10 +23,13 @@ export type CaseStatus =
   | 'RETURNED'
   | 'HOLD';
 
-export interface DashboardSnapshot {
-  caseTitle: string | null;
-  caseStatus: CaseStatus | null;
-  statusChangedAt: string | null;
+/** One case in the selected scope, with the single most important
+ * attention item and the owned next action attached (WO-002 R1). */
+export interface CaseSummary {
+  id: string;
+  title: string;
+  status: CaseStatus;
+  statusChangedAt: string;
   attentionSummary: string | null;
   nextActionSummary: string | null;
   nextActionOwnerRole: MembershipRole | null;
@@ -61,7 +64,7 @@ export type ClientAccessor = () => HiveSupabaseClient;
 
 /** What screens depend on; DashboardRepository is the production binding. */
 export interface DashboardLoader {
-  load(scope: ScopeKey): Promise<DashboardSnapshot>;
+  load(scope: ScopeKey): Promise<ScopedList<CaseSummary>>;
 }
 
 export class DashboardRepository implements ScopedResource, DashboardLoader {
@@ -84,57 +87,59 @@ export class DashboardRepository implements ScopedResource, DashboardLoader {
     this.unregister();
   }
 
-  async load(scope: ScopeKey): Promise<DashboardSnapshot> {
+  /** The scope's cases, newest first (WO-002 R1).
+   *
+   * Three queries, not one per case: the children are fetched for the
+   * whole scope and grouped in memory. A per-case round trip would be an
+   * N+1 that grows with the workspace, and every one of those queries
+   * would have to repeat the scope triple correctly to stay safe.
+   * PostgREST orders each child set newest-first, so the first row seen
+   * for a case id is the one to show. */
+  async load(scope: ScopeKey): Promise<ScopedList<CaseSummary>> {
     const client = this.getClient();
     try {
-      const cases = await client
-        .from('cases')
-        .select('id, title, status, status_changed_at')
-        .eq('environment_id', scope.environmentId)
-        .eq('client_id', scope.clientId)
-        .eq('entity_id', scope.entityId)
-        .order('created_at', { ascending: false })
-        .limit(1);
+      const scoped = <T extends { eq: (c: string, v: string) => T }>(builder: T): T =>
+        builder
+          .eq('environment_id', scope.environmentId)
+          .eq('client_id', scope.clientId)
+          .eq('entity_id', scope.entityId);
+
+      const cases = await scoped(
+        client.from('cases').select('id, title, status, status_changed_at'),
+      ).order('created_at', { ascending: false });
       if (cases.error) throw cases.error;
-      const currentCase = cases.data[0] ?? null;
-      if (!currentCase) {
-        return {
-          caseTitle: null,
-          caseStatus: null,
-          statusChangedAt: null,
-          attentionSummary: null,
-          nextActionSummary: null,
-          nextActionOwnerRole: null,
-        };
-      }
-      const attention = await client
-        .from('case_attention_items')
-        .select('summary')
-        .eq('environment_id', scope.environmentId)
-        .eq('client_id', scope.clientId)
-        .eq('entity_id', scope.entityId)
-        .eq('case_id', currentCase.id)
-        .order('created_at', { ascending: false })
-        .limit(1);
+      if (cases.data.length === 0) return { items: [], recordedThrough: null };
+
+      const attention = await scoped(
+        client.from('case_attention_items').select('case_id, summary'),
+      ).order('created_at', { ascending: false });
       if (attention.error) throw attention.error;
-      const nextAction = await client
-        .from('case_next_actions')
-        .select('summary, owner_role')
-        .eq('environment_id', scope.environmentId)
-        .eq('client_id', scope.clientId)
-        .eq('entity_id', scope.entityId)
-        .eq('case_id', currentCase.id)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      if (nextAction.error) throw nextAction.error;
-      return {
-        caseTitle: currentCase.title,
-        caseStatus: currentCase.status as CaseStatus,
-        statusChangedAt: currentCase.status_changed_at,
-        attentionSummary: attention.data[0]?.summary ?? null,
-        nextActionSummary: nextAction.data[0]?.summary ?? null,
-        nextActionOwnerRole: (nextAction.data[0]?.owner_role as MembershipRole | undefined) ?? null,
+      const nextActions = await scoped(
+        client.from('case_next_actions').select('case_id, summary, owner_role'),
+      ).order('created_at', { ascending: false });
+      if (nextActions.error) throw nextActions.error;
+
+      const firstByCase = <T extends { case_id: string }>(rows: readonly T[]): Map<string, T> => {
+        const map = new Map<string, T>();
+        for (const row of rows) if (!map.has(row.case_id)) map.set(row.case_id, row);
+        return map;
       };
+      const topAttention = firstByCase(attention.data);
+      const topNextAction = firstByCase(nextActions.data);
+
+      const items = cases.data.map((row) => {
+        const nextAction = topNextAction.get(row.id);
+        return {
+          id: row.id,
+          title: row.title,
+          status: row.status as CaseStatus,
+          statusChangedAt: row.status_changed_at,
+          attentionSummary: topAttention.get(row.id)?.summary ?? null,
+          nextActionSummary: nextAction?.summary ?? null,
+          nextActionOwnerRole: (nextAction?.owner_role as MembershipRole | undefined) ?? null,
+        };
+      });
+      return { items, recordedThrough: newest(items.map((item) => item.statusChangedAt)) };
     } catch (error) {
       throw mapDbError(error);
     }

@@ -1,7 +1,7 @@
 {
   "lane": "QA-enabled positive control (expected to FAIL inspection)",
-  "command": "npx --no-install expo export --platform all --output-dir /tmp/hive-candidate-eTDetp",
-  "outputDir": "/tmp/hive-candidate-eTDetp",
+  "command": "npx --no-install expo export --platform all --output-dir /tmp/hive-candidate-nAZEDx",
+  "outputDir": "/tmp/hive-candidate-nAZEDx",
   "qaHooks": "enabled (positive control)",
   "profile": "candidate",
   "toolVersions": {
@@ -10,7 +10,7 @@
     "expo": "57.0.11"
   },
   "sourceCommit": {
-    "sha": "1daae45cfeca0a43fc96c28663b0040c2d1e9d34",
+    "sha": "98b8bc0e8953224537dc40cb7d4ef40cb5a2e7db",
     "dirty": true
   },
   "configManifest": {
@@ -29,7 +29,7 @@
     {
       "path": "+not-found.html",
       "bytes": 17981,
-      "sha256": "8f13ed563a58add6b41b16d5915433f1305a8e46058db9f26b21f308c7d57099"
+      "sha256": "1fde0b6665245614347c58bc32bf1732b3f3d8a16b2cc884e5cbea5bf37fc492"
     },
     {
       "path": "_expo/.routes.json",
@@ -37,29 +37,29 @@
       "sha256": "18234e6b8c5aee837883245f400d379f3f9686f1396b7d90d7ebcdad76c51d47"
     },
     {
-      "path": "_expo/static/js/android/entry-c904f0a13e4af1a37442c58f6990f4af.hbc",
-      "bytes": 3645238,
-      "sha256": "00f0759e883002edccef74833a57d683bf02002344eeaffbf8a523167685db9d"
+      "path": "_expo/static/js/android/entry-c5fdddb04215a3df0b4dc76b8ff088c0.hbc",
+      "bytes": 3646833,
+      "sha256": "7ccaaf4dffb28382bb9e1d922d2b38846ad7cd60114b949b0d015adef6eb76dc"
     },
     {
-      "path": "_expo/static/js/ios/entry-cd3b395b6323abd48e06d9f7ddae0356.hbc",
-      "bytes": 3342426,
-      "sha256": "440732fc598e66dc736dace2f8eddabeef3e678f15bfcccca8efdaa6268cd5bb"
+      "path": "_expo/static/js/ios/entry-9033791dd5cf5c073fd5b66e6afb8ecf.hbc",
+      "bytes": 3344071,
+      "sha256": "bcaac8e0a0480ce496d625a1b791c0f5282c013bf95fc079cfab94ae653f969c"
     },
     {
-      "path": "_expo/static/js/web/entry-3ce25bf630ec68715120d2391f331b53.js",
-      "bytes": 1552325,
-      "sha256": "275ebf533d8631c7d08de956a9be4c9b04c31786f58ece4e5f882cc017138400"
+      "path": "_expo/static/js/web/entry-c7a3017aa075fdb1fc66102bc1d33e15.js",
+      "bytes": 1553261,
+      "sha256": "d10b628223104deae2160ab8405fa7e7a40e5657c532656714885cbf37c2f7fb"
     },
     {
       "path": "_sitemap.html",
       "bytes": 17981,
-      "sha256": "8f13ed563a58add6b41b16d5915433f1305a8e46058db9f26b21f308c7d57099"
+      "sha256": "1fde0b6665245614347c58bc32bf1732b3f3d8a16b2cc884e5cbea5bf37fc492"
     },
     {
       "path": "activity.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "assets/017bc6ba3fc25503e5eb5e53826d48a8",
@@ -324,12 +324,12 @@
     {
       "path": "dashboard.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "fatal.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "favicon.ico",
@@ -339,58 +339,58 @@
     {
       "path": "help.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "index.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "metadata.json",
       "bytes": 3392,
-      "sha256": "95099e971519a8964f9cd72f190950b966f2be1b5d0f3e66dac2d5a6db2129a7"
+      "sha256": "b60a2ecc9d3030de40d9e4efa6ca798ba7c5dffde21db4923cbfda2ca6ff90ab"
     },
     {
       "path": "mfa.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "otp.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "quarantine.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "requests/[id].html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "requests/index.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "select-scope.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "settings.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     },
     {
       "path": "sign-in.html",
       "bytes": 19385,
-      "sha256": "8bef1fbeb5fc3c112cc17371f76820b6250eaea6e0a2045f2b410af1e53b2759"
+      "sha256": "52fc6ae8a472c01eca4f8194b167492d246c525dd1c4eb2af62fb46faf075bc4"
     }
   ],
-  "recordedAt": "2026-08-26T00:58:47.401Z"
+  "recordedAt": "2026-08-26T04:45:39.253Z"
 }

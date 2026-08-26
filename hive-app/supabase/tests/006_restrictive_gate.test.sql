@@ -62,8 +62,8 @@ select is((select count(*)::int from public.memberships), 2,
 select pg_temp.become_superuser() \gset
 
 select pg_temp.impersonate_email('mixed.same@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.cases), 1,
-  'mixed user at aal2: exactly the A1 case');                               -- 5
+select is((select count(*)::int from public.cases), 2,
+  'mixed user at aal2: exactly the A1 cases');                               -- 5
 select pg_temp.become_superuser() \gset
 
 -- BYPASS REGRESSION: add a permissive allow-all select policy. The
@@ -79,7 +79,7 @@ select is((select count(*)::int from public.cases), 0,
 select pg_temp.become_superuser() \gset
 
 select pg_temp.impersonate_email('mixed.same@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.cases), 3,
+select is((select count(*)::int from public.cases), 4,
   'at aal2 the synthetic bypass policy is what widens reach — the denial was the restrictive layer'); -- 7
 select pg_temp.become_superuser() \gset
 
@@ -88,21 +88,21 @@ select pg_temp.become_superuser() \gset
 select pg_temp.impersonate_email('client.owner@example.invalid', 'aal1') \gset
 select is((select count(*)::int from public.cases
            where entity_id in ('aaaaaaaa-1111-4000-8000-000000000001',
-                               'aaaaaaaa-2222-4000-8000-000000000002')), 1,
-  'client-only user keeps normal aal1 reach on their own scopes (the A1 case)'); -- 8
+                               'aaaaaaaa-2222-4000-8000-000000000002')), 2,
+  'client-only user keeps normal aal1 reach on their own scopes (both A1 cases)'); -- 8
 select pg_temp.become_superuser() \gset
 
 drop policy qa_bypass_allow_all on public.cases;
 
 -- After removing the synthetic policy, reach returns exactly to normal.
 select pg_temp.impersonate_email('mixed.same@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.cases), 1,
+select is((select count(*)::int from public.cases), 2,
   'reach returns to exact membership scope once the bypass policy is gone'); -- 9
 select pg_temp.become_superuser() \gset
 
 -- The restrictive layer never blocks aal2 staff (no over-blocking).
 select pg_temp.impersonate_email('reviewer.rae@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.cases), 1,
+select is((select count(*)::int from public.cases), 2,
   'aal2 staff reach is unaffected by the restrictive layer');               -- 10
 select pg_temp.become_superuser() \gset
 

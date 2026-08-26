@@ -46,8 +46,8 @@ select is((select count(*)::int from public.cases
 select pg_temp.become_superuser() \gset
 
 select pg_temp.impersonate_email('mixed.cross@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.cases), 2,
-  'cross-scope mixed user at aal2 sees exactly A1 and B1 cases');        -- 6
+select is((select count(*)::int from public.cases), 3,
+  'cross-scope mixed user at aal2 sees exactly the A1 and B1 cases');        -- 6
 select is((select count(*)::int from public.entities), 2,
   'cross-scope mixed user at aal2 sees exactly their two entities');     -- 7
 select is((select count(*)::int from public.cases
@@ -64,8 +64,8 @@ select is((select count(*)::int from public.memberships), 2,
 select pg_temp.become_superuser() \gset
 
 select pg_temp.impersonate_email('mixed.same@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.cases), 1,
-  'same-scope mixed user at aal2 sees exactly the A1 case');             -- 11
+select is((select count(*)::int from public.cases), 2,
+  'same-scope mixed user at aal2 sees exactly the A1 cases');             -- 11
 select is((select count(*)::int from public.entities), 1,
   'same-scope mixed user at aal2 sees exactly entity A1');               -- 12
 select pg_temp.become_superuser() \gset

@@ -1,0 +1,49 @@
+appId: com.myhbcfo.hive.development
+name: Offline replaces read-surface content rather than ageing it
+tags:
+  - milestone1
+# Pre-steps: seeded stack up, signed in as client.owner@example.invalid
+# with the Harbor Light Bakery workspace selected (sign-in.yaml).
+#
+# Threat T4: cached content presented as live. There is no persistent
+# response cache, so going offline must REPLACE what is on screen with the
+# offline state — never leave the previous rows visible and quietly stale.
+---
+- launchApp:
+    clearState: false
+- tapOn:
+    id: 'nav-requests'
+- assertVisible:
+    id: 'requests-list'
+- assertVisible: 'Bank statement for the closing month \(Synthetic\)'
+- setAirplaneMode: enabled
+# Reload with no connection: content is replaced, not aged.
+- tapOn:
+    id: 'requests-refresh'
+- extendedWaitUntil:
+    visible:
+      id: 'requests-offline'
+    timeout: 15000
+- assertNotVisible:
+    id: 'requests-list'
+- assertNotVisible: 'Bank statement for the closing month \(Synthetic\)'
+- assertNotVisible:
+    id: 'requests-recorded-through'
+# Activity behaves identically.
+- tapOn:
+    id: 'nav-activity'
+- extendedWaitUntil:
+    visible:
+      id: 'activity-offline'
+    timeout: 15000
+- assertNotVisible:
+    id: 'activity-list'
+# Recovery restores content once the connection returns.
+- setAirplaneMode: disabled
+- tapOn:
+    id: 'nav-requests'
+- extendedWaitUntil:
+    visible:
+      id: 'requests-list'
+    timeout: 20000
+- assertVisible: 'Bank statement for the closing month \(Synthetic\)'

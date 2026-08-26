@@ -59,8 +59,8 @@ select is((select count(*)::int from public.clients), 1,
   'client A owner sees only client A');                               -- 6
 select is((select count(*)::int from public.entities), 2,
   'client A owner sees only the two A entities');                     -- 7
-select is((select count(*)::int from public.cases), 1,
-  'client A owner sees only the A1 case');                            -- 8
+select is((select count(*)::int from public.cases), 2,
+  'client A owner sees exactly the two A1 cases');                            -- 8
 select is((select count(*)::int from public.case_attention_items), 1,
   'client A owner sees only their attention item');                   -- 9
 select is((select count(*)::int from public.case_next_actions), 1,
@@ -119,15 +119,15 @@ select pg_temp.become_superuser() \gset
 -- Staff roles see exactly their memberships; roles add no extra reach.
 -- ---------------------------------------------------------------------------
 select pg_temp.impersonate_email('intake.beth@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.cases), 3,
-  'intake sees the three cases across all four entities');            -- 22
+select is((select count(*)::int from public.cases), 4,
+  'intake sees the four cases across all four entities');            -- 22
 select is((select count(*)::int from public.entities), 4,
   'intake sees all four entities via memberships');                   -- 23
 select pg_temp.become_superuser() \gset
 
 select pg_temp.impersonate_email('preparer.pat@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.cases), 2,
-  'preparer sees only A1 and B1 cases');                              -- 24
+select is((select count(*)::int from public.cases), 3,
+  'preparer sees only the A1 and B1 cases');                              -- 24
 select pg_temp.become_superuser() \gset
 
 -- ---------------------------------------------------------------------------
@@ -146,7 +146,7 @@ select pg_temp.become_superuser() \gset
 -- service_role (server) still operates: bypassrls and privileged writer.
 -- ---------------------------------------------------------------------------
 select set_config('role', 'service_role', true) \gset
-select is((select count(*)::int from public.cases), 3,
+select is((select count(*)::int from public.cases), 4,
   'service_role sees all rows for server-side work');                 -- 28
 select lives_ok(
   $$select app_private.append_audit(

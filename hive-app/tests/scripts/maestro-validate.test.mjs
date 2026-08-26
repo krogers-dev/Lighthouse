@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import {
   collectTestIds,
+  collectTestIdsFromText,
   validateAllFlows,
   validateFlowText,
 } from '../../scripts/maestro-validate.mjs';
@@ -79,13 +80,50 @@ test('collectTestIds finds real testIDs from the app sources', () => {
   assert.ok(ids.has('dashboard-workspace'));
 });
 
+test('collectTestIds reads the three forms a real testID is written in', () => {
+  const ids = collectTestIds();
+  // 1. A JSX attribute, testID="x".
+  assert.ok(ids.has('dashboard-refresh'));
+  // 2. An object property, testID: 'x' (the nav item tables).
+  assert.ok(ids.has('nav-account'));
+  // 3. A `const <NAME>_TEST_IDS = { ... } as const;` table. These exist
+  //    BECAUSE the collector cannot see a template literal: a shared
+  //    component that built `${prefix}-offline` at runtime would let a
+  //    device flow reference an id no screen renders and still validate.
+  //    Each state id below is reachable only through that table.
+  for (const id of [
+    'requests-stale',
+    'activity-offline',
+    'request-detail-denied',
+    'dashboard-expired',
+  ]) {
+    assert.ok(ids.has(id), `${id} should be collected from a testID table`);
+  }
+});
+
+test('the testID-table form is parsed, not merely present in some other form', () => {
+  // A table whose ids appear nowhere else in the sources: if the table
+  // parser regressed, none of these would be found. Proves the parser
+  // itself, independent of what the app happens to render today.
+  const ids = collectTestIdsFromText(
+    'const SAMPLE_TEST_IDS = {\n' +
+      "  alpha: { loading: 'zzz-alpha-loading', error: 'zzz-alpha-error' },\n" +
+      "  beta: { loading: 'zzz-beta-loading' },\n" +
+      '} as const;\n',
+  );
+  assert.deepEqual([...ids].sort(), ['zzz-alpha-error', 'zzz-alpha-loading', 'zzz-beta-loading']);
+});
+
 test('EVERY real flow in .maestro/ validates cleanly', () => {
   const { problems, flowCount, scriptCount } = validateAllFlows();
   assert.deepEqual(problems, []);
   // 10 Milestone 0 critical-path flows, the RETURN-4 P1-8 pair (the
   // forced-failure confinement probe and the cleanup-only clipboard
-  // scrub), and the two Milestone 1 read-surface flows.
-  assert.equal(flowCount, 14);
+  // scrub), the two Milestone 1 read-surface flows (requests,
+  // activity-and-help), and the two Milestone 1 read-surface state
+  // flows (offline replaces content; revoked membership leaves no
+  // stale rows).
+  assert.equal(flowCount, 16);
   assert.ok(scriptCount >= 4);
 });
 

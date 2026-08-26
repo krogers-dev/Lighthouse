@@ -13,10 +13,54 @@ import { EmptyState, ErrorState, LoadingState, OfflineState } from '@/ui';
 
 import type { ScopedLoadStateName } from './useScopedLoad';
 
+/** Every state testID, written out as a literal.
+ *
+ * Built from a template literal these would be invisible to
+ * maestro:validate, which proves that each flow selector matches a testID
+ * that actually exists in the sources — a device flow could then reference
+ * an id no screen renders and still pass validation. One table also makes
+ * the whole ID surface auditable in a single place. */
+export const SCOPED_STATE_TEST_IDS = {
+  dashboard: {
+    loading: 'dashboard-loading',
+    offline: 'dashboard-offline',
+    expired: 'dashboard-expired',
+    denied: 'dashboard-denied',
+    stale: 'dashboard-stale',
+    error: 'dashboard-error',
+  },
+  requests: {
+    loading: 'requests-loading',
+    offline: 'requests-offline',
+    expired: 'requests-expired',
+    denied: 'requests-denied',
+    stale: 'requests-stale',
+    error: 'requests-error',
+  },
+  'request-detail': {
+    loading: 'request-detail-loading',
+    offline: 'request-detail-offline',
+    expired: 'request-detail-expired',
+    denied: 'request-detail-denied',
+    stale: 'request-detail-stale',
+    error: 'request-detail-error',
+  },
+  activity: {
+    loading: 'activity-loading',
+    offline: 'activity-offline',
+    expired: 'activity-expired',
+    denied: 'activity-denied',
+    stale: 'activity-stale',
+    error: 'activity-error',
+  },
+} as const;
+
+export type ScopedStatesSurface = keyof typeof SCOPED_STATE_TEST_IDS;
+
 export interface ScopedStatesProps {
   state: ScopedLoadStateName;
-  /** Prefixes every testID, e.g. "requests" -> "requests-loading". */
-  testIDPrefix: string;
+  /** Which screen's testID set to use. */
+  testIDPrefix: ScopedStatesSurface;
   loadingLabel: string;
   error?: SafeError;
   onRetry: () => void;
@@ -31,18 +75,19 @@ export function ScopedStates({
   onRetry,
   onSwitchScope,
 }: ScopedStatesProps): React.JSX.Element | null {
+  const testIDs = SCOPED_STATE_TEST_IDS[testIDPrefix];
   if (state === 'loading') {
-    return <LoadingState label={loadingLabel} testID={`${testIDPrefix}-loading`} />;
+    return <LoadingState label={loadingLabel} testID={testIDs.loading} />;
   }
   if (state === 'offline') {
-    return <OfflineState onRetry={onRetry} testID={`${testIDPrefix}-offline`} />;
+    return <OfflineState onRetry={onRetry} testID={testIDs.offline} />;
   }
   if (state === 'expired') {
     return (
       <EmptyState
         title="Session ended"
         body="Your session ended. Sign in again to continue."
-        testID={`${testIDPrefix}-expired`}
+        testID={testIDs.expired}
       />
     );
   }
@@ -53,7 +98,7 @@ export function ScopedStates({
         body="Your access here has changed. If this seems wrong, contact Honeybee Accounting."
         actionLabel={onSwitchScope ? 'Choose a workspace' : undefined}
         onAction={onSwitchScope}
-        testID={`${testIDPrefix}-denied`}
+        testID={testIDs.denied}
       />
     );
   }
@@ -64,12 +109,12 @@ export function ScopedStates({
         body="This workspace is no longer available to you. Choose a workspace to continue."
         actionLabel={onSwitchScope ? 'Choose a workspace' : undefined}
         onAction={onSwitchScope}
-        testID={`${testIDPrefix}-stale`}
+        testID={testIDs.stale}
       />
     );
   }
   if (state === 'error' && error) {
-    return <ErrorState error={error} onRetry={onRetry} testID={`${testIDPrefix}-error`} />;
+    return <ErrorState error={error} onRetry={onRetry} testID={testIDs.error} />;
   }
   return null;
 }

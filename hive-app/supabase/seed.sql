@@ -56,6 +56,17 @@ insert into public.cases (id, environment_id, client_id, entity_id, title, statu
    'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-2222-4000-8000-000000000002',
    'Entity setup checklist (Synthetic)', 'INTAKE_RECORDED');
 
+-- A SECOND case on entity A1 (WO-002 R1). Home lists the scope's cases
+-- newest first, so one case per entity would have made the ordering
+-- unobservable. Explicit older timestamps make "newest first" a real
+-- assertion rather than a property of insertion order.
+insert into public.cases
+  (id, environment_id, client_id, entity_id, title, status, status_changed_at, created_at) values
+  ('eeeeeeee-0000-4000-8000-0000000000a2', '11111111-0000-4000-8000-000000000001',
+   'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-1111-4000-8000-000000000001',
+   '2024 books close (Synthetic)', 'APPROVED',
+   '2026-06-30T17:00:00Z', '2026-06-01T09:00:00Z');
+
 insert into public.case_attention_items (id, environment_id, client_id, entity_id, case_id, summary) values
   ('ffffffff-0000-4000-8000-0000000000a1', '11111111-0000-4000-8000-000000000001',
    'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-1111-4000-8000-000000000001',

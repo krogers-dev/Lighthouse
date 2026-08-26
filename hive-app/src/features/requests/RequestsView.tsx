@@ -15,7 +15,7 @@ import {
 } from '@/features/shared/labels';
 import { ScopedStates } from '@/features/shared/ScopedStates';
 import type { ScopedLoadStateName } from '@/features/shared/useScopedLoad';
-import { AppText, EmptyState, StatusBadge, useThemeColors } from '@/ui';
+import { AppText, Button, EmptyState, StatusBadge, useThemeColors } from '@/ui';
 import { radii, spacing } from '@/ui/tokens';
 
 export interface RequestsViewProps {
@@ -41,6 +41,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   meta: { gap: spacing.xs },
+  refresh: { gap: spacing.xs },
 });
 
 function RequestCard({
@@ -136,10 +137,17 @@ export function RequestsView({
         </View>
       ) : null}
 
-      {state === 'ready' && recordedThrough ? (
-        <AppText variant="caption" tone="secondary" testID="requests-recorded-through">
-          {recordedThrough}
-        </AppText>
+      {/* R7: a reload affordance on the screen itself, not only inside an
+          error state. There is no background polling. */}
+      {state === 'ready' || state === 'empty' ? (
+        <View style={styles.refresh}>
+          {recordedThrough ? (
+            <AppText variant="caption" tone="secondary" testID="requests-recorded-through">
+              {recordedThrough}
+            </AppText>
+          ) : null}
+          <Button kind="secondary" label="Refresh" onPress={onRetry} testID="requests-refresh" />
+        </View>
       ) : null}
     </View>
   );

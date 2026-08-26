@@ -10,6 +10,7 @@
 import type {
   ActivityActorRole,
   ActivityEventKind,
+  CaseStatus,
   RequestStatus,
 } from '@/data/supabase/repositories';
 import type { MembershipRole } from '@/tenancy/types';
@@ -27,6 +28,20 @@ export const OWNER_LABEL: Record<MembershipRole, string> = {
 export const ACTOR_LABEL: Record<ActivityActorRole, string> = {
   ...OWNER_LABEL,
   system: 'HIVE',
+};
+
+/** Case status in client language: never the raw enum, never
+ * accounting-software wording. */
+export const CASE_STATUS_PRESENTATION: Record<CaseStatus, { kind: StatusKind; label: string }> = {
+  DRAFT: { kind: 'neutral', label: 'Being set up' },
+  INTAKE_RECORDED: { kind: 'neutral', label: 'Received' },
+  EVIDENCE_PENDING: { kind: 'attention', label: 'Waiting on records' },
+  READY_FOR_REVIEW: { kind: 'neutral', label: 'Ready for review' },
+  IN_REVIEW: { kind: 'neutral', label: 'In review' },
+  APPROVAL_PENDING: { kind: 'neutral', label: 'Awaiting approval' },
+  APPROVED: { kind: 'stable', label: 'Approved' },
+  RETURNED: { kind: 'attention', label: 'Needs another pass' },
+  HOLD: { kind: 'blocked', label: 'On hold' },
 };
 
 export const REQUEST_STATUS_PRESENTATION: Record<

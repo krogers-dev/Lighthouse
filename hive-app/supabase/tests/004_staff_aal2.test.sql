@@ -45,7 +45,7 @@ select pg_temp.become_superuser() \gset
 
 -- The same staff member at aal2 has their full membership reach.
 select pg_temp.impersonate_email('intake.beth@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.cases), 3,
+select is((select count(*)::int from public.cases), 4,
   'staff at aal2 sees the cases their memberships cover');               -- 6
 select is((select count(*)::int from public.entities), 4,
   'staff at aal2 sees their entities');                                  -- 7
@@ -53,8 +53,8 @@ select pg_temp.become_superuser() \gset
 
 -- client_user access is unchanged at aal1.
 select pg_temp.impersonate_email('client.owner@example.invalid', 'aal1') \gset
-select is((select count(*)::int from public.cases), 1,
-  'client user at aal1 still sees their case');                          -- 8
+select is((select count(*)::int from public.cases), 2,
+  'client user at aal1 still sees their two A1 cases');                          -- 8
 select is((select count(*)::int from public.entities), 2,
   'client user at aal1 still sees their entities');                      -- 9
 select pg_temp.become_superuser() \gset

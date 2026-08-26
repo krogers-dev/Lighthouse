@@ -18,7 +18,7 @@ import {
 } from '@/features/shared/labels';
 import { ScopedStates } from '@/features/shared/ScopedStates';
 import type { ScopedLoadStateName } from '@/features/shared/useScopedLoad';
-import { AppText, EmptyState, useThemeColors } from '@/ui';
+import { AppText, Button, EmptyState, useThemeColors } from '@/ui';
 import { radii, spacing } from '@/ui/tokens';
 
 export interface ActivityViewProps {
@@ -33,6 +33,7 @@ export interface ActivityViewProps {
 const styles = StyleSheet.create({
   container: { gap: spacing.lg },
   list: { gap: spacing.sm },
+  refresh: { gap: spacing.xs },
   entry: {
     borderRadius: radii.md,
     borderWidth: 1,
@@ -98,10 +99,17 @@ export function ActivityView({
         </View>
       ) : null}
 
-      {state === 'ready' && recordedThrough ? (
-        <AppText variant="caption" tone="secondary" testID="activity-recorded-through">
-          {recordedThrough}
-        </AppText>
+      {/* R7: a reload affordance on the screen itself, not only inside an
+          error state. There is no background polling. */}
+      {state === 'ready' || state === 'empty' ? (
+        <View style={styles.refresh}>
+          {recordedThrough ? (
+            <AppText variant="caption" tone="secondary" testID="activity-recorded-through">
+              {recordedThrough}
+            </AppText>
+          ) : null}
+          <Button kind="secondary" label="Refresh" onPress={onRetry} testID="activity-refresh" />
+        </View>
       ) : null}
     </View>
   );

@@ -313,6 +313,9 @@ async function enrollAndVerifyTotp(identity, session, label) {
 
 const CASES = {
   a1: 'eeeeeeee-0000-4000-8000-0000000000a1',
+  // Second case on entity A1 (WO-002 R1): Home lists the scope's cases,
+  // so a single case per entity would leave ordering unobserved.
+  a1Older: 'eeeeeeee-0000-4000-8000-0000000000a2',
   b1: 'eeeeeeee-0000-4000-8000-0000000000b1',
   b2: 'eeeeeeee-0000-4000-8000-0000000000b2',
 };
@@ -352,7 +355,7 @@ const REACH = {
     environments: [SCOPE.environmentId],
     clients: [SCOPE.clientA],
     entities: [SCOPE.entityA1],
-    cases: [CASES.a1],
+    cases: [CASES.a1, CASES.a1Older],
     case_attention_items: [ATTENTION.a1],
     case_next_actions: [NEXT_ACTIONS.a1],
     requests: [REQUESTS.a1, REQUESTS.a2],
@@ -362,7 +365,7 @@ const REACH = {
     environments: [SCOPE.environmentId],
     clients: [SCOPE.clientA, SCOPE.clientB],
     entities: [SCOPE.entityA1, SCOPE.entityB1],
-    cases: [CASES.a1, CASES.b1],
+    cases: [CASES.a1, CASES.a1Older, CASES.b1],
     case_attention_items: [ATTENTION.a1, ATTENTION.b1],
     case_next_actions: [NEXT_ACTIONS.a1, NEXT_ACTIONS.b1],
     requests: [REQUESTS.a1, REQUESTS.a2, REQUESTS.b1],

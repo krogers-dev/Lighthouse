@@ -282,14 +282,37 @@ export function collectTestIds(root = appRoot) {
     .filter((file) => /\.(tsx|ts)$/.test(file));
   const ids = new Set();
   for (const file of files) {
-    const content = readFileSync(path.join(root, file), 'utf8');
-    // Both the JSX attribute form (testID="x") and the object-property
-    // form (testID: 'x') used by declarative nav/menu tables. A testID
-    // declared in a table is still a testID; missing that form would make
-    // the existence check silently weaker for exactly the screens that
-    // list their destinations in one place.
-    for (const match of content.matchAll(/testID\s*[=:]\s*["']([^"']+)["']/g)) {
-      ids.add(match[1]);
+    collectTestIdsFromText(readFileSync(path.join(root, file), 'utf8'), ids);
+  }
+  return ids;
+}
+
+/** Harvest every testID declared in one source file's text.
+ *
+ * Separate from the file walk so the three forms below can be exercised
+ * directly: a regression here silently WEAKENS the existence check rather
+ * than breaking it, so it has to be provable against text that names ids
+ * no screen renders. */
+export function collectTestIdsFromText(content, ids = new Set()) {
+  // Both the JSX attribute form (testID="x") and the object-property
+  // form (testID: 'x') used by declarative nav/menu tables. A testID
+  // declared in a table is still a testID; missing that form would make
+  // the existence check silently weaker for exactly the screens that
+  // list their destinations in one place.
+  for (const match of content.matchAll(/testID\s*[=:]\s*["']([^"']+)["']/g)) {
+    ids.add(match[1]);
+  }
+  // Declared testID TABLES: `const SOMETHING_TEST_IDS = { ... } as const`.
+  // Shared state components render `testID={testIDs.offline}`, so the
+  // literal never sits next to the word testID and the forms above miss
+  // it — which would let a flow reference a state id no screen renders
+  // and still pass. The naming convention is what makes the block
+  // identifiable; every string literal inside one is a testID.
+  for (const block of content.matchAll(
+    /const\s+\w*TEST_IDS\b[^=]*=\s*\{([\s\S]*?)\n\}\s*as const;/g,
+  )) {
+    for (const literal of block[1].matchAll(/["']([^"'\s]+)["']/g)) {
+      ids.add(literal[1]);
     }
   }
   return ids;

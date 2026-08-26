@@ -1,7 +1,7 @@
 # Milestone 1 execution record — read-only client dashboard
 
 Work Order 002 moved from draft to execution on Kody's instruction of
-2026-08-22. Two checkpoints are complete and pushed.
+2026-08-22. Three checkpoints are complete and pushed.
 
 ## Authorization note
 
@@ -52,6 +52,62 @@ existing tests prove the extraction is faithful.
 | Dates rendered through `Date`        | Parsed by parts. `new Date('2026-08-10')` is UTC midnight and renders as the previous day west of Greenwich, so a server-recorded date would appear to move with the phone's location |
 | A support address or phone number    | Help says contact details will be listed once confirmed. Inventing a channel is inventing a channel                                                                                   |
 
+## Checkpoint 3 — the case list, reload affordances, and accessibility
+
+Two requirements were still only partly met after checkpoint 2. A re-read
+of the work order found both.
+
+**R1 — Home lists the scope's cases, newest first.** The Milestone 0
+dashboard showed a single case, which is what the empty-state milestone
+needed and not what R1 asks for. `DashboardRepository.load` now returns a
+`ScopedList<CaseSummary>` built from three scoped queries plus in-memory
+grouping, rather than one query per case — the N+1 that a naive list
+would introduce is exactly the kind of thing that only shows up once a
+workspace has more than one case. A second synthetic case was seeded
+(`2024 books close (Synthetic)`, APPROVED, status changed 2026-06-30) so
+newest-first ordering is provable rather than asserted against a
+single-element list.
+
+**R7 — a reload affordance on the screen itself.** Retry existed only
+inside error and offline states, so a reader on a healthy screen had no
+way to refresh: there is no background polling, by design. Home,
+Requests, and Activity now each carry a `Refresh` control in the ready
+and empty states, next to the "Recorded through" line, so what is being
+refreshed and how current it is sit together.
+
+**Two more Maestro flows** cover the read surfaces' state behaviour:
+`read-surfaces-offline.yaml` proves offline REPLACES content rather than
+ageing it (threat T4) and then recovers, and `read-surfaces-denied.yaml`
+proves a revoked membership leaves no stale row on screen.
+
+**A4 accessibility checks** now cover every Milestone 1 screen at the
+screen level, not just the primitive level:
+`read-surface-accessibility.test.tsx` renders each real view and asserts
+that the first header names the screen, that every element responding to
+a touch carries both a role and a non-empty accessible name, that each
+control meets the 48dp height floor, that status is never colour-only,
+and that Help ships no interactive control at all. Each assertion was
+red-checked against a deliberate regression — a bare `Pressable`, a 32dp
+button, and a title stripped of `accessibilityRole` — and each one failed
+before being restored.
+
+Interactive elements are found by the responder handlers React Native
+attaches to a pressable's host view, never by `accessibilityRole`: a
+role-based query cannot see the defect being looked for, which is an
+element that reacts to a tap while carrying no role.
+
+### A testID collector that could go quietly weak
+
+`maestro:validate` proves every flow selector matches a testID that
+really exists. The shared state component renders `testID={testIDs.offline}`,
+so the literal no longer sits next to the word `testID` and the collector
+stopped seeing it — a flow could then have named a state id no screen
+renders and still validated. The state ids are now a declared
+`SCOPED_STATE_TEST_IDS` table and the collector parses that form
+explicitly. Because this failure mode WEAKENS a check rather than
+breaking it, the collector is now tested directly, against text naming
+ids that appear nowhere in the app.
+
 ## Defect found and fixed: bundle inspector false positive
 
 The real export failed `bundle:inspect` with
@@ -81,27 +137,43 @@ The web export was served locally and rendered in headless Chromium.
 Web is an export and inspection target only. iOS and Android are the
 product, and neither has been run — the device lane stays HOLD.
 
-## Gate results (2026-08-22, this container)
+## Gate results (2026-08-26, this container, re-run at checkpoint 3)
 
-| Lane                                           | Result                                                                             |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------- |
-| verify:toolchain                               | exit 0 — Node 22.23.2, npm 10.9.8, Expo 57.0.11, RN 0.86.2, React 19.2.3, TS 6.0.3 |
-| lint / format:check / typecheck                | exit 0 / exit 0 / exit 0, zero warnings                                            |
-| jest                                           | **331 tests**, 28 suites, all passing (276 before this milestone)                  |
-| node:test script suites                        | **248 tests**, all passing                                                         |
-| pgTAP                                          | **120 tests** across 7 files (86 across 6 before), all passing                     |
-| db:types:check                                 | exit 0                                                                             |
-| maestro:validate                               | exit 0 — **14 flows**, 4 helper scripts                                            |
-| config:check (development)                     | exit 0                                                                             |
-| expo export --platform all                     | exit 0 — **15 routes** (11 before)                                                 |
-| bundle:inspect (development)                   | exit 0 — 20 text + 53 binary files                                                 |
-| export:candidate / --qa-control                | exit 0 / exit 0 as a control (QA export correctly REJECTED)                        |
-| secrets:scan                                   | **exit 3 (HOLD)** — exceptions proposed, not ratified                              |
-| audit:gate                                     | **exit 3 (HOLD)** — waivers proposed, not ratified                                 |
-| iOS/Android builds, devices, Maestro execution | **HOLD** — no device, simulator, or Maestro binary here                            |
-| Supabase CLI stack (Docker)                    | **HOLD** — no Docker in this container; pgTAP ran on the local PostgreSQL fallback |
+| Lane                                           | Result                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| verify:toolchain                               | exit 0 — Node 22.23.2, npm 10.9.8, Expo 57.0.11, RN 0.86.2, React 19.2.3, TS 6.0.3               |
+| lint / format:check / typecheck                | exit 0 / exit 0 / exit 0, zero warnings                                                          |
+| jest                                           | **369 tests**, 29 suites, all passing (331 at checkpoint 2, 276 before this milestone)           |
+| node:test script suites                        | **250 tests**, all passing (248 at checkpoint 2)                                                 |
+| pgTAP                                          | **120 tests** across 7 files (86 across 6 before), all passing                                   |
+| db:types:check                                 | exit 0 — committed types still match the schema                                                  |
+| maestro:validate                               | exit 0 — **16 flows**, 4 helper scripts                                                          |
+| config:check (development)                     | exit 0                                                                                           |
+| expo export --platform all                     | exit 0 — **15 routes**                                                                           |
+| bundle:inspect (development)                   | exit 0 — 20 text + 53 binary files                                                               |
+| export:candidate / --qa-control                | exit 0 / exit 0 as a control (QA export correctly REJECTED on all three platform bundles)        |
+| secrets:scan                                   | **exit 3 (HOLD)** — 4 history exceptions proposed, not ratified                                  |
+| audit:gate                                     | **exit 3 (HOLD)** — 2 waivers proposed, not ratified                                             |
+| iOS/Android builds, devices, Maestro execution | **HOLD** — no device, simulator, or Maestro binary here                                          |
+| Supabase CLI stack (Docker)                    | **HOLD** — Docker client present, daemon unreachable; pgTAP ran on the local PostgreSQL fallback |
+
+The two HOLD exits are the designed fail-closed state, not a regression:
+every waiver and history exception stays `proposed` under the standing
+instruction not to ratify anything.
+
+## WO-002 acceptance status
+
+| Item                                  | Status                                                                                                                        |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| A1 — pgTAP RLS + negative matrix      | **Met.** 120 tests across 7 files, including mixed-role AAL1 zero-row proofs for both new tables                              |
+| A2 — repository/screen contract tests | **Met.** ScopeKey required; late responses dropped across scope AND membership switches; every state renders per screen       |
+| A3 — black-box e2e through PostgREST  | **HOLD.** Harness and fixtures updated and committed; it cannot run without the Supabase CLI stack, and Docker is unreachable |
+| A4 — accessibility jest checks        | **Met for the jest lane** (see checkpoint 3). Device screen-reader QA and measured contrast on hardware stay HOLD             |
+| A5 — Maestro device flows             | **Authored and validated, HOLD to execute.** 16 flows parse and every selector resolves; no Maestro binary or device here     |
+| A6 — Milestone 0 gates re-run green   | **Partly.** Every runnable gate is green above; the Docker and device lanes stay HOLD, and D1 (repo split) has not happened   |
 
 ## Next
 
 Device-lane evidence for both milestones on a machine with Docker and a
-simulator, owner Kody. The run path is in README.md.
+simulator, owner Kody, which is what closes A3, A5, and the hardware half
+of A4 in one pass. The run path is in README.md.

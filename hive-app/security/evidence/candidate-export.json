@@ -1,7 +1,7 @@
 {
   "lane": "authorized synthetic candidate lane — expressly synthetic nonfunctional configuration; NOT a functional build",
-  "command": "npx --no-install expo export --platform all --output-dir /tmp/hive-candidate-yOU5wx",
-  "outputDir": "/tmp/hive-candidate-yOU5wx",
+  "command": "npx --no-install expo export --platform all --output-dir /tmp/hive-candidate-UzIA50",
+  "outputDir": "/tmp/hive-candidate-UzIA50",
   "qaHooks": "disabled",
   "profile": "candidate",
   "toolVersions": {
@@ -10,7 +10,7 @@
     "expo": "57.0.11"
   },
   "sourceCommit": {
-    "sha": "1daae45cfeca0a43fc96c28663b0040c2d1e9d34",
+    "sha": "98b8bc0e8953224537dc40cb7d4ef40cb5a2e7db",
     "dirty": true
   },
   "configManifest": {
@@ -29,7 +29,7 @@
     {
       "path": "+not-found.html",
       "bytes": 17981,
-      "sha256": "3408b1b549c9e8214ec073efc2e101c03d022b6d229cb17dc5771a9030f0eb2a"
+      "sha256": "83153ce50016aaeff8b42df84307d8bdf248c6b6462e0270b381158055705ac7"
     },
     {
       "path": "_expo/.routes.json",
@@ -37,29 +37,29 @@
       "sha256": "18234e6b8c5aee837883245f400d379f3f9686f1396b7d90d7ebcdad76c51d47"
     },
     {
-      "path": "_expo/static/js/android/entry-270fb5dc885bc2db4b3b62afff56971e.hbc",
-      "bytes": 3644657,
-      "sha256": "0227c30ba6218d82287cea99c205cb9a7e6f0ae22557d57c8cd1f2a2e5ed9f05"
+      "path": "_expo/static/js/android/entry-a42dd18ca80dbc00cd1014ef08a23e94.hbc",
+      "bytes": 3646231,
+      "sha256": "1f4479f6939c604de5004a30b270bbcb8c65a961df28723e8e5c483dea17d516"
     },
     {
-      "path": "_expo/static/js/ios/entry-c1b88c5b5301aa338e842f6a863610e7.hbc",
-      "bytes": 3341845,
-      "sha256": "8cb6e1168b26a10b00287894d862d69f721e578ad1150d41e69fd04d495b9442"
+      "path": "_expo/static/js/ios/entry-f31e77855c6f0fce98abe1c11808b934.hbc",
+      "bytes": 3343450,
+      "sha256": "9a99d1af8be40fe5252e1219a1acbc6dfdaeadee4f572d30560c28f0f20b65f8"
     },
     {
-      "path": "_expo/static/js/web/entry-00a50c5408f90585342e0c29344dd327.js",
-      "bytes": 1552125,
-      "sha256": "dce5b368a802ff20451d3b7051698b8f8409d651b46aaed818aeca2bc180a859"
+      "path": "_expo/static/js/web/entry-ff3ef04552f3b1f273ce2131c86e9cc9.js",
+      "bytes": 1553061,
+      "sha256": "ea55106be11c3e1d94cb900492dc64b61662271ae164b1ef09120ae23fdd6b48"
     },
     {
       "path": "_sitemap.html",
       "bytes": 17981,
-      "sha256": "3408b1b549c9e8214ec073efc2e101c03d022b6d229cb17dc5771a9030f0eb2a"
+      "sha256": "83153ce50016aaeff8b42df84307d8bdf248c6b6462e0270b381158055705ac7"
     },
     {
       "path": "activity.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "assets/017bc6ba3fc25503e5eb5e53826d48a8",
@@ -324,12 +324,12 @@
     {
       "path": "dashboard.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "fatal.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "favicon.ico",
@@ -339,58 +339,58 @@
     {
       "path": "help.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "index.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "metadata.json",
       "bytes": 3392,
-      "sha256": "aa0f779fe226c48dbff4b7c2f447b28135b1a7a69f172ca0d7805786c90147b9"
+      "sha256": "88527b84d7b117eb321a670bf4d33948fdf30af07c5b5bd42058838ce0659c08"
     },
     {
       "path": "mfa.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "otp.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "quarantine.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "requests/[id].html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "requests/index.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "select-scope.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "settings.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     },
     {
       "path": "sign-in.html",
       "bytes": 19385,
-      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
     }
   ],
-  "recordedAt": "2026-08-26T00:58:13.675Z"
+  "recordedAt": "2026-08-26T04:42:15.340Z"
 }

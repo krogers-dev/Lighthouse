@@ -11,26 +11,32 @@ import {
   membershipMixedClient,
   membershipMixedReviewer,
 } from '@/auth/__tests__/fixtures';
-import type { DashboardLoader, DashboardSnapshot } from '@/data/supabase/repositories';
+import type { CaseSummary, DashboardLoader, ScopedList } from '@/data/supabase/repositories';
 import { DashboardScreen } from '@/features/dashboard/DashboardScreen';
 import type { ScopeKey } from '@/tenancy/scope-key';
 
 import { makeContractHarness } from './helpers/auth-harness';
 
-function snapshotFor(title: string): DashboardSnapshot {
+function snapshotFor(title: string): ScopedList<CaseSummary> {
   return {
-    caseTitle: title,
-    caseStatus: 'EVIDENCE_PENDING',
-    statusChangedAt: '2026-08-21T00:00:00Z',
-    attentionSummary: `${title} attention`,
-    nextActionSummary: `${title} next action`,
-    nextActionOwnerRole: 'client_user',
+    items: [
+      {
+        id: `case-${title}`,
+        title,
+        status: 'EVIDENCE_PENDING',
+        statusChangedAt: '2026-08-21T00:00:00Z',
+        attentionSummary: `${title} attention`,
+        nextActionSummary: `${title} next action`,
+        nextActionOwnerRole: 'client_user',
+      },
+    ],
+    recordedThrough: '2026-08-21T00:00:00Z',
   };
 }
 
 class ScopeRecordingLoader implements DashboardLoader {
   scopes: ScopeKey[] = [];
-  async load(scope: ScopeKey): Promise<DashboardSnapshot> {
+  async load(scope: ScopeKey): Promise<ScopedList<CaseSummary>> {
     this.scopes.push(scope);
     if (scope.entityId === membershipA1.entityId) {
       return snapshotFor('Entity A1 case (Synthetic)');
@@ -42,8 +48,8 @@ class ScopeRecordingLoader implements DashboardLoader {
 /** Loader whose responses resolve only when the test says so, so response
  * ordering can be forced (late responses, out-of-order completion). */
 class DeferredLoader implements DashboardLoader {
-  requests: { scope: ScopeKey; respond: (snapshot: DashboardSnapshot) => void }[] = [];
-  load(scope: ScopeKey): Promise<DashboardSnapshot> {
+  requests: { scope: ScopeKey; respond: (snapshot: ScopedList<CaseSummary>) => void }[] = [];
+  load(scope: ScopeKey): Promise<ScopedList<CaseSummary>> {
     return new Promise((resolve) => {
       this.requests.push({ scope, respond: resolve });
     });
