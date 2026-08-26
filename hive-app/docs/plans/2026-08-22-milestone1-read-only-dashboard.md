@@ -180,6 +180,33 @@ The two HOLD exits are the designed fail-closed state, not a regression:
 every waiver and history exception stays `proposed` under the standing
 instruction not to ratify anything.
 
+## Clean-checkout drill at `abcabe8`
+
+The pushed branch was cloned fresh into an empty directory and every
+runnable gate was executed there, so what is recorded above is a property
+of the repository and not of this working tree.
+
+| Step                                 | Result                                                                                  |
+| ------------------------------------ | --------------------------------------------------------------------------------------- |
+| `git clone --single-branch`          | HEAD `abcabe89d8129ed818c84086842d30ed1365eabf`                                         |
+| `npm ci`                             | exit 0 — from the lockfile alone, no `npm install`                                      |
+| verify:toolchain                     | exit 0                                                                                  |
+| lint / format:check / typecheck      | exit 0 / exit 0 / exit 0                                                                |
+| jest                                 | exit 0 — **377 tests**, 30 suites                                                       |
+| node:test script suites              | exit 0 — **250 tests**                                                                  |
+| maestro:validate                     | exit 0 — 17 flows, 4 helper scripts                                                     |
+| config:check, before `env:synthetic` | **exit 1 — correctly missing both public values**; the repo carries no environment file |
+| `env:synthetic` → config:check       | exit 0; the generated `.env.local` is mode 0600 and matched by `.gitignore`             |
+| db:types:check                       | exit 0                                                                                  |
+| pgTAP (fresh port, own cluster)      | exit 0 — 120 tests across 7 files                                                       |
+| expo export + bundle:inspect         | exit 0 / exit 0                                                                         |
+| export:candidate / --qa-control      | exit 0 / exit 0 (QA export correctly REJECTED)                                          |
+| secrets:scan / audit:gate            | exit 3 / exit 3 — the same designed HOLD, reproduced from a clean clone                 |
+
+`git status` in the clone afterwards showed **only** the two candidate
+export evidence records as modified: no gate mutates a tracked source in
+order to pass.
+
 ## WO-002 acceptance status
 
 | Item                                  | Status                                                                                                                        |
