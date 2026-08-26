@@ -1,0 +1,58 @@
+# What is NOT uploaded to the EAS build servers.
+#
+# This file is deliberately a SUPERSET of .gitignore rather than a short
+# list of extras. Where a .easignore exists it is understood to take the
+# place of .gitignore for deciding the upload set, so a file listing only
+# additions would silently start uploading everything .gitignore excludes
+# — including .env.local. Written as a superset, the upload set is the
+# same under either precedence rule, and it is auditable in one place.
+#
+# Keep the first section in step with .gitignore. `npm run eas:guard`
+# fails when an entry there is missing here.
+
+# ---- mirrors .gitignore ----
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.pem
+.env*.local
+*.tsbuildinfo
+example
+/ios
+/android
+supabase/.temp/
+.cache/
+
+# ---- not needed to compile, so not sent to a third party ----
+# The build runs `npm ci`, prebuild, and xcodebuild. None of these reach
+# the database, the device flows, the gate evidence, or the prose, and
+# every file withheld is one that cannot leak from someone else's
+# infrastructure.
+docs/
+security/
+supabase/
+tests/
+.maestro/
+.github/
+**/__tests__/
+*.test.ts
+*.test.tsx
+*.test.mjs
+
+# Kept, because the build genuinely needs them: app.json, package.json,
+# package-lock.json, tsconfig, babel/metro config, src/, app/, plugins/,
+# and assets/.

@@ -40,12 +40,50 @@ The toolchain is pinned, and `npm run verify:toolchain` enforces it.
 | Xcode          | current    | iOS development build — **macOS only**          |
 | Android Studio | current    | Android development build — macOS/Windows/Linux |
 
-### The iOS lane needs a Mac
+### Establishing that iOS compiles, without a Mac
 
-Xcode runs only on macOS, so an iOS build, an iOS simulator, and the iOS
-half of the Maestro lane cannot be produced on a Windows or Linux machine
-at any cost — it is not a missing install. Android and the local Supabase
-stack run on all three. `preflight:device` reports this as **BLOCKED**
+Whether this app builds for iOS at all was an open question — nobody had
+ever built it for that platform. `eas.json` configures one profile,
+`ios-simulator`, to answer exactly that and nothing else:
+
+```bash
+npx eas-cli build --platform ios --profile ios-simulator
+```
+
+Read before running it:
+
+- **It needs an Expo account and terms acceptance, and it uploads this
+  project to Expo's servers.** Everything here is synthetic so nothing
+  sensitive moves, but it is an outward transfer to a third party and a
+  decision someone has to make. No account is configured in this
+  repository and no build has been run.
+- **It needs no Apple Developer account and no signing.** A simulator
+  build is unsigned. Signing, submission, and release stay HOLD.
+- **The artifact is not a demo.** `.env.local` is not uploaded, so the
+  build carries no Supabase configuration and would reach the
+  configuration-fatal screen on launch. That is the designed fail-closed
+  behavior; the build answers "does it compile", not "does it work".
+- **It runs only on a macOS Simulator.** A simulator build cannot be
+  installed on Windows, on Linux, or on a physical iPhone.
+
+`npm run eas:guard` holds the lane to that authorization: one profile,
+simulator-only, no submit block, no signing or Apple-account keys, and a
+`.easignore` that still covers every `.gitignore` entry — the check that
+stops `.env.local` from being uploaded. It is part of the gate list above.
+
+The generated iOS project has been verified here: `expo prebuild
+--platform ios` succeeds, emits bundle identifier
+`com.myhbcfo.hive.development` at deployment target 16.4, and keeps
+`NSAllowsArbitraryLoads=false` in the Info.plist. Compiling that project
+is what has never been done.
+
+### Running iOS still needs a Mac
+
+Xcode runs only on macOS, so running the app on iOS, the iOS simulator,
+and the iOS half of the Maestro lane cannot happen on a Windows or Linux
+machine at any cost — it is not a missing install, and the EAS lane above
+does not change it. Android and the local Supabase stack run on all
+three. `preflight:device` reports this as **BLOCKED**
 rather than as a finding, because a check that fails forever on something
 nobody can install is a check people learn to ignore.
 
@@ -124,6 +162,7 @@ only; iOS and Android are the product.
 
 ```bash
 npm run preflight:device    # device-lane tooling on THIS machine
+npm run eas:guard           # the EAS lane is still simulator-only
 npm run verify:toolchain    # pinned versions
 npm run lint                # eslint, zero warnings
 npm run format:check        # prettier

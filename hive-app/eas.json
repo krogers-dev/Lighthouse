@@ -1,0 +1,13 @@
+{
+  "cli": {
+    "appVersionSource": "local"
+  },
+  "build": {
+    "ios-simulator": {
+      "ios": {
+        "simulator": true
+      },
+      "env": {}
+    }
+  }
+}

@@ -296,9 +296,50 @@ runnable app, VoiceOver QA, or iOS Maestro coverage; for those, a Mac mini
 or a hosted Mac runner is the honest answer, and signing stays HOLD either
 way.
 
-No `eas.json` has been written. There is no EAS configuration anywhere in
-this repository, and adding one would encode a decision that belongs to
-Kody rather than to the build.
+**Built 2026-08-26, on instruction.** The simulator lane is now
+configured. What exists, and what deliberately does not:
+
+| File                    | What it does                                                                                       |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `eas.json`              | Exactly one profile, `ios-simulator`, with `ios.simulator: true`. No `submit` block, no other lane |
+| `.easignore`            | A complete superset of `.gitignore`, so the upload set is auditable and `.env.local` cannot leave  |
+| `scripts/eas-guard.mjs` | Fails the build lane closed if any of that drifts; wired in as `npm run eas:guard`                 |
+
+`.easignore` is written as a superset rather than a list of extras on
+purpose. Where a `.easignore` exists it is understood to take the place of
+`.gitignore` for deciding the upload set, so a file listing only additions
+would silently begin uploading everything `.gitignore` excludes —
+`.env.local` included. As a superset the upload set is identical under
+either precedence rule. `eas:guard` asserts the property directly, and the
+negative test for it uses a `.easignore` written the wrong way.
+
+The guard refuses: any profile other than the authorized one (even a
+second simulator-only profile — one lane was authorized, not any safe
+lane), an iOS block where `simulator` is false OR merely absent (absence
+produces a device build, so it is treated as one rather than defaulted),
+any `submit` configuration, any Apple-account or credential key at either
+nesting level, and an `android` block. Both refusals were exercised
+against realistic drift, not just fixtures: a copied `production` profile
+plus a `submit` block produced four findings, and an additions-only
+`.easignore` produced twenty-five, naming `.env*.local` among them.
+
+**Verified here before spending a build credit.** `expo prebuild
+--platform ios` succeeds, emitting bundle identifier
+`com.myhbcfo.hive.development` at deployment target 16.4 with
+`NSAllowsArbitraryLoads=false` in the Info.plist. It also succeeds with
+`.env.local` removed, which is what EAS will see — and so does the Metro
+bundle step that the Xcode build phase runs. So the build should compile,
+and the artifact will carry no Supabase configuration and reach the
+configuration-fatal screen on launch. That is correct: this lane answers
+"does it compile", not "does it work".
+
+**Not done, and not doable from here.** No Expo account exists, no terms
+have been accepted, and no build has been run — `expo.dev` is blocked by
+this container's egress policy, and the account and terms are Kody's
+decision regardless. The `eas.json` schema itself could not be checked
+against current vendor documentation for the same reason; the file encodes
+the security decisions correctly, but confirm the key names against docs
+reachable from a normal network before the first run.
 
 ## Next
 
