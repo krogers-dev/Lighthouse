@@ -120,10 +120,11 @@ test('EVERY real flow in .maestro/ validates cleanly', () => {
   // 10 Milestone 0 critical-path flows, the RETURN-4 P1-8 pair (the
   // forced-failure confinement probe and the cleanup-only clipboard
   // scrub), the two Milestone 1 read-surface flows (requests,
-  // activity-and-help), and the two Milestone 1 read-surface state
-  // flows (offline replaces content; revoked membership leaves no
-  // stale rows).
-  assert.equal(flowCount, 16);
+  // activity-and-help), the two Milestone 1 read-surface state flows
+  // (offline replaces content; revoked membership leaves no stale
+  // rows), and the nav-persistence flow (the five destinations are
+  // peers, so the nav survives arriving at each one).
+  assert.equal(flowCount, 17);
   assert.ok(scriptCount >= 4);
 });
 

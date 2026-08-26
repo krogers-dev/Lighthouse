@@ -1,0 +1,63 @@
+appId: com.myhbcfo.hive.development
+name: The five destinations are peers — the nav survives arriving at each one
+tags:
+  - milestone1
+# Pre-steps: seeded stack up, signed in as client.owner@example.invalid
+# with the Harbor Light Bakery workspace selected (sign-in.yaml).
+#
+# The nav promises five peer destinations. A destination that dropped the
+# nav on arrival would strand the reader with only a system back gesture,
+# which is not a persistent label and is not discoverable with a screen
+# reader. Account did exactly that before this flow existed. Each leg
+# below arrives somewhere and then asserts the nav is still there, by a
+# sibling destination the screen itself does not render.
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Home'
+- assertVisible:
+    id: 'nav-account'
+
+- tapOn:
+    id: 'nav-requests'
+- assertVisible: 'Requests'
+- assertVisible:
+    id: 'nav-home'
+- assertVisible:
+    id: 'nav-account'
+
+- tapOn:
+    id: 'nav-activity'
+- assertVisible: 'Activity'
+- assertVisible:
+    id: 'nav-home'
+- assertVisible:
+    id: 'nav-account'
+
+- tapOn:
+    id: 'nav-help'
+- assertVisible: 'Help'
+- assertVisible:
+    id: 'nav-home'
+- assertVisible:
+    id: 'nav-account'
+
+- tapOn:
+    id: 'nav-account'
+- assertVisible: 'Account'
+- assertVisible:
+    id: 'nav-home'
+- assertVisible:
+    id: 'nav-requests'
+- assertVisible:
+    id: 'nav-activity'
+- assertVisible:
+    id: 'nav-help'
+
+# Back from Account returns to Help, the destination it was reached from —
+# the nav and a safe back are different moves, and both still work.
+- tapOn:
+    id: 'settings-back'
+- assertVisible: 'Help'
+- assertVisible:
+    id: 'nav-account'

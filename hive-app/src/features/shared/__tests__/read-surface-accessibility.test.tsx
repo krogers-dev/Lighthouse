@@ -29,6 +29,7 @@ import { DashboardView } from '@/features/dashboard/DashboardView';
 import { HelpView } from '@/features/help/HelpView';
 import { RequestDetailView } from '@/features/requests/RequestDetailView';
 import { RequestsView } from '@/features/requests/RequestsView';
+import { SettingsView } from '@/features/settings/SettingsView';
 import { touchTarget } from '@/ui/tokens';
 
 const WORKSPACE = 'Harbor Light Bakery LLC (Synthetic)';
@@ -154,6 +155,21 @@ const SCREENS: readonly ScreenCase[] = [
     ),
   },
   { name: 'Help', header: 'Help', controls: false, render: () => <HelpView /> },
+  {
+    name: 'Account',
+    header: 'Account',
+    controls: true,
+    render: () => (
+      <SettingsView
+        workspaceName={WORKSPACE}
+        canSwitchScope
+        signingOut={false}
+        onSwitchScope={noop}
+        onSignOut={noop}
+        onBack={noop}
+      />
+    ),
+  },
   {
     name: 'Home (error)',
     header: 'Home',

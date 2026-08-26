@@ -96,6 +96,25 @@ attaches to a pressable's host view, never by `accessibilityRole`: a
 role-based query cannot see the defect being looked for, which is an
 element that reacts to a tap while carrying no role.
 
+### Defect found and fixed: Account was not really a peer destination
+
+The nav promises five peer destinations, but `app/settings.tsx` did not
+use the authorized shell — so arriving at Account stripped the nav and
+left a system back gesture as the only way out. That is neither a
+persistent label nor discoverable with a screen reader, and it is the
+one destination a reader is most likely to reach while looking for
+something else.
+
+Account now renders through `AuthorizedScreen` like the other four. Two
+things had to hold at once: Account must stay on screen while sign-out
+completes (so protected UI does not flash back), and the nav must not be
+tappable in that state (a tap would push back into protected UI while the
+session is being torn down). The shell takes an explicit `alsoAllow` list
+for the first, and renders the nav only while `authorized` for the
+second — absent, not disabled, because there is nothing to come back to.
+`nav-persistence.yaml` walks all five destinations on a device and
+asserts the nav survives arriving at each one.
+
 ### A testID collector that could go quietly weak
 
 `maestro:validate` proves every flow selector matches a testID that

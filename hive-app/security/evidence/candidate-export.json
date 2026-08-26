@@ -1,7 +1,7 @@
 {
   "lane": "authorized synthetic candidate lane — expressly synthetic nonfunctional configuration; NOT a functional build",
-  "command": "npx --no-install expo export --platform all --output-dir /tmp/hive-candidate-UzIA50",
-  "outputDir": "/tmp/hive-candidate-UzIA50",
+  "command": "npx --no-install expo export --platform all --output-dir /tmp/hive-candidate-LJ7y9e",
+  "outputDir": "/tmp/hive-candidate-LJ7y9e",
   "qaHooks": "disabled",
   "profile": "candidate",
   "toolVersions": {
@@ -10,7 +10,7 @@
     "expo": "57.0.11"
   },
   "sourceCommit": {
-    "sha": "98b8bc0e8953224537dc40cb7d4ef40cb5a2e7db",
+    "sha": "1df4ae58ae2c64e5d22349e3baaaac8eeb0b797f",
     "dirty": true
   },
   "configManifest": {
@@ -29,7 +29,7 @@
     {
       "path": "+not-found.html",
       "bytes": 17981,
-      "sha256": "83153ce50016aaeff8b42df84307d8bdf248c6b6462e0270b381158055705ac7"
+      "sha256": "a6cdf03043f905b974023c212f8054ec7e25d68cbb1503ca963a2a31f30e7a47"
     },
     {
       "path": "_expo/.routes.json",
@@ -37,29 +37,29 @@
       "sha256": "18234e6b8c5aee837883245f400d379f3f9686f1396b7d90d7ebcdad76c51d47"
     },
     {
-      "path": "_expo/static/js/android/entry-a42dd18ca80dbc00cd1014ef08a23e94.hbc",
-      "bytes": 3646231,
-      "sha256": "1f4479f6939c604de5004a30b270bbcb8c65a961df28723e8e5c483dea17d516"
+      "path": "_expo/static/js/android/entry-cd1a1c1f752f772d427246ac4830b039.hbc",
+      "bytes": 3646304,
+      "sha256": "910eda6eca4b124eff9615666827fca6c2d49b32fbff23ba6eb1c397a7082ae6"
     },
     {
-      "path": "_expo/static/js/ios/entry-f31e77855c6f0fce98abe1c11808b934.hbc",
-      "bytes": 3343450,
-      "sha256": "9a99d1af8be40fe5252e1219a1acbc6dfdaeadee4f572d30560c28f0f20b65f8"
+      "path": "_expo/static/js/ios/entry-2a2833ea75675f44a174f2f6817e6d2c.hbc",
+      "bytes": 3343516,
+      "sha256": "49c938f503bf2ade07356057db4a8f5cf7ac03e16d4082627660bc4338511921"
     },
     {
-      "path": "_expo/static/js/web/entry-ff3ef04552f3b1f273ce2131c86e9cc9.js",
-      "bytes": 1553061,
-      "sha256": "ea55106be11c3e1d94cb900492dc64b61662271ae164b1ef09120ae23fdd6b48"
+      "path": "_expo/static/js/web/entry-d9062c57ac9e679b0dd22e6bfe20bece.js",
+      "bytes": 1553075,
+      "sha256": "ec740557af2c40790ca7af7bc4c7f6fd9b3a5235c9e4a7466d552fb9acc24486"
     },
     {
       "path": "_sitemap.html",
       "bytes": 17981,
-      "sha256": "83153ce50016aaeff8b42df84307d8bdf248c6b6462e0270b381158055705ac7"
+      "sha256": "a6cdf03043f905b974023c212f8054ec7e25d68cbb1503ca963a2a31f30e7a47"
     },
     {
       "path": "activity.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "assets/017bc6ba3fc25503e5eb5e53826d48a8",
@@ -324,12 +324,12 @@
     {
       "path": "dashboard.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "fatal.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "favicon.ico",
@@ -339,58 +339,58 @@
     {
       "path": "help.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "index.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "metadata.json",
       "bytes": 3392,
-      "sha256": "88527b84d7b117eb321a670bf4d33948fdf30af07c5b5bd42058838ce0659c08"
+      "sha256": "298fec0cb34990b851ea340e729723091ecb0b0c75bd2f76a74e5963b9824d68"
     },
     {
       "path": "mfa.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "otp.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "quarantine.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "requests/[id].html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "requests/index.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "select-scope.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "settings.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     },
     {
       "path": "sign-in.html",
       "bytes": 19385,
-      "sha256": "a0a42ab889c344887d73aa6cfb3b4d0ef050bd02ebfe779e29122c266cc93d50"
+      "sha256": "e810819a0c3b7626e961894d6663d94031a384443abd294f7fbb9c28d731f8ed"
     }
   ],
-  "recordedAt": "2026-08-26T04:42:15.340Z"
+  "recordedAt": "2026-08-26T04:53:51.166Z"
 }
