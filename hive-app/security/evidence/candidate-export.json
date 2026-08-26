@@ -1,7 +1,7 @@
 {
   "lane": "authorized synthetic candidate lane — expressly synthetic nonfunctional configuration; NOT a functional build",
-  "command": "npx --no-install expo export --platform all --output-dir /tmp/hive-candidate-KtEb26",
-  "outputDir": "/tmp/hive-candidate-KtEb26",
+  "command": "npx --no-install expo export --platform all --output-dir /tmp/hive-candidate-yOU5wx",
+  "outputDir": "/tmp/hive-candidate-yOU5wx",
   "qaHooks": "disabled",
   "profile": "candidate",
   "toolVersions": {
@@ -10,7 +10,7 @@
     "expo": "57.0.11"
   },
   "sourceCommit": {
-    "sha": "a7fd7f1978a03202a10a61f6b25dc4290d0bfb17",
+    "sha": "1daae45cfeca0a43fc96c28663b0040c2d1e9d34",
     "dirty": true
   },
   "configManifest": {
@@ -24,12 +24,12 @@
   },
   "approvedOrigin": "http://127.0.0.1:54321",
   "inspectExit": 0,
-  "fileCount": 69,
+  "fileCount": 73,
   "outputManifest": [
     {
       "path": "+not-found.html",
-      "bytes": 17643,
-      "sha256": "b2ff7c50f2fcde4a7d682c4e7d2a95756e8fbdd9226a457a9fc0bca02776d0e8"
+      "bytes": 17981,
+      "sha256": "3408b1b549c9e8214ec073efc2e101c03d022b6d229cb17dc5771a9030f0eb2a"
     },
     {
       "path": "_expo/.routes.json",
@@ -37,24 +37,29 @@
       "sha256": "18234e6b8c5aee837883245f400d379f3f9686f1396b7d90d7ebcdad76c51d47"
     },
     {
-      "path": "_expo/static/js/android/entry-4c3311d5cca84da022fdfe95fa2c4055.hbc",
-      "bytes": 3619275,
-      "sha256": "8f01f438dc4cc292d414cbdf2c098e8c0dadcd4cd07876da1b8e2dc6dbc2e935"
+      "path": "_expo/static/js/android/entry-270fb5dc885bc2db4b3b62afff56971e.hbc",
+      "bytes": 3644657,
+      "sha256": "0227c30ba6218d82287cea99c205cb9a7e6f0ae22557d57c8cd1f2a2e5ed9f05"
     },
     {
-      "path": "_expo/static/js/ios/entry-b1ea3ec5cfdb3f82f042496b771a24b9.hbc",
-      "bytes": 3316339,
-      "sha256": "3068dd82736ea42682cb74a8b59567a8e301f86f124a3ab5fe1f2dbaabe655fa"
+      "path": "_expo/static/js/ios/entry-c1b88c5b5301aa338e842f6a863610e7.hbc",
+      "bytes": 3341845,
+      "sha256": "8cb6e1168b26a10b00287894d862d69f721e578ad1150d41e69fd04d495b9442"
     },
     {
-      "path": "_expo/static/js/web/entry-779685e6141d7c462a9e71c5b983b76e.js",
-      "bytes": 1532994,
-      "sha256": "dbce00a68f23bec43f038436e149679de0ebce9286ffc3f0728ab8124c83999e"
+      "path": "_expo/static/js/web/entry-00a50c5408f90585342e0c29344dd327.js",
+      "bytes": 1552125,
+      "sha256": "dce5b368a802ff20451d3b7051698b8f8409d651b46aaed818aeca2bc180a859"
     },
     {
       "path": "_sitemap.html",
-      "bytes": 17643,
-      "sha256": "b2ff7c50f2fcde4a7d682c4e7d2a95756e8fbdd9226a457a9fc0bca02776d0e8"
+      "bytes": 17981,
+      "sha256": "3408b1b549c9e8214ec073efc2e101c03d022b6d229cb17dc5771a9030f0eb2a"
+    },
+    {
+      "path": "activity.html",
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
     },
     {
       "path": "assets/017bc6ba3fc25503e5eb5e53826d48a8",
@@ -318,13 +323,13 @@
     },
     {
       "path": "dashboard.html",
-      "bytes": 19047,
-      "sha256": "30e774fffdd8243b51b5589bf71fd00484c72dc2b6504b0900ed29c5e54580f7"
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
     },
     {
       "path": "fatal.html",
-      "bytes": 19047,
-      "sha256": "30e774fffdd8243b51b5589bf71fd00484c72dc2b6504b0900ed29c5e54580f7"
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
     },
     {
       "path": "favicon.ico",
@@ -332,45 +337,60 @@
       "sha256": "97a8b8f06bb70bdc4ea71b9884e698e8e00b290b8b598744093a0882cea8863f"
     },
     {
+      "path": "help.html",
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+    },
+    {
       "path": "index.html",
-      "bytes": 19047,
-      "sha256": "30e774fffdd8243b51b5589bf71fd00484c72dc2b6504b0900ed29c5e54580f7"
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
     },
     {
       "path": "metadata.json",
       "bytes": 3392,
-      "sha256": "4342ad09aec79200749797d20c96db67298a39407fdd527d2caa537ca1a76292"
+      "sha256": "aa0f779fe226c48dbff4b7c2f447b28135b1a7a69f172ca0d7805786c90147b9"
     },
     {
       "path": "mfa.html",
-      "bytes": 19047,
-      "sha256": "30e774fffdd8243b51b5589bf71fd00484c72dc2b6504b0900ed29c5e54580f7"
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
     },
     {
       "path": "otp.html",
-      "bytes": 19047,
-      "sha256": "30e774fffdd8243b51b5589bf71fd00484c72dc2b6504b0900ed29c5e54580f7"
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
     },
     {
       "path": "quarantine.html",
-      "bytes": 19047,
-      "sha256": "30e774fffdd8243b51b5589bf71fd00484c72dc2b6504b0900ed29c5e54580f7"
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+    },
+    {
+      "path": "requests/[id].html",
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
+    },
+    {
+      "path": "requests/index.html",
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
     },
     {
       "path": "select-scope.html",
-      "bytes": 19047,
-      "sha256": "30e774fffdd8243b51b5589bf71fd00484c72dc2b6504b0900ed29c5e54580f7"
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
     },
     {
       "path": "settings.html",
-      "bytes": 19047,
-      "sha256": "30e774fffdd8243b51b5589bf71fd00484c72dc2b6504b0900ed29c5e54580f7"
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
     },
     {
       "path": "sign-in.html",
-      "bytes": 19047,
-      "sha256": "30e774fffdd8243b51b5589bf71fd00484c72dc2b6504b0900ed29c5e54580f7"
+      "bytes": 19385,
+      "sha256": "379370e9460c02382b3f745ea91f429527b443f8606c1622bc1827fb6ea8c7e8"
     }
   ],
-  "recordedAt": "2026-08-22T11:59:39.470Z"
+  "recordedAt": "2026-08-26T00:58:13.675Z"
 }

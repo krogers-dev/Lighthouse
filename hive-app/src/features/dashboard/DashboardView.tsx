@@ -9,7 +9,6 @@ import type { CaseStatus, DashboardSnapshot } from '@/data/supabase/repositories
 import type { MembershipRole } from '@/tenancy/types';
 import {
   AppText,
-  Button,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -20,8 +19,10 @@ import {
 import { radii, spacing } from '@/ui/tokens';
 import type { StatusKind } from '@/ui/primitives/StatusBadge';
 
-export type DashboardStateName =
-  'loading' | 'ready' | 'empty' | 'offline' | 'expired' | 'denied' | 'stale_scope' | 'error';
+import type { ScopedLoadStateName } from '@/features/shared/useScopedLoad';
+
+/** The dashboard shows exactly the shared scoped-load states. */
+export type DashboardStateName = ScopedLoadStateName;
 
 export interface DashboardViewProps {
   state: DashboardStateName;
@@ -30,7 +31,6 @@ export interface DashboardViewProps {
   error?: SafeError;
   onRetry: () => void;
   onSwitchScope?: () => void;
-  onOpenSettings: () => void;
 }
 
 const styles = StyleSheet.create({
@@ -69,7 +69,6 @@ export function DashboardView({
   error,
   onRetry,
   onSwitchScope,
-  onOpenSettings,
 }: DashboardViewProps): React.JSX.Element {
   const colors = useThemeColors();
   return (
@@ -164,13 +163,6 @@ export function DashboardView({
           ) : null}
         </View>
       ) : null}
-
-      <Button
-        kind="secondary"
-        label="Account"
-        onPress={onOpenSettings}
-        testID="dashboard-account"
-      />
     </View>
   );
 }

@@ -283,7 +283,12 @@ export function collectTestIds(root = appRoot) {
   const ids = new Set();
   for (const file of files) {
     const content = readFileSync(path.join(root, file), 'utf8');
-    for (const match of content.matchAll(/testID=["']([^"']+)["']/g)) {
+    // Both the JSX attribute form (testID="x") and the object-property
+    // form (testID: 'x') used by declarative nav/menu tables. A testID
+    // declared in a table is still a testID; missing that form would make
+    // the existence check silently weaker for exactly the screens that
+    // list their destinations in one place.
+    for (const match of content.matchAll(/testID\s*[=:]\s*["']([^"']+)["']/g)) {
       ids.add(match[1]);
     }
   }

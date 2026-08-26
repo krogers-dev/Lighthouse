@@ -60,7 +60,7 @@ describe('dashboard scope contract', () => {
 
     await render(
       <AuthProvider controller={harness.controller}>
-        <DashboardScreen repository={loader} onOpenSettings={() => undefined} />
+        <DashboardScreen repository={loader} />
       </AuthProvider>,
     );
     await act(async () => harness.controller.settle());
@@ -99,7 +99,7 @@ describe('dashboard scope contract', () => {
     const loader = new DeferredLoader();
     await render(
       <AuthProvider controller={harness.controller}>
-        <DashboardScreen repository={loader} onOpenSettings={() => undefined} />
+        <DashboardScreen repository={loader} />
       </AuthProvider>,
     );
     await act(async () => harness.controller.settle());
@@ -163,7 +163,7 @@ describe('dashboard scope contract', () => {
     const loader = new ScopeRecordingLoader();
     await render(
       <AuthProvider controller={harness.controller}>
-        <DashboardScreen repository={loader} onOpenSettings={() => undefined} />
+        <DashboardScreen repository={loader} />
       </AuthProvider>,
     );
     await act(async () => harness.controller.settle());

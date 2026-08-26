@@ -82,9 +82,10 @@ test('collectTestIds finds real testIDs from the app sources', () => {
 test('EVERY real flow in .maestro/ validates cleanly', () => {
   const { problems, flowCount, scriptCount } = validateAllFlows();
   assert.deepEqual(problems, []);
-  // 10 critical-path flows plus the RETURN-4 P1-8 pair: the forced-failure
-  // confinement probe and the cleanup-only clipboard scrub.
-  assert.equal(flowCount, 12);
+  // 10 Milestone 0 critical-path flows, the RETURN-4 P1-8 pair (the
+  // forced-failure confinement probe and the cleanup-only clipboard
+  // scrub), and the two Milestone 1 read-surface flows.
+  assert.equal(flowCount, 14);
   assert.ok(scriptCount >= 4);
 });
 

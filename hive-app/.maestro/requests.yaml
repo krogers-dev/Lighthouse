@@ -1,0 +1,35 @@
+appId: com.myhbcfo.hive.development
+name: Requests list and detail are read-only within the selected scope
+tags:
+  - milestone1
+# Pre-steps: seeded stack up, signed in as client.owner@example.invalid
+# with the Harbor Light Bakery workspace selected (sign-in.yaml).
+# The seeded A1 case carries two requests; the B1 and B2 requests belong
+# to another client and entity and must never appear here.
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Home'
+- tapOn:
+    id: 'nav-requests'
+- assertVisible: 'Requests'
+- assertVisible:
+    id: 'requests-list'
+- assertVisible: 'Bank statement for the closing month \(Synthetic\)'
+- assertVisible: 'Confirm the vehicle expense category \(Synthetic\)'
+# Cross-scope isolation, visible in the UI: another client's request title
+# is seeded in the database and must not render here.
+- assertNotVisible: 'Quarterly packet source documents \(Synthetic\)'
+- assertNotVisible: 'Entity setup documents \(Synthetic\)'
+# Read-only: no respond, upload, or edit control exists in this binary.
+- assertNotVisible: 'Respond'
+- assertNotVisible: 'Upload'
+- tapOn: 'Bank statement for the closing month \(Synthetic\)'
+- assertVisible:
+    id: 'request-detail-ready'
+- assertVisible: 'The final month statement is needed to complete the records \(Synthetic\).'
+- assertNotVisible: 'Respond'
+- tapOn:
+    id: 'request-detail-back'
+- assertVisible:
+    id: 'requests-list'

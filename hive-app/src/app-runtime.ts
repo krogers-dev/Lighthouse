@@ -23,12 +23,18 @@ import {
   type HiveSupabaseClient,
   type SessionWriteGate,
 } from '@/data/supabase/client';
-import { DashboardRepository } from '@/data/supabase/repositories';
+import {
+  ActivityRepository,
+  DashboardRepository,
+  RequestsRepository,
+} from '@/data/supabase/repositories';
 import { ScopedRegistry } from '@/tenancy/clearing';
 
 export interface AppServices {
   controller: AuthController;
   dashboardRepository: DashboardRepository;
+  requestsRepository: RequestsRepository;
+  activityRepository: ActivityRepository;
   env: EnvironmentConfig;
 }
 
@@ -106,16 +112,24 @@ export function getRuntime(): RuntimeResult {
     }
   });
 
-  const dashboardRepository = new DashboardRepository(() => {
-    // Protected reads exist only in the authorized state; during sign-out,
-    // quarantine, or after disposal this accessor fails safe (independent
-    // review P2-2).
+  // Protected reads exist only in the authorized state; during sign-out,
+  // quarantine, or after disposal this accessor fails safe (independent
+  // review P2-2). Every repository shares it, so no read surface can
+  // acquire a client the others could not.
+  const clientAccessor = (): HiveSupabaseClient => {
     if (!currentClient || controller.getState().name !== 'authorized') {
       throw new SafeError('auth_expired');
     }
     return currentClient;
-  }, registry);
+  };
 
-  cached = { ok: true, services: { controller, dashboardRepository, env } };
+  const dashboardRepository = new DashboardRepository(clientAccessor, registry);
+  const requestsRepository = new RequestsRepository(clientAccessor, registry);
+  const activityRepository = new ActivityRepository(clientAccessor, registry);
+
+  cached = {
+    ok: true,
+    services: { controller, dashboardRepository, requestsRepository, activityRepository, env },
+  };
   return cached;
 }

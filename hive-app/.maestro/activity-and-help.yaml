@@ -1,0 +1,32 @@
+appId: com.myhbcfo.hive.development
+name: Activity shows roles and dates only; Help works without the server
+tags:
+  - milestone1
+# Pre-steps: seeded stack up, signed in as client.owner@example.invalid
+# with the Harbor Light Bakery workspace selected (sign-in.yaml).
+---
+- launchApp:
+    clearState: false
+- assertVisible: 'Home'
+- tapOn:
+    id: 'nav-activity'
+- assertVisible: 'Activity'
+- assertVisible:
+    id: 'activity-list'
+- assertVisible: 'Request opened'
+- assertVisible: 'Status changed'
+# Activity names ROLES, never people: the seeded synthetic account names
+# must not appear on this screen.
+- assertNotVisible: 'client.owner@example.invalid'
+- assertNotVisible: 'reviewer.rae@example.invalid'
+# Help is static content shipped with the app, so it renders with the
+# network off — which is exactly when someone reaches for it.
+- setAirplaneMode: enabled
+- tapOn:
+    id: 'nav-help'
+- assertVisible: 'Help'
+- assertVisible:
+    id: 'help-section-what-hive-shows'
+- assertVisible:
+    id: 'help-version'
+- setAirplaneMode: disabled

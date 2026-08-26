@@ -314,3 +314,63 @@ test('NEGATIVE: a non-publishable-shaped client key fails shape policy', async (
   );
   assert.ok(bad.problems.some((p) => p.includes('not publishable-shaped')));
 });
+
+// ---- Hermes string-table fusion: the approved key abutting a literal ----
+
+test('REGRESSION: the approved key fused with a neighbouring literal is not a finding', async () => {
+  const { inspectBinary, inspectContent } = await import('../../scripts/bundle-inspect.mjs');
+  const key = 'sb_publishable_' + 'hive_synthetic_local_0123456789';
+  const local = { url: 'http://127.0.0.1:54321', clientKey: key };
+  // Exactly what a real export produced: the approved key immediately
+  // followed by the copy string "No open requests", with no separator
+  // between them in the Hermes string table.
+  const fused = Buffer.concat([
+    Buffer.from([0x00, 0x01]),
+    Buffer.from(`${key}No open requests`, 'latin1'),
+    Buffer.from([0x00]),
+  ]);
+  assert.deepEqual(
+    inspectBinary(fused, 'dist/entry.hbc', 'development', local)
+      .map((f) => f.pattern)
+      .filter((p) => p === 'unapproved-publishable-key'),
+    [],
+  );
+
+  // A genuinely DIFFERENT key still fails in binary mode.
+  const foreign = Buffer.concat([
+    Buffer.from([0x00, 0x01]),
+    Buffer.from('sb_publishable_' + 'someone_elses_key_9876543210', 'latin1'),
+    Buffer.from([0x00]),
+  ]);
+  assert.ok(
+    inspectBinary(foreign, 'dist/entry.hbc', 'development', local).some(
+      (f) => f.pattern === 'unapproved-publishable-key',
+    ),
+  );
+
+  // TEXT mode keeps exact equality: a text bundle has real delimiters, so
+  // a trailing tail there is a different value, not fusion.
+  assert.ok(
+    inspectContent(`var k="${key}No";`, 'dist/b.js', 'development', local).some(
+      (f) => f.pattern === 'unapproved-publishable-key',
+    ),
+  );
+});
+
+test('the URL gets NO prefix allowance, even in binary mode (suffix-host bypass stays closed)', async () => {
+  const { inspectBinary } = await import('../../scripts/bundle-inspect.mjs');
+  const hosted = {
+    url: 'https://example-project.supabase.co',
+    clientKey: 'sb_publishable_synthetic0123456789',
+  };
+  const attack = Buffer.concat([
+    Buffer.from([0x00]),
+    Buffer.from('https://example-project.supabase.co.evil.example/rest', 'latin1'),
+    Buffer.from([0x00]),
+  ]);
+  assert.ok(
+    inspectBinary(attack, 'dist/entry.hbc', 'development', hosted).some(
+      (f) => f.pattern === 'unapproved-supabase-endpoint',
+    ),
+  );
+});

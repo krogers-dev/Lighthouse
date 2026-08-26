@@ -137,13 +137,32 @@ function findingAt(pattern, filePath, text, index, snippet) {
   };
 }
 
-/** The approved public URL/client key are the only such values allowed. */
-export function checkApprovedValues(text, filePath, approved) {
+/** The approved public URL/client key are the only such values allowed.
+ *
+ * `binary` relaxes the key comparison from equality to "starts with the
+ * approved key", and ONLY for the key. Hermes string tables store adjacent
+ * entries with no separator, so printable-string extraction fuses the
+ * approved key with whatever literal follows it: the approved key next to
+ * the copy string "No open requests" extracts as
+ * `sb_publishable_…0123456789No`, which is not equal to the approved key
+ * and would fail the gate for a bundle containing nothing wrong. A
+ * different key is a different random token, not the approved key plus a
+ * tail, so the prefix test still rejects every unapproved key. The URL
+ * deliberately gets NO such allowance: `https://approved.example.co` is a
+ * genuine prefix of the hostile `https://approved.example.co.evil.test`,
+ * so a prefix test there would reopen the suffix-host bypass. */
+export function checkApprovedValues(text, filePath, approved, { binary = false } = {}) {
   const findings = [];
   let match;
   PUBLISHABLE_SHAPE.lastIndex = 0;
   while ((match = PUBLISHABLE_SHAPE.exec(text)) !== null) {
-    if (!approved.clientKey || match[0] !== approved.clientKey) {
+    const approvedKey = approved.clientKey;
+    const isApproved = approvedKey
+      ? binary
+        ? match[0].startsWith(approvedKey)
+        : match[0] === approvedKey
+      : false;
+    if (!isApproved) {
       findings.push(
         findingAt(
           'unapproved-publishable-key',
@@ -188,14 +207,14 @@ export function patternsForProfile(profile) {
   return RELEASE_ONLY_PATTERNS;
 }
 
-export function inspectContent(rawText, filePath, profile, approved) {
+export function inspectContent(rawText, filePath, profile, approved, options = {}) {
   const budget = applyVendorConstantBudget(rawText, filePath);
   const text = budget.text;
   const findings = [...budget.findings];
   findings.push(
     ...scanText(text, SECRET_PATTERNS, filePath).filter((f) => f.pattern !== 'generic-secret-env'),
   );
-  findings.push(...checkApprovedValues(text, filePath, approved));
+  findings.push(...checkApprovedValues(text, filePath, approved, options));
   findings.push(...scanText(text, patternsForProfile(profile), filePath));
   if (profile !== 'release') {
     // Development and the synthetic candidate legitimately carry loopback
@@ -243,7 +262,7 @@ export function inspectBinary(buffer, filePath, profile, approved) {
     // short unrelated neighbor).
     .replace(/sb_secret_(?![A-Za-z0-9_-]{20})/g, '[library-detector-prefix]')
     .replace(/sb_publishable_(?![A-Za-z0-9_-]{20})/g, '[library-detector-prefix]');
-  return inspectContent(text, filePath, profile, approved).map((f) => ({
+  return inspectContent(text, filePath, profile, approved, { binary: true }).map((f) => ({
     ...f,
     // Line numbers are meaningless across extracted runs.
     line: 0,

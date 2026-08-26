@@ -4,7 +4,7 @@ name: Entity switch clears content and rebinds the dashboard
 - launchApp
 - assertVisible: 'Home'
 - tapOn:
-    id: 'dashboard-account'
+    id: 'nav-account'
 - assertVisible: 'Account'
 - tapOn:
     id: 'settings-switch-scope'
