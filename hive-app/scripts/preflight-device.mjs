@@ -6,28 +6,45 @@
  *
  * `verify:toolchain` already pins the JavaScript side. This checks the
  * things it deliberately does not: a Docker daemon that actually answers,
- * a real simulator or emulator, and the Maestro binary.
+ * a real simulator or emulator, hardware acceleration, and Maestro.
  *
  * It NEVER installs anything. Installing developer tooling on someone's
  * machine is their decision, and a script that did it silently would be
  * the wrong shape. This reports; you install.
  *
- * Exit codes follow the repository contract: 0 every lane is runnable,
- * 1 something is missing, 2 the check itself could not run.
+ * Two categories, deliberately distinct:
+ *  - MISS is fixable on this machine and sets the exit code;
+ *  - BLOCKED cannot be fixed here at all (iOS off macOS) and does not,
+ *    because failing forever on something nobody can install teaches
+ *    people to ignore the check. Blocked lanes are still printed, and the
+ *    summary names them, so exit 0 never reads as "every lane runs".
+ *
+ * Exit codes follow the repository contract: 0 nothing missing that this
+ * machine could supply, 1 something is missing, 2 the check could not run.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import process from 'node:process';
 
+const isWindows = process.platform === 'win32';
+
 /** Run a command and return its trimmed output, or null if it is missing,
- * fails, or hangs. A tool that does not answer is not a tool you have. */
+ * fails, or hangs. A tool that does not answer is not a tool you have.
+ *
+ * `shell` on Windows is required, not a convenience: `npx` and `maestro`
+ * ship there as `.cmd` wrappers, and CreateProcess cannot execute a batch
+ * file directly, so every such probe would report "not installed" on a
+ * machine where the tool is present and working. It is safe here because
+ * every command and argument in this file is a hardcoded literal — no
+ * environment value, argv entry, or file content is ever interpolated. */
 function run(command, args, timeoutMs = 20_000) {
   try {
     return execFileSync(command, args, {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: timeoutMs,
+      shell: isWindows,
     }).trim();
   } catch {
     return null;
@@ -78,14 +95,55 @@ export function parseAvdNames(output) {
   );
 }
 
+/** Which device lanes a given platform can run at all.
+ *
+ * Split out so the Windows and Linux answers are provable from a machine
+ * that is neither. The iOS entry is the one that matters: Xcode is
+ * macOS-only, so on any other platform the lane is not "missing a tool" —
+ * it is unreachable, and no install on that machine changes it. */
+export function deviceLanePlan(platform) {
+  const mac = platform === 'darwin';
+  return {
+    ios: mac
+      ? { runnable: true }
+      : {
+          runnable: false,
+          reason: `Xcode is macOS-only; this is ${platform}`,
+          clears: 'a Mac, a hosted Mac runner, or a cloud build service',
+        },
+    // Android Studio and the SDK run on macOS, Windows, and Linux alike.
+    android: { runnable: true },
+    // Docker Desktop covers macOS and Windows; Linux runs the engine
+    // directly. Every platform can host the local stack somehow.
+    supabaseStack: { runnable: true },
+  };
+}
+
+/** Read `emulator -accel-check` output.
+ *
+ * Preferred over probing for /dev/kvm everywhere, because that node does
+ * not exist on Windows, where acceleration is WHPX or Hyper-V — a
+ * Linux-only check silently skips the question on the one platform where
+ * it most often bites. Returns null when the answer is not determinable,
+ * which is NOT the same as "unavailable". */
+export function parseAccelCheck(output) {
+  if (typeof output !== 'string' || output.trim() === '') return null;
+  if (/accel:\s*0\b/i.test(output)) return true;
+  // Any non-zero accel code is a refusal, and the emulator explains it on
+  // the same stream ("is not installed", "is not enabled", "requires").
+  if (/accel:\s*\d+\b/i.test(output)) return false;
+  return null;
+}
+
 /** The whole check. Guarded below so importing this module for its
  * parsers does not run probes or exit the importing process. */
 function main() {
   const platform = os.platform();
-  const isMac = platform === 'darwin';
   const isLinux = platform === 'linux';
+  const plan = deviceLanePlan(platform);
 
   const findings = [];
+  const blocked = [];
   const lines = [];
 
   /** `remedy` is only ever a tool name or an official vendor page. It
@@ -95,11 +153,17 @@ function main() {
     if (!ok) findings.push({ name, remedy });
   };
 
+  /** A lane this machine cannot run at all. Reported, never a finding. */
+  const block = (name, reason, clears) => {
+    lines.push(`BLOCKED ${name}: ${reason}`);
+    blocked.push({ name, clears });
+  };
+
   // ---------------------------------------------------------------- host
 
   lines.push(`host: ${platform} ${os.arch()} (${os.release()})`);
 
-  // ---------------------------------------------------------- Docker
+  // -------------------------------------------------------------- Docker
 
   const dockerClient = run('docker', ['--version']);
   // The trap this check exists for: the client can be installed and the
@@ -116,7 +180,9 @@ function main() {
       : dockerClient
         ? `client present (${dockerClient.replace(/^Docker version /, '')}) but no daemon is answering`
         : 'not installed',
-    'Docker Desktop — https://www.docker.com/products/docker-desktop/',
+    isWindows
+      ? 'Docker Desktop with the WSL2 backend — https://www.docker.com/products/docker-desktop/'
+      : 'Docker Desktop — https://www.docker.com/products/docker-desktop/',
   );
 
   // The Supabase CLI drives the local stack; it is pinned by
@@ -131,7 +197,7 @@ function main() {
 
   // ------------------------------------------------------------------ iOS
 
-  if (isMac) {
+  if (plan.ios.runnable) {
     const xcode = run('xcodebuild', ['-version']);
     record(
       'Xcode',
@@ -149,8 +215,7 @@ function main() {
       'Xcode → Settings → Platforms → install an iOS runtime',
     );
   } else {
-    // Not a finding: it is a fact about the machine, not a missing install.
-    lines.push(`n/a  iOS lane: needs macOS; this is ${platform}`);
+    block('iOS lane', plan.ios.reason, plan.ios.clears);
   }
 
   // -------------------------------------------------------------- Android
@@ -180,10 +245,22 @@ function main() {
     'Android Studio → Device Manager → create a virtual device',
   );
 
-  // An x86 emulator without hardware virtualisation either refuses to boot
-  // or runs unusably slowly, which reads as a hung test rather than a
+  // An emulator without hardware acceleration either refuses to boot or
+  // runs unusably slowly, which presents as a hung test rather than as a
   // missing prerequisite. Worth naming before someone loses an afternoon.
-  if (isLinux) {
+  const accel = parseAccelCheck(run('emulator', ['-accel-check']));
+  if (accel !== null) {
+    record(
+      'Emulator hardware acceleration',
+      accel,
+      accel ? 'available' : 'unavailable — the emulator cannot boot usably',
+      isWindows
+        ? 'enable WHPX (Windows Features → Windows Hypervisor Platform), or use a physical device over adb'
+        : 'enable virtualisation on the host, or use a physical device over adb',
+    );
+  } else if (isLinux) {
+    // Falls back to the device node, which answers even when the SDK is
+    // not installed yet. There is no Windows equivalent to stat.
     const kvm = existsSync('/dev/kvm');
     record(
       'Hardware virtualisation (/dev/kvm)',
@@ -191,6 +268,10 @@ function main() {
       kvm ? 'present' : 'absent — an Android emulator cannot boot usably here',
       'a host with nested virtualisation enabled, or a physical Android device over adb',
     );
+  } else {
+    // Explicitly unknown, not silently ok: the emulator binary is what
+    // answers this, and it is not here yet.
+    lines.push('?    Emulator hardware acceleration: needs the emulator binary to determine');
   }
 
   // ------------------------------------------------------------- Maestro
@@ -200,27 +281,35 @@ function main() {
     'Maestro',
     Boolean(maestro),
     maestro ? `v${maestro.replace(/^v/, '')}` : 'not on PATH',
-    'Maestro, per its official install instructions',
+    // Deliberately not asserting HOW to install it on this platform:
+    // Maestro's supported install paths differ per OS and change, and
+    // naming a wrong one is worse than naming none.
+    'Maestro, per its official install instructions for this platform',
   );
 
   // -------------------------------------------------------------- report
 
   console.log(lines.join('\n'));
 
-  if (findings.length === 0) {
-    console.log(
-      '\npreflight:device OK — every device-lane prerequisite is present on this machine.',
-    );
-    console.log('Next: npm ci && npm run env:synthetic && node scripts/local-supabase.mjs up');
-    process.exit(0);
+  if (findings.length > 0) {
+    console.log(`\npreflight:device: ${findings.length} prerequisite(s) missing`);
+    for (const finding of findings) console.log(`  - ${finding.name}: ${finding.remedy}`);
+  } else {
+    console.log('\npreflight:device OK — nothing missing that this machine could supply.');
   }
 
-  console.log(`\npreflight:device: ${findings.length} prerequisite(s) missing`);
-  for (const finding of findings) console.log(`  - ${finding.name}: ${finding.remedy}`);
-  console.log(
-    '\nNothing was installed. This check reports only — what goes on your machine is your call.',
-  );
-  process.exit(1);
+  // Printed in BOTH branches: a blocked lane is still a gap in the
+  // project's evidence, and exit 0 must never be read as "every lane runs".
+  if (blocked.length > 0) {
+    console.log(`\nNot runnable on this machine at all (${blocked.length}):`);
+    for (const item of blocked) console.log(`  - ${item.name}: needs ${item.clears}`);
+  }
+
+  if (findings.length === 0) {
+    console.log('\nNext: npm run env:synthetic && node scripts/local-supabase.mjs up');
+  }
+  console.log('\nNothing was installed. This check reports only.');
+  process.exit(findings.length === 0 ? 0 : 1);
 }
 
 const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;

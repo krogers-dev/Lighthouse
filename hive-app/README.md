@@ -32,13 +32,27 @@ anywhere in the binary — absent, not disabled or hidden.
 
 The toolchain is pinned, and `npm run verify:toolchain` enforces it.
 
-| Tool           | Version    | Notes                                     |
-| -------------- | ---------- | ----------------------------------------- |
-| Node           | 22.23.2    | Exact; `devEngines` refuses anything else |
-| npm            | 10.9.8     | One lockfile, exact pins                  |
-| Docker         | any recent | Runs the local Supabase stack             |
-| Xcode          | current    | For the iOS development build             |
-| Android Studio | current    | For the Android development build         |
+| Tool           | Version    | Notes                                           |
+| -------------- | ---------- | ----------------------------------------------- |
+| Node           | 22.23.2    | Exact; `devEngines` refuses anything else       |
+| npm            | 10.9.8     | One lockfile, exact pins                        |
+| Docker         | any recent | Runs the local Supabase stack                   |
+| Xcode          | current    | iOS development build — **macOS only**          |
+| Android Studio | current    | Android development build — macOS/Windows/Linux |
+
+### The iOS lane needs a Mac
+
+Xcode runs only on macOS, so an iOS build, an iOS simulator, and the iOS
+half of the Maestro lane cannot be produced on a Windows or Linux machine
+at any cost — it is not a missing install. Android and the local Supabase
+stack run on all three. `preflight:device` reports this as **BLOCKED**
+rather than as a finding, because a check that fails forever on something
+nobody can install is a check people learn to ignore.
+
+On Windows, note that Docker Desktop wants the WSL2 backend, and the
+Android emulator needs WHPX (Windows Features → Windows Hypervisor
+Platform) — an emulator without acceleration presents as a hung test
+rather than as a missing prerequisite.
 
 Use a **development build**, not Expo Go — the app depends on native
 SecureStore behavior that Expo Go cannot provide.
@@ -61,7 +75,7 @@ npm ci
 npm run env:synthetic          # writes a synthetic .env.local (0600, gitignored)
 node scripts/local-supabase.mjs up
 node scripts/local-supabase.mjs seed
-npx expo run:ios               # or: npx expo run:android
+npx expo run:android           # macOS only: npx expo run:ios
 ```
 
 `env:synthetic` writes the loopback URL and a synthetic publishable-shaped

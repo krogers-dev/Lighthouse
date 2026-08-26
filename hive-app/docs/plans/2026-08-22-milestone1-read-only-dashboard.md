@@ -215,8 +215,32 @@ order to pass.
 | A2 — repository/screen contract tests | **Met.** ScopeKey required; late responses dropped across scope AND membership switches; every state renders per screen       |
 | A3 — black-box e2e through PostgREST  | **HOLD.** Harness and fixtures updated and committed; it cannot run without the Supabase CLI stack, and Docker is unreachable |
 | A4 — accessibility jest checks        | **Met for the jest lane** (see checkpoint 3). Device screen-reader QA and measured contrast on hardware stay HOLD             |
-| A5 — Maestro device flows             | **Authored and validated, HOLD to execute.** 16 flows parse and every selector resolves; no Maestro binary or device here     |
+| A5 — Maestro device flows             | **Authored and validated, HOLD to execute.** 17 flows parse and every selector resolves; no Maestro binary or device here     |
 | A6 — Milestone 0 gates re-run green   | **Partly.** Every runnable gate is green above; the Docker and device lanes stay HOLD, and D1 (repo split) has not happened   |
+
+### The iOS half of A3 and A5 needs hardware nobody on this project has yet
+
+Confirmed 2026-08-26: the machine available to run the device lanes is a
+**Windows desktop**. Xcode is macOS-only, so the iOS build, the iOS
+simulator, and the iOS half of the Maestro lane cannot be produced there
+at any cost. This is not a missing install, and no amount of local setup
+clears it.
+
+What that splits the outstanding evidence into:
+
+| Lane                                     | On a Windows desktop                                              |
+| ---------------------------------------- | ----------------------------------------------------------------- |
+| A3 — black-box e2e through PostgREST     | **Reachable.** Docker plus Node; no Apple toolchain involved      |
+| A5 — Android half, and the Android build | **Reachable.** Android Studio, an AVD with WHPX, and Maestro      |
+| A5 — iOS half, and the iOS build         | **HOLD.** Needs a Mac, a hosted Mac runner, or a cloud build lane |
+| Screen-reader QA — TalkBack              | **Reachable** on the Android emulator or a physical device        |
+| Screen-reader QA — VoiceOver             | **HOLD.** Same hardware dependency as the iOS build               |
+
+So the brief's "dependable iOS and Android app" has a hardware gap on the
+iOS side. It is an approval and procurement question (owner Kody), not an
+engineering one. `preflight:device` reports it as BLOCKED rather than as a
+finding, so it stays visible on every run without training anyone to
+ignore a permanent failure.
 
 ## Next
 

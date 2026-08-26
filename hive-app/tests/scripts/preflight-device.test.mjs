@@ -10,7 +10,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { countIosSimulators, parseAvdNames } from '../../scripts/preflight-device.mjs';
+import {
+  countIosSimulators,
+  deviceLanePlan,
+  parseAccelCheck,
+  parseAvdNames,
+} from '../../scripts/preflight-device.mjs';
 
 /** Trimmed but structurally faithful `xcrun simctl list devices available
  * --json`: two iOS devices, plus a watchOS and a tvOS device that a
@@ -100,4 +105,67 @@ test('importing the module runs no probes and does not exit', () => {
   // out to docker/xcrun/adb and then call process.exit on the test run.
   assert.equal(typeof countIosSimulators, 'function');
   assert.equal(typeof parseAvdNames, 'function');
+});
+
+// ---- which lanes a platform can run at all ----
+// The reason these are unit tests rather than an observation: the machine
+// running this suite is Linux, so the macOS and Windows answers are never
+// exercised by simply running the script. Getting `ios.runnable` wrong on
+// Windows would print an Xcode line on a machine that cannot have Xcode.
+
+test('iOS is runnable on macOS and unreachable everywhere else', () => {
+  assert.equal(deviceLanePlan('darwin').ios.runnable, true);
+  for (const platform of ['win32', 'linux', 'freebsd']) {
+    const ios = deviceLanePlan(platform).ios;
+    assert.equal(ios.runnable, false, platform);
+    // The distinction that matters: unreachable, not "install something".
+    assert.match(ios.reason, /macOS-only/);
+    assert.match(ios.clears, /Mac/);
+  }
+});
+
+test('Android and the local stack are runnable on every platform', () => {
+  for (const platform of ['darwin', 'win32', 'linux']) {
+    assert.equal(deviceLanePlan(platform).android.runnable, true, platform);
+    assert.equal(deviceLanePlan(platform).supabaseStack.runnable, true, platform);
+  }
+});
+
+// ---- emulator acceleration ----
+
+test('accel-check reads code 0 as available and any other code as not', () => {
+  // The real output puts the code on its own line under `accel:`, which
+  // is why the pattern spans whitespace rather than expecting `accel: 0`.
+  const windowsOk = 'accel:\n0\nWHPX (10.0.22631) is installed and usable.\naccel\n';
+  const linuxOk = 'accel:\n0\nKVM (version 12) is installed and usable.\naccel\n';
+  const windowsOff = 'accel:\n1\nWHPX is not installed on this machine\naccel\n';
+  const noVirt = 'accel:\n3\nKVM requires a CPU that supports vmx or svm\naccel\n';
+  assert.equal(parseAccelCheck(windowsOk), true);
+  assert.equal(parseAccelCheck(linuxOk), true);
+  assert.equal(parseAccelCheck(windowsOff), false);
+  assert.equal(parseAccelCheck(noVirt), false);
+  // The single-line form is accepted too, so a format change in either
+  // direction does not turn an "off" answer into an unknown one.
+  assert.equal(parseAccelCheck('accel: 0'), true);
+  assert.equal(parseAccelCheck('accel: 1'), false);
+});
+
+test('NEGATIVE: a multi-digit refusal code reads as unavailable', () => {
+  // Pins the outcome, not a mechanism: reporting acceleration on a
+  // machine that refused it is the expensive direction of this check.
+  // (Mutation-tested: dropping the pattern's \b does NOT break this —
+  // requiring 0 immediately after the whitespace is what excludes 10.
+  // The \b is defensive, and this test does not prove it.)
+  assert.equal(parseAccelCheck('accel:\n10\nsomething refused it\naccel\n'), false);
+  assert.equal(parseAccelCheck('accel:\n2\nHAXM is not installed\naccel\n'), false);
+});
+
+test('NEGATIVE: an undeterminable accel answer is null, never a silent true', () => {
+  // null must stay distinct from false: false says "acceleration is off",
+  // null says "nobody asked the emulator yet". Collapsing them would
+  // either invent a failure or hide a real one.
+  for (const input of ['', '   ', 'emulator: command not found', null, undefined, 'accel: yes']) {
+    assert.equal(parseAccelCheck(input), null, `input: ${String(input)}`);
+  }
+  assert.notEqual(parseAccelCheck('accel: 1'), null);
 });
