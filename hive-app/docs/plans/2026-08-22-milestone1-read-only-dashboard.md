@@ -207,6 +207,62 @@ of the repository and not of this working tree.
 export evidence records as modified: no gate mutates a tracked source in
 order to pass.
 
+## A3 in this container: the Docker block, and the binary stack built around it
+
+Investigated 2026-08-27, after the standing assumption "no Docker here"
+turned out to be only half true.
+
+**The Docker daemon runs; the images cannot arrive.** `dockerd` is
+installed and starts cleanly (server 29.3.1). What fails is every image
+pull: the environment's network policy answers 403 at the gateway for the
+registries' blob CDNs — `production.cloudfront.docker.com` (Docker Hub)
+and `d2glxqk2uabbnd.cloudfront.net` (ECR Public), while the registry API
+hosts themselves resolve. So the Supabase CLI stack is blocked by the
+session's egress allowlist, not by the machine. Adding those CDN hosts to
+the Claude Code environment's network policy would make
+`local-supabase.mjs up` work here natively.
+
+**The binary stack (`scripts/e2e-binary-stack.mjs`).** Rather than wait,
+the same serving software was brought in without Docker: GoTrue v2.196.0
+built from its pinned source tag with the preinstalled Go toolchain,
+PostgREST v13.0.8 and Mailpit v1.31.0 as official release binaries
+(GitHub release assets are reachable), all sha256-pinned and verified
+before every start, on the system PostgreSQL 16 the pgTAP lane already
+uses. A ~40-line loopback router stands where Kong stands: `/auth/v1/*`
+to GoTrue, `/rest/v1/*` to PostgREST, the P0-1 OTP template served to
+GoTrue, everything else refused, non-loopback peers refused outright.
+The UNMODIFIED `e2e-local-auth.mjs` harness and `seed-local.mjs` run
+against it through the same `HIVE_LOCAL_*` contract as the CLI lane.
+
+Labeling, so the evidence cannot overclaim: this lane is always reported
+as the **binary stack**. It proves real GoTrue OTP/TOTP/AAL semantics,
+real PostgREST JWT-to-role switching, and this repository's actual
+migrations, RLS, and seed over HTTP. It does not prove Kong's gateway
+behavior, the CLI's composition, or the publishable-key front door; its
+keys are legacy JWT-shaped, which policy permits only for loopback
+development and the release gates reject.
+
+**Status: built, not yet evidenced.** The first bring-up got as far as
+real progress — its own PostgreSQL cluster on 55434 via the established
+`runuser`/`hivepg` pattern, database initialized, GoTrue's own migrations
+executing (they surfaced that a bare cluster lacks the platform's
+`postgres`/`supabase_admin` roles, now created up front) — and was then
+stopped by this session's tool-permission layer, which began denying the
+orchestrator's invocation (it spawns daemons and creates a system user as
+root). Per that layer's own guidance the denial is not worked around. No
+part of the e2e has run; nothing is claimed from this lane yet.
+
+Unblock (either works):
+
+1. Kody allows the command — a Claude Code permission rule for
+   `node scripts/e2e-binary-stack.mjs *` (or simply reply "run it";
+   a fresh instruction usually re-permits it) — after which
+   `node scripts/e2e-binary-stack.mjs run` executes seed + the full
+   black-box harness and tears down; or
+2. add the two CDN hosts above to the environment's network allowlist,
+   and the ORIGINAL CLI lane (`local-supabase.mjs up/seed/e2e`) runs
+   here natively, which is the stronger evidence anyway.
+
 ## WO-002 acceptance status
 
 | Item                                  | Status                                                                                                                        |
