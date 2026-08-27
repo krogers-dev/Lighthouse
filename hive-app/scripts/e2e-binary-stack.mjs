@@ -28,10 +28,11 @@
  * Binaries live in .cache/e2e-bin (gitignored, never committed); their
  * versions and sha256 digests are pinned below and verified before use.
  *
- * Usage: node scripts/e2e-binary-stack.mjs <run|up|seed|e2e|stop>
- *   run = up + seed + e2e + stop, exiting with the harness's code.
+ * Usage: node scripts/e2e-binary-stack.mjs <run|bridge|up|seed|e2e|stop>
+ *   run    = up + seed + black-box harness + stop
+ *   bridge = up + seed + the app's own composition (tests/live) + stop
  */
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -510,6 +511,17 @@ function startRouter(pids) {
   });
 }
 
+/** The app composition's environment: what src/app-runtime.ts reads.
+ * Legacy JWT-shaped key — loopback development only, release-rejected. */
+function bridgeEnv(secrets) {
+  return {
+    HIVE_LIVE_BRIDGE: '1',
+    EXPO_PUBLIC_SUPABASE_URL: BASE_URL,
+    EXPO_PUBLIC_SUPABASE_CLIENT_KEY: secrets.anonKey,
+    HIVE_LOCAL_MAILPIT_URL: `http://127.0.0.1:${PORTS.mailpitHttp}`,
+  };
+}
+
 function harnessEnv(secrets) {
   return {
     HIVE_LOCAL_SUPABASE_URL: BASE_URL,
@@ -663,9 +675,54 @@ switch (command) {
     }
     break;
   }
+  case 'bridge': {
+    // The live-bridge lane: the app's own composition (controller,
+    // supabase bundle, repositories) driven against this stack by
+    // tests/live/, via its own jest project. Fresh stack, fresh seed,
+    // torn down after — same discipline as `run`.
+    await up();
+    const secrets = loadOrCreateSecrets();
+    try {
+      runChild('seed-local.mjs', secrets);
+      const jestArgs = ['--config', 'jest.live.config.js', '--colors=false'];
+      // Jest reports on STDERR; capture both streams either way.
+      const child = spawnSync('npx', ['--no-install', 'jest', ...jestArgs], {
+        cwd: appRoot,
+        env: { ...process.env, ...bridgeEnv(secrets) },
+        encoding: 'utf8',
+      });
+      const output = `${child.stdout ?? ''}\n${child.stderr ?? ''}`;
+      process.stdout.write(output);
+      if ((child.status ?? 1) !== 0) {
+        log(`live bridge FAILED (jest exit ${child.status})`);
+        process.exit(child.status ?? 1);
+      }
+      const counts = output.match(/Tests:\s+(\d+) passed, (\d+) total/);
+      const record = {
+        lane: 'live bridge — the app composition of src/app-runtime.ts (real AuthController, supabase-js bundle, scoped repositories) against the binary stack; synthetic data only',
+        completedAt: new Date().toISOString(),
+        components: PINS,
+        substitutions:
+          'ONLY the two native backends: SyntheticMemorySecureStore for the Keychain, SyntheticMemoryMarkerStore for the document directory (tests/live/helpers.ts)',
+        suite: 'tests/live/app-live-bridge.test.ts via jest.live.config.js',
+        result: counts
+          ? { passed: Number(counts[1]), total: Number(counts[2]) }
+          : { passed: null, total: null, note: 'summary line not found' },
+      };
+      writeFileSync(
+        path.join(appRoot, 'security', 'evidence', 'app-live-bridge.json'),
+        `${JSON.stringify(record, null, 2)}\n`,
+      );
+      log('run record written to security/evidence/app-live-bridge.json');
+      log('BRIDGE COMPLETE — the shipped composition passed against the live stack');
+    } finally {
+      stop(true);
+    }
+    break;
+  }
   case 'stop':
     stop();
     break;
   default:
-    fail('usage: e2e-binary-stack.mjs <run|up|seed|e2e|stop>');
+    fail('usage: e2e-binary-stack.mjs <run|bridge|up|seed|e2e|stop>');
 }

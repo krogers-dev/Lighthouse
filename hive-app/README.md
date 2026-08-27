@@ -229,6 +229,7 @@ Database tests need the local harness:
 node scripts/db-local.mjs reset && node scripts/db-local.mjs test   # pgTAP
 node scripts/local-supabase.mjs e2e                                 # black-box auth, needs Docker
 node scripts/e2e-binary-stack.mjs run                               # same harness, no Docker (Linux/macOS)
+node scripts/e2e-binary-stack.mjs bridge                            # the APP'S OWN composition against the live stack
 ```
 
 The binary-stack lane runs the identical black-box harness against real
@@ -236,6 +237,16 @@ GoTrue/PostgREST/Mailpit processes on loopback (sha256-pinned, fetched
 into the gitignored `.cache/`), for machines where Docker images cannot
 be pulled. Its evidence is labeled "binary stack" — the Docker lane is
 still the one that exercises the full Supabase CLI composition.
+
+`bridge` goes one layer deeper: it drives the app's OWN shipped
+composition — the real `AuthController`, the real supabase-js bundle,
+the real scoped repositories from `src/app-runtime.ts`, with only the
+two native backends (Keychain, document directory) swapped for named
+in-memory synthetics — through full journeys against that stack: OTP
+sign-in from a real email, workspace choice, all three read surfaces,
+cross-scope denial, staff TOTP to AAL2, verified sign-out, and an
+identity switch with no scope bleed. It is the closest thing to running
+the app that exists without a device.
 
 ### Exit codes are part of the contract
 

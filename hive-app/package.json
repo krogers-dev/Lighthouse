@@ -29,6 +29,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:scripts": "node --test \"tests/scripts/*.test.mjs\"",
+    "test:live-bridge": "node scripts/e2e-binary-stack.mjs bridge",
     "verify:toolchain": "node scripts/verify-toolchain.mjs",
     "preflight:device": "node scripts/preflight-device.mjs",
     "eas:guard": "node scripts/eas-guard.mjs",

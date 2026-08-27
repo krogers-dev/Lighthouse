@@ -271,6 +271,42 @@ subsequent complete runs, two of them cold starts. It is recorded here
 rather than forgotten; if it reappears, the run log under
 `.cache/e2e-stack/logs` is where to look.
 
+### One layer deeper: the app's own composition, live (2026-08-27)
+
+The black-box harness proves the server; the jest suites prove the
+client against fakes. The seam between them — the exact composition
+`src/app-runtime.ts` ships — had never run against anything real. It now
+has: `node scripts/e2e-binary-stack.mjs bridge` builds that composition
+verbatim (real `AuthController`, real supabase-js bundle with the
+session write-gate, real scoped repositories, the REAL SecureStore
+adapter with its versioned envelope and residue checks), swapping only
+the two native byte stores for named in-memory synthetics, and drives
+three full journeys against the live stack. **3/3 passing, three
+consecutive runs**, recorded in `security/evidence/app-live-bridge.json`:
+
+- **Client journey** — OTP requested by the controller, six-digit code
+  read from the real Mailpit email, two-workspace chooser (the app must
+  ask, not pick), scope selected, Home/Requests/Activity loaded through
+  the app's own repositories with the canonical rows newest-first,
+  cross-scope request id returning null with no existence signal, then a
+  sign-out whose storage deletion the adapter VERIFIES and the synthetic
+  backend confirms empty — after which the client accessor refuses reads.
+- **Staff journey** — after OTP the only reachable state is
+  `mfa_required`: the app never offers a workspace at AAL1. TOTP
+  enrollment uses the secret the state exposes once, verification lands
+  the canonical scope, and reads return rows where AAL1 had none.
+- **Identity switch** — a second person on the same install starts from
+  zero: no membership of the first identity's client is visible.
+
+Two live findings folded back in: GoTrue's one-second send floor
+surfaces in the app as `OTP_REQUEST_FAILED` with a notice — the journey
+now answers it the way the screens do, through the public `requestOtp()`
+resend, asserting the failure is shown rather than swallowed; and
+jest-expo's Expo fetch polyfill cannot reach a network, so the lane
+snapshots Node's real fetch before the preset loads and restores it
+after. The lane never runs in `npm test` (own jest project, latch env,
+loopback-only refusal).
+
 **What this changes for A3:** the acceptance item's substance — the
 black-box behavior of auth, RLS, and the read surfaces through real
 serving software — is now evidenced in this container, at the binary-
