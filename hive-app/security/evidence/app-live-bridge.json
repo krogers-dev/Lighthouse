@@ -1,6 +1,6 @@
 {
   "lane": "live bridge — the app composition of src/app-runtime.ts (real AuthController, supabase-js bundle, scoped repositories) against the binary stack; synthetic data only",
-  "completedAt": "2026-08-27T23:09:21.874Z",
+  "completedAt": "2026-08-27T23:15:44.374Z",
   "components": {
     "gotrue": {
       "version": "v2.196.0 (built from source tag, commit 0204331ca41a)",
@@ -18,7 +18,7 @@
   "substitutions": "ONLY the two native backends: SyntheticMemorySecureStore for the Keychain, SyntheticMemoryMarkerStore for the document directory (tests/live/helpers.ts)",
   "suite": "tests/live/app-live-bridge.test.ts via jest.live.config.js",
   "result": {
-    "passed": 3,
-    "total": 3
+    "passed": 7,
+    "total": 7
   }
 }

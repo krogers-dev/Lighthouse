@@ -226,6 +226,7 @@ npm run db:types:check      # committed types match the schema
 Database tests need the local harness:
 
 ```bash
+node scripts/fetch-e2e-binaries.mjs                                 # once per machine: pinned stack binaries
 node scripts/db-local.mjs reset && node scripts/db-local.mjs test   # pgTAP
 node scripts/local-supabase.mjs e2e                                 # black-box auth, needs Docker
 node scripts/e2e-binary-stack.mjs run                               # same harness, no Docker (Linux/macOS)

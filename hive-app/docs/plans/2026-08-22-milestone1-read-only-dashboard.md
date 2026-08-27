@@ -307,6 +307,49 @@ snapshots Node's real fetch before the preset loads and restores it
 after. The lane never runs in `npm test` (own jest project, latch env,
 loopback-only refusal).
 
+### The screens themselves, live — and the lane made deterministic
+
+Later on 2026-08-27, two more layers landed on the same stack:
+
+**The real screens rendered real data** (`tests/live/screens-live.test.tsx`,
+part of the `bridge` command — both live suites now total **7/7**).
+`AuthProvider` was mounted around the actual `DashboardScreen`,
+`RequestsScreen`, and `RequestDetailScreen`, over the live composition,
+after a real OTP sign-in: Home showed the canonical cases newest-first
+with the server recorded-through line and the server-confirmed workspace
+name; Requests listed the synthetic rows; a cross-scope request id
+rendered exactly "Request not found here" with nothing about client B
+anywhere in the tree; and sign-out stripped every protected row off the
+glass, after which the screen renders nothing. Only the device lane can
+claim pixels; this claims everything up to them.
+
+**The black-box flake was finally caught and root-caused.** The
+single-assertion failure first seen on the lane's first cold run
+reappeared and this time was logged: GoTrue's email send floor
+(`max_frequency = "1s"`) refuses a request landing in the same
+wall-clock second as another send — its own error says "you can only
+request this after 0 seconds". That is an anti-abuse control's edge, not
+the behavior under evidence, and the APP's handling of the floor (notice
+shown, resend offered) is separately proven by the bridge suite. The
+synthetic loopback lane therefore disables the floor
+(`GOTRUE_SMTP_MAX_FREQUENCY=1ns`) — a documented, deliberate divergence
+from config.toml, which still governs the CLI stack. Two consecutive
+full runs after the change: **157/157, 157/157**.
+
+**Reproducibility on other machines**: `npm run fetch:e2e-binaries`
+downloads postgrest and mailpit from their pinned release assets
+(archive sha256 verified BEFORE extraction) and builds gotrue from the
+pinned tag, refusing a tag that has moved off its recorded commit. A
+locally built Go binary embeds local paths, so its digest is
+machine-specific; the script records the verified build's digest and the
+stack accepts that record for gotrue only.
+
+**Expo Doctor** (a VERIFICATION gate, first run 2026-08-27): **19/21
+checks pass**. The two failures are the two network-dependent checks —
+the config-schema fetch and the React Native Directory validation — both
+receiving this container's egress-proxy denial text instead of JSON.
+Re-run on the desktop for the full 21.
+
 **What this changes for A3:** the acceptance item's substance — the
 black-box behavior of auth, RLS, and the read surfaces through real
 serving software — is now evidenced in this container, at the binary-

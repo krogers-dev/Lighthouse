@@ -1,6 +1,6 @@
 {
   "lane": "binary stack — real GoTrue/PostgREST/Mailpit on loopback, NOT the Supabase CLI composition; synthetic data only",
-  "completedAt": "2026-08-27T11:19:42.286Z",
+  "completedAt": "2026-08-27T23:17:05.319Z",
   "components": {
     "gotrue": {
       "version": "v2.196.0 (built from source tag, commit 0204331ca41a)",

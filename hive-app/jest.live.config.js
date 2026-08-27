@@ -10,7 +10,7 @@ const expoPreset = require('jest-expo/jest-preset');
 
 module.exports = {
   ...expoPreset,
-  testMatch: ['<rootDir>/tests/live/**/*.test.ts'],
+  testMatch: ['<rootDir>/tests/live/**/*.test.ts?(x)'],
   moduleNameMapper: {
     ...(expoPreset.moduleNameMapper ?? {}),
     '^@/(.*)$': '<rootDir>/src/$1',

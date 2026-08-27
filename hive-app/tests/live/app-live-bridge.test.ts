@@ -20,48 +20,13 @@
  * stack) up, is invoked only through `e2e-binary-stack.mjs bridge`, and
  * refuses to start against anything but a loopback URL.
  */
-import { AuthController, type SessionStorage } from '@/auth/controller';
-import { InstallMarker } from '@/auth/install-marker';
 import type { AuthState } from '@/auth/machine';
-import { SessionStorageAdapter } from '@/auth/secure-store-adapter';
-import { nullDiagnostics } from '@/core/diagnostics';
-import { systemClock } from '@/core/clock';
-import { validateEnvironment } from '@/core/env';
 import { asMembershipId } from '@/core/ids';
-import {
-  createSupabaseBundle,
-  type HiveSupabaseClient,
-  type SessionWriteGate,
-} from '@/data/supabase/client';
-import {
-  ActivityRepository,
-  DashboardRepository,
-  RequestsRepository,
-} from '@/data/supabase/repositories';
-import { ScopedRegistry } from '@/tenancy/clearing';
 
 // The reviewed TOTP math the QA helper uses; scripts are plain ESM.
 import { totpCode } from '../../scripts/lib/totp.mjs';
 
-import {
-  SyntheticMemoryMarkerStore,
-  SyntheticMemorySecureStore,
-  fetchOtpCode,
-  snapshotMailbox,
-  waitForState,
-} from './helpers';
-
-const url = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-const mailpitUrl = process.env.HIVE_LOCAL_MAILPIT_URL ?? 'http://127.0.0.1:54324';
-
-if (process.env.HIVE_LIVE_BRIDGE !== '1') {
-  throw new Error(
-    'app-live-bridge: run through `node scripts/e2e-binary-stack.mjs bridge` — this lane needs the live local stack',
-  );
-}
-if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(new URL(url).hostname)) {
-  throw new Error('app-live-bridge: refusing a non-loopback URL');
-}
+import { buildApp, signInWithOtp, waitForState } from './journeys';
 
 // Canonical synthetic identities and rows (scripts/lib/synthetic-identities.mjs
 // and supabase/seed.sql). Restated literally so a drifted seed FAILS here
@@ -76,103 +41,6 @@ const A1 = {
 const A1_CASE_NEWER = 'eeeeeeee-0000-4000-8000-0000000000a1';
 const A1_CASE_OLDER = 'eeeeeeee-0000-4000-8000-0000000000a2';
 const B1_REQUEST = 'ffffffff-0000-4000-8000-0000000000b1';
-
-/** The app's composition root, verbatim except the two native backends.
- * Kept in one factory so every journey exercises the same wiring. */
-function buildApp() {
-  const env = validateEnvironment(
-    {
-      EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
-      EXPO_PUBLIC_SUPABASE_CLIENT_KEY: process.env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY,
-    },
-    'development',
-  );
-
-  const backend = new SyntheticMemorySecureStore();
-  const storage: SessionStorage = new SessionStorageAdapter(backend);
-  const registry = new ScopedRegistry();
-  let currentClient: HiveSupabaseClient | null = null;
-  let currentGate: SessionWriteGate = { open: true };
-
-  const controller = new AuthController({
-    createBundle: () => {
-      const gate: SessionWriteGate = { open: true };
-      currentGate = gate;
-      const bundle = createSupabaseBundle(env, storage, gate);
-      currentClient = bundle.client;
-      return {
-        auth: bundle.auth,
-        memberships: bundle.memberships,
-        dispose: () => {
-          gate.open = false;
-          bundle.dispose();
-          currentClient = null;
-        },
-      };
-    },
-    storage,
-    marker: new InstallMarker(new SyntheticMemoryMarkerStore()),
-    registry,
-    diagnostics: nullDiagnostics,
-    clock: systemClock,
-    failMode: 'throw',
-    initialAppStatus: 'active',
-  });
-
-  controller.subscribe((state) => {
-    if (
-      state.name === 'signing_out' ||
-      state.name === 'storage_quarantined' ||
-      state.name === 'fatal'
-    ) {
-      currentGate.open = false;
-    }
-  });
-
-  const clientAccessor = (): HiveSupabaseClient => {
-    if (!currentClient || controller.getState().name !== 'authorized') {
-      throw new Error('auth_expired');
-    }
-    return currentClient;
-  };
-
-  return {
-    controller,
-    backend,
-    storage,
-    dashboard: new DashboardRepository(clientAccessor, registry),
-    requests: new RequestsRepository(clientAccessor, registry),
-    activity: new ActivityRepository(clientAccessor, registry),
-  };
-}
-
-/** OTP sign-in exactly as the screens drive it: startSignIn (which sends
- * the code), read the code from the real email, submitOtp.
- *
- * GoTrue enforces a one-second send floor per address (config.toml
- * max_frequency); a journey that follows another within the same second
- * gets a 429, which the controller surfaces as a notice on first_factor.
- * The screens answer that with the resend control, so this helper does
- * the same through the controller's public requestOtp() — asserting the
- * failure is SHOWN, never silently swallowed, before retrying. */
-async function signInWithOtp(app: ReturnType<typeof buildApp>, email: string) {
-  const before = await snapshotMailbox(mailpitUrl);
-  await app.controller.startSignIn(email);
-  for (let attempt = 0; ; attempt += 1) {
-    const settled = (await waitForState(
-      app.controller,
-      `${email} otp settled`,
-      (state) => state.name === 'first_factor' && (state.otpSent || state.notice !== undefined),
-    )) as Extract<AuthState, { name: 'first_factor' }>;
-    if (settled.otpSent) break;
-    expect(settled.notice).toBeDefined();
-    if (attempt >= 2) throw new Error(`${email}: OTP still refused after ${attempt + 1} requests`);
-    await new Promise((resolve) => setTimeout(resolve, 1300));
-    await app.controller.requestOtp();
-  }
-  const code = await fetchOtpCode(mailpitUrl, email, before);
-  await app.controller.submitOtp(code);
-}
 
 jest.setTimeout(120_000);
 
