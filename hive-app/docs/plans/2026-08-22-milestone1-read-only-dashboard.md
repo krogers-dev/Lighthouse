@@ -350,6 +350,27 @@ the config-schema fetch and the React Native Directory validation — both
 receiving this container's egress-proxy denial text instead of JSON.
 Re-run on the desktop for the full 21.
 
+### Clean-checkout drill at `5ed066b`: the whole system from git alone
+
+Fresh clone of the pushed branch into an empty directory; `npm ci` from
+the lockfile; `npm run fetch:e2e-binaries` producing every stack binary
+from nothing (postgrest and mailpit from the pinned, digest-verified
+release archives; gotrue REBUILT from the pinned tag, commit verified);
+then both live lanes:
+
+| Drill step                           | Result                                      |
+| ------------------------------------ | ------------------------------------------- |
+| clone → HEAD                         | `5ed066b`                                   |
+| npm ci                               | exit 0                                      |
+| fetch:e2e-binaries (cold)            | exit 0 — downloads verified, gotrue rebuilt |
+| black-box harness (`run`)            | exit 0 — **157 passed, 0 failed**           |
+| app composition + screens (`bridge`) | exit 0 — **7 passed, 0 failed**             |
+
+One environmental footgun surfaced and is now documented: the checkout's
+ancestor directories must be traversable (`o+x`) by the `hivepg` system
+user, or `initdb` fails with permission denied — a property of where the
+repo is cloned, not of the repo.
+
 **What this changes for A3:** the acceptance item's substance — the
 black-box behavior of auth, RLS, and the read surfaces through real
 serving software — is now evidenced in this container, at the binary-

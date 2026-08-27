@@ -239,6 +239,11 @@ into the gitignored `.cache/`), for machines where Docker images cannot
 be pulled. Its evidence is labeled "binary stack" — the Docker lane is
 still the one that exercises the full Supabase CLI composition.
 
+Root-sandbox note: the stack runs PostgreSQL as the `hivepg` system
+user, so the checkout's ancestor directories must be traversable by it
+(`o+x`); a clone under a `0700` home works only after opening those
+traversal bits.
+
 `bridge` goes one layer deeper: it drives the app's OWN shipped
 composition — the real `AuthController`, the real supabase-js bundle,
 the real scoped repositories from `src/app-runtime.ts`, with only the
