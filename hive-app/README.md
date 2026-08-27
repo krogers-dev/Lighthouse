@@ -228,7 +228,14 @@ Database tests need the local harness:
 ```bash
 node scripts/db-local.mjs reset && node scripts/db-local.mjs test   # pgTAP
 node scripts/local-supabase.mjs e2e                                 # black-box auth, needs Docker
+node scripts/e2e-binary-stack.mjs run                               # same harness, no Docker (Linux/macOS)
 ```
+
+The binary-stack lane runs the identical black-box harness against real
+GoTrue/PostgREST/Mailpit processes on loopback (sha256-pinned, fetched
+into the gitignored `.cache/`), for machines where Docker images cannot
+be pulled. Its evidence is labeled "binary stack" — the Docker lane is
+still the one that exercises the full Supabase CLI composition.
 
 ### Exit codes are part of the contract
 

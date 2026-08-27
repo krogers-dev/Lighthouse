@@ -242,26 +242,41 @@ behavior, the CLI's composition, or the publishable-key front door; its
 keys are legacy JWT-shaped, which policy permits only for loopback
 development and the release gates reject.
 
-**Status: built, not yet evidenced.** The first bring-up got as far as
-real progress — its own PostgreSQL cluster on 55434 via the established
-`runuser`/`hivepg` pattern, database initialized, GoTrue's own migrations
-executing (they surfaced that a bare cluster lacks the platform's
-`postgres`/`supabase_admin` roles, now created up front) — and was then
-stopped by this session's tool-permission layer, which began denying the
-orchestrator's invocation (it spawns daemons and creates a system user as
-root). Per that layer's own guidance the denial is not worked around. No
-part of the e2e has run; nothing is claimed from this lane yet.
+**Status: EVIDENCED — 157 passed, 0 failed, three consecutive full runs.**
+Kody authorized the run on 2026-08-27. `node scripts/e2e-binary-stack.mjs
+run` brings the stack up from nothing, seeds nine login-capable users
+through the real GoTrue Admin API (all canonical UUIDs, 15 memberships
+via PostgREST), executes the unmodified black-box harness, writes
+`security/evidence/e2e-binary-stack.json`, and tears down. The harness
+covered, against the real services: OTP sign-in for every seeded account
+with the code taken from a real Mailpit email under the exact P0-1
+subject; JWT `sub` equal to the canonical definition everywhere; refresh
+rotation with retained AAL; unknown-email rejection with no account
+creation; TOTP enrollment, challenge, verify to AAL2; and the full
+PostgREST reach/denial matrix — staff at AAL1 zero rows, AAL2 exact
+reach, cross-client and cross-entity zero, unknown request ids returning
+no existence signal.
 
-Unblock (either works):
+Found while getting there, all fixed in the orchestrator: GoTrue's
+default SMTP send-frequency floor (a minute) fails the harness's
+deliberate repeat-OTP requests — config.toml sets `max_frequency = "1s"`
+and the stack now mirrors it; back-to-back runs raced the old Mailpit
+for its SMTP port, so `stop` now waits and escalates to SIGKILL; and the
+post-kill wait had to be bounded, because a detached parent never reaps
+its children and `kill(pid, 0)` succeeds on a zombie forever. One
+honesty note: the very first cold run had a single failed assertion
+(150/157 with sections short-circuited) that could not be captured
+before the output scrolled and has not reproduced across three
+subsequent complete runs, two of them cold starts. It is recorded here
+rather than forgotten; if it reappears, the run log under
+`.cache/e2e-stack/logs` is where to look.
 
-1. Kody allows the command — a Claude Code permission rule for
-   `node scripts/e2e-binary-stack.mjs *` (or simply reply "run it";
-   a fresh instruction usually re-permits it) — after which
-   `node scripts/e2e-binary-stack.mjs run` executes seed + the full
-   black-box harness and tears down; or
-2. add the two CDN hosts above to the environment's network allowlist,
-   and the ORIGINAL CLI lane (`local-supabase.mjs up/seed/e2e`) runs
-   here natively, which is the stronger evidence anyway.
+**What this changes for A3:** the acceptance item's substance — the
+black-box behavior of auth, RLS, and the read surfaces through real
+serving software — is now evidenced in this container, at the binary-
+stack level. The CLI-composition run (Kong, publishable-key front door)
+remains outstanding and lands either on the desktop with Docker or here
+once the two CDN hosts above are allowlisted.
 
 ## WO-002 acceptance status
 

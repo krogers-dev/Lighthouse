@@ -409,7 +409,12 @@ function gotrueEnv(secrets, forServe) {
     GOTRUE_MFA_TOTP_VERIFY_ENABLED: 'true',
     GOTRUE_MFA_MAX_ENROLLED_FACTORS: '10',
     // Mirrors supabase/config.toml's raised local limits: nine synthetic
-    // accounts sign in repeatedly during one evidence run.
+    // accounts sign in repeatedly during one evidence run, and the
+    // harness deliberately requests a SECOND code for the same address
+    // (fresh-code-wins is one of its assertions). config.toml sets
+    // [auth.email] max_frequency = "1s"; GoTrue's default of a minute
+    // fails exactly those repeat requests.
+    GOTRUE_SMTP_MAX_FREQUENCY: '1s',
     GOTRUE_RATE_LIMIT_EMAIL_SENT: '360',
     GOTRUE_RATE_LIMIT_VERIFY: '360',
     GOTRUE_RATE_LIMIT_TOKEN_REFRESH: '360',
@@ -539,12 +544,54 @@ async function up() {
   );
 }
 
+/** Run a harness script with the stack's env, streaming its output while
+ * also capturing it so `run` can parse the pass/fail counts into the
+ * evidence record. A nonzero exit becomes OUR exit code, without the
+ * unhandled-throw stack noise execFileSync produces. */
 function runChild(script, secrets) {
-  const result = execFileSync(process.execPath, [path.join(appRoot, 'scripts', script)], {
-    env: { ...process.env, ...harnessEnv(secrets) },
-    stdio: 'inherit',
-  });
-  return result;
+  const result = spawnSyncChild(script, secrets);
+  process.stdout.write(result.output);
+  if (result.status !== 0) {
+    log(`${script} exited ${result.status}`);
+    process.exit(result.status ?? 1);
+  }
+  return result.output;
+}
+
+function spawnSyncChild(script, secrets) {
+  try {
+    const output = execFileSync(process.execPath, [path.join(appRoot, 'scripts', script)], {
+      env: { ...process.env, ...harnessEnv(secrets) },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
+    return { status: 0, output };
+  } catch (error) {
+    return { status: error.status ?? 1, output: error.stdout ?? '' };
+  }
+}
+
+/** The run record, alongside the candidate-export evidence: which pinned
+ * binaries produced which counts, when. The lane name is in the file so
+ * the evidence can never silently pass as CLI-stack evidence. */
+function writeEvidence(harnessOutput) {
+  const counts = harnessOutput.match(/e2e-local-auth: (\d+) passed, (\d+) failed/);
+  const record = {
+    lane: 'binary stack — real GoTrue/PostgREST/Mailpit on loopback, NOT the Supabase CLI composition; synthetic data only',
+    completedAt: new Date().toISOString(),
+    components: PINS,
+    postgres: 'system PostgreSQL 16, dedicated cluster (port 55434)',
+    router: 'loopback path router (scripts/e2e-binary-stack.mjs), stands where Kong stands',
+    keys: 'legacy JWT-shaped, run-local random secret — loopback development only, release-rejected by shape',
+    harness:
+      'scripts/e2e-local-auth.mjs (unmodified), seed via scripts/seed-local.mjs (unmodified)',
+    result: counts
+      ? { passed: Number(counts[1]), failed: Number(counts[2]) }
+      : { passed: null, failed: null, note: 'counts line not found in harness output' },
+  };
+  const evidencePath = path.join(appRoot, 'security', 'evidence', 'e2e-binary-stack.json');
+  writeFileSync(evidencePath, `${JSON.stringify(record, null, 2)}\n`);
+  log(`run record written to ${path.relative(appRoot, evidencePath)}`);
 }
 
 function stop(quiet = false) {
@@ -559,6 +606,27 @@ function stop(quiet = false) {
       if (!quiet) log(`stopped ${name} (pid ${pid})`);
     }
   }
+  // WAIT for them to actually be gone: a back-to-back `run` otherwise
+  // races the old mailpit for its SMTP port and the new one dies on
+  // bind. SIGTERM first, SIGKILL for anything still alive after 5s.
+  const deadline = Date.now() + 5000;
+  let stragglers = Object.values(pids).filter(alive);
+  while (stragglers.length > 0 && Date.now() < deadline) {
+    sh('sleep', ['0.2']);
+    stragglers = Object.values(pids).filter(alive);
+  }
+  for (const pid of stragglers) {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      /* raced */
+    }
+  }
+  // Bounded, never a loop-until-gone: these are OUR detached children,
+  // and a killed child stays a ZOMBIE (kill(pid, 0) still succeeds)
+  // until reaped, which a detached parent never does. Its sockets are
+  // released at death, which is all the next bring-up needs.
+  if (stragglers.length > 0) sh('sleep', ['0.5']);
   if (existsSync(pidsPath)) rmSync(pidsPath);
   // Postgres is left running between runs (like db-local); `stop` halts it.
   if (!quiet && existsSync(path.join(pgDir, 'PG_VERSION')) && pgRunning()) {
@@ -587,7 +655,8 @@ switch (command) {
     const secrets = loadOrCreateSecrets();
     try {
       runChild('seed-local.mjs', secrets);
-      runChild('e2e-local-auth.mjs', secrets);
+      const harnessOutput = runChild('e2e-local-auth.mjs', secrets);
+      writeEvidence(harnessOutput);
       log('RUN COMPLETE — harness exit 0 (binary stack)');
     } finally {
       stop(true);
