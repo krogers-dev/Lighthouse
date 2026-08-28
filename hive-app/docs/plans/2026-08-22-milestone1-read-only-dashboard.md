@@ -577,13 +577,13 @@ waiting, and they are independent of each other:
 
 The run path for (1) is in README.md.
 
-## 2026-08-28 — first Windows desktop execution: seven composition finds
+## 2026-08-28 — first Windows desktop execution: nine composition finds
 
 The Windows desktop (item (1) above) reached a fully green
 `preflight:device` — Node 22.23.2/npm 10.9.8 after displacing a
 pre-existing Node 24, Docker Desktop on the WSL2 backend, Android Studio
 with a Pixel_8 API 36 AVD, WHPX acceleration, 7.8 GB RAM — and the first
-real execution of the device lane surfaced seven defects that no
+real execution of the device lane surfaced nine defects that no
 container run could have, because no prior machine could run this lane
 at all:
 
@@ -681,10 +681,38 @@ at all:
    morning `up` having passed its health check was timing luck, and the
    dropped container frees real memory on the 8 GB desktop.
 
-Fresh counts at the commits recording this entry: node:test **306
-passed, 0 failed** (19 new across finds 1–5, positives and negatives;
-finds 6–7 are configuration corrected against observed stack behaviour),
-eslint `--max-warnings 0` clean, prettier clean. Device-lane execution
-on the desktop continues from the analytics fix; pixels are on glass,
-and the signed-in Home screenshot remains the outstanding device
-evidence.
+8. **A stop/start restore can leave synthetic accounts outside the
+   canonical shape.** After the restarts, `client.owner@example.invalid`
+   existed with ZERO auth identities; the seed's verification refused to
+   bless the state — correctly, and the account still signed in, because
+   GoTrue is more forgiving at runtime than the verifier is on purpose —
+   but the refusal left the operator with no path forward. The failure
+   message now explains the drift and prints the rebuild
+   (`supabase db reset`, then seed); the harness still never deletes
+   accounts. Commit 997866d.
+
+9. **The harness's service credential worked at GoTrue and failed at
+   PostgREST.** After a clean `db reset`, all nine users created and
+   verified canonical — and the very next step, the membership insert,
+   answered 403 with full service authority in hand. The CLI's
+   new-style `sb_secret` key satisfies Kong's `apikey` gate and GoTrue,
+   but PostgREST reads roles from a JWT: an unparseable bearer demotes
+   the request to `anon`, whose table grants migration
+   20260821120002 deliberately strips. (The binary lane never hit this
+   because it mints its own JWTs.) `runHarness` now separates the two
+   header roles — `HIVE_LOCAL_GATEWAY_KEY` (an issued key, for Kong)
+   from `HIVE_LOCAL_SERVICE_KEY` (a service_role JWT bearer: the
+   stack's legacy one when issued, else minted from the stack's JWT
+   secret via `mintServiceRoleJwt`/`chooseServiceBearer`, defaulting to
+   the CLI's fixed local secret) — and PROVES the credential with a
+   PostgREST probe before any harness runs, so a wrong secret fails
+   loudly at the door instead of deep inside a run. Loopback-only, as
+   before; nothing is printed or persisted.
+
+Fresh counts at the commits recording this entry: node:test **310
+passed, 0 failed** (23 new across finds 1–5 and 9, positives and
+negatives; finds 6–8 are configuration and messages corrected against
+observed stack behaviour), eslint `--max-warnings 0` clean, prettier
+clean. Device-lane execution on the desktop continues from the bearer
+fix; pixels are on glass, and the signed-in Home screenshot remains the
+outstanding device evidence.

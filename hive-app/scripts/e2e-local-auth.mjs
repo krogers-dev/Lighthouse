@@ -41,6 +41,9 @@ import { totpCode } from './lib/totp.mjs';
 const url = process.env.HIVE_LOCAL_SUPABASE_URL;
 const serviceKey = process.env.HIVE_LOCAL_SERVICE_KEY;
 const clientKey = process.env.HIVE_LOCAL_CLIENT_KEY;
+// Kong's apikey gate wants an ISSUED key; the service bearer carries the
+// role (a JWT — PostgREST demotes any unparseable bearer to anon).
+const gatewayKey = process.env.HIVE_LOCAL_GATEWAY_KEY ?? serviceKey;
 const mailpitUrl = process.env.HIVE_LOCAL_MAILPIT_URL ?? 'http://127.0.0.1:54324';
 const EXPECTED_SUBJECT = 'Your HIVE sign-in code';
 
@@ -83,7 +86,7 @@ async function admin(pathname, options = {}) {
   const response = await fetch(`${url}/auth/v1${pathname}`, {
     ...options,
     headers: {
-      apikey: serviceKey,
+      apikey: gatewayKey,
       Authorization: `Bearer ${serviceKey}`,
       'Content-Type': 'application/json',
       ...options.headers,

@@ -21,6 +21,9 @@ import { SYNTHETIC_IDENTITIES } from './lib/synthetic-identities.mjs';
 
 const url = process.env.HIVE_LOCAL_SUPABASE_URL;
 const serviceKey = process.env.HIVE_LOCAL_SERVICE_KEY;
+// Kong's apikey gate wants an ISSUED key; the service bearer carries the
+// role (a JWT — PostgREST demotes any unparseable bearer to anon).
+const gatewayKey = process.env.HIVE_LOCAL_GATEWAY_KEY ?? serviceKey;
 const email = (process.env.HIVE_RESET_TOTP_EMAIL ?? '').trim().toLowerCase();
 
 if (!url || !serviceKey) {
@@ -43,7 +46,7 @@ async function adminRequest(pathname, options = {}) {
   const response = await fetch(`${url}/auth/v1${pathname}`, {
     ...options,
     headers: {
-      apikey: serviceKey,
+      apikey: gatewayKey,
       Authorization: `Bearer ${serviceKey}`,
       'Content-Type': 'application/json',
       ...options.headers,

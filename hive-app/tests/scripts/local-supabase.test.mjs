@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { createHmac } from 'node:crypto';
+
 import {
+  CLI_DEFAULT_LOCAL_JWT_SECRET,
   buildEnvLocal,
+  chooseServiceBearer,
   describeRun,
   isLoopback,
+  mintServiceRoleJwt,
   parseStatus,
   redactSecrets,
   selectWrittenOrigin,
@@ -124,4 +129,55 @@ test('NEGATIVE: a manifest origin on the wrong port cannot be written', () => {
   // prevent.
   const written = selectWrittenOrigin('http://127.0.0.1:54321', ['http://10.0.2.2:9999'], true);
   assert.ok(written.error?.includes('54321'));
+});
+
+// ---- the service bearer PostgREST can actually read ----
+// Found at the seed's first membership insert against the CLI stack
+// (2026-08-28): the new-style sb_secret key satisfies Kong and GoTrue,
+// but PostgREST reads roles from a JWT — an unparseable bearer demotes
+// the request to anon, whose table grants this schema deliberately
+// strips, so full service authority answered 403. The bearer must be a
+// service_role JWT: the stack's legacy one when issued, else minted.
+
+test('mintServiceRoleJwt produces a verifiable HS256 service_role JWT', () => {
+  const token = mintServiceRoleJwt('test-secret-0123456789-0123456789', 1_700_000_000);
+  const [header, payload, signature] = token.split('.');
+  assert.deepEqual(JSON.parse(Buffer.from(header, 'base64url').toString()), {
+    alg: 'HS256',
+    typ: 'JWT',
+  });
+  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString());
+  assert.equal(claims.role, 'service_role');
+  assert.equal(claims.iss, 'supabase');
+  assert.equal(claims.exp, claims.iat + 3600);
+  const expected = createHmac('sha256', 'test-secret-0123456789-0123456789')
+    .update(`${header}.${payload}`)
+    .digest('base64url');
+  assert.equal(signature, expected);
+});
+
+test('a legacy service_role JWT from status is used as-is', () => {
+  const legacy = ['eyJhbGciOiJIUzI1NiJ9', 'eyJyb2xlIjoic2VydmljZV9yb2xlIn0', 'sig'].join('.');
+  const chosen = chooseServiceBearer({ SERVICE_ROLE_KEY: legacy }, 1_700_000_000);
+  assert.equal(chosen.bearer, legacy);
+  assert.match(chosen.source, /legacy/);
+});
+
+test('NEGATIVE: an sb_secret key is never used as the bearer', () => {
+  // The exact desktop failure: SECRET_KEY exists, no legacy JWT. The
+  // bearer must come out minted, not be the secret passed through.
+  const secretKey = 'sb_' + 'secret_syntheticsynthetic';
+  const chosen = chooseServiceBearer(
+    { SECRET_KEY: secretKey, JWT_SECRET: 'stack-secret-0123456789-0123456789' },
+    1_700_000_000,
+  );
+  assert.notEqual(chosen.bearer, secretKey);
+  assert.equal(chosen.bearer.split('.').length, 3);
+  assert.match(chosen.source, /minted from the JWT secret in supabase status/);
+});
+
+test('with no status secret the CLI default local secret signs the minted JWT', () => {
+  const chosen = chooseServiceBearer({}, 1_700_000_000);
+  assert.equal(chosen.bearer, mintServiceRoleJwt(CLI_DEFAULT_LOCAL_JWT_SECRET, 1_700_000_000));
+  assert.match(chosen.source, /CLI default local JWT secret/);
 });

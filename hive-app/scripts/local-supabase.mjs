@@ -16,6 +16,7 @@
  * pulled, scripts/db-local.mjs provides the database evidence lane.
  */
 import { spawnSync } from 'node:child_process';
+import { createHmac } from 'node:crypto';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -187,12 +188,80 @@ function up(wantsEmulatorHost) {
   console.log(`local-supabase: wrote .env.local (${parsed.keyKind} key, origin ${written.origin})`);
 }
 
-function runHarness(scriptName, extraEnv = {}) {
+/** The Supabase CLI's fixed default JWT secret for LOCAL stacks — public
+ * knowledge, not a credential, and only ever used after readStatus has
+ * refused any non-loopback URL. */
+export const CLI_DEFAULT_LOCAL_JWT_SECRET =
+  'super-secret-jwt-token-with-at-least-32-characters-long';
+
+function base64url(input) {
+  return Buffer.from(input).toString('base64url');
+}
+
+/** Mint a service_role JWT signed with the local stack's JWT secret. */
+export function mintServiceRoleJwt(secret, nowSeconds) {
+  const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const payload = base64url(
+    JSON.stringify({
+      role: 'service_role',
+      iss: 'supabase',
+      iat: nowSeconds,
+      exp: nowSeconds + 3600,
+    }),
+  );
+  const signature = createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url');
+  return `${header}.${payload}.${signature}`;
+}
+
+/** The privileged BEARER for GoTrue admin and PostgREST.
+ *
+ * Kong's `apikey` gate and PostgREST's `Authorization` role source have
+ * different requirements, found the expensive way on the desktop
+ * (2026-08-28): the new-style sb_secret key satisfies Kong and GoTrue,
+ * but PostgREST reads roles from a JWT — an unparseable bearer demotes
+ * the request to anon, whose grants this schema deliberately strips, so
+ * the seed's membership insert answered 403 with full service authority
+ * in hand. A legacy service_role JWT is used when the stack still issues
+ * one; otherwise one is MINTED from the stack's JWT secret (from status,
+ * else the CLI's fixed local default). */
+export function chooseServiceBearer(data, nowSeconds) {
+  const legacy = data?.SERVICE_ROLE_KEY ?? data?.service_role_key;
+  if (typeof legacy === 'string' && legacy.startsWith('eyJ')) {
+    return { bearer: legacy, source: 'legacy service_role JWT from supabase status' };
+  }
+  const statusSecret = data?.JWT_SECRET ?? data?.jwt_secret;
+  const secret =
+    typeof statusSecret === 'string' && statusSecret.length > 0
+      ? statusSecret
+      : CLI_DEFAULT_LOCAL_JWT_SECRET;
+  return {
+    bearer: mintServiceRoleJwt(secret, nowSeconds),
+    source:
+      secret === CLI_DEFAULT_LOCAL_JWT_SECRET
+        ? 'service_role JWT minted from the CLI default local JWT secret'
+        : 'service_role JWT minted from the JWT secret in supabase status',
+  };
+}
+
+async function runHarness(scriptName, extraEnv = {}) {
   const { parsed, raw } = readStatus();
   const data = JSON.parse(raw);
-  const serviceKey = data.SERVICE_ROLE_KEY ?? data.service_role_key ?? data.SECRET_KEY;
-  if (typeof serviceKey !== 'string' || serviceKey.length === 0) {
-    fail('no service key available from supabase status');
+  // The apikey header only has to get past Kong; the bearer carries the
+  // role. Prefer the issued secret key, else the legacy JWT, else the
+  // public client key (role still comes from the bearer).
+  const gatewayKey =
+    data.SECRET_KEY ?? data.secret_key ?? data.SERVICE_ROLE_KEY ?? parsed.clientKey;
+  const { bearer, source } = chooseServiceBearer(data, Math.floor(Date.now() / 1000));
+  // Prove the credential BEFORE any harness runs: a wrong secret would
+  // otherwise surface as a confusing 401/403 deep inside a harness.
+  const probe = await fetch(`${parsed.url}/rest/v1/memberships?select=user_id&limit=1`, {
+    headers: { apikey: gatewayKey, Authorization: `Bearer ${bearer}` },
+  });
+  if (!probe.ok) {
+    fail(
+      `the service credential was refused by PostgREST (status ${probe.status}; ${source}). ` +
+        'If this stack uses a custom JWT secret, supabase status must expose it.',
+    );
   }
   // In memory only, to the child process; never written or printed.
   const child = spawnSync('node', [path.join(appRoot, 'scripts', scriptName)], {
@@ -202,7 +271,8 @@ function runHarness(scriptName, extraEnv = {}) {
     env: {
       ...process.env,
       HIVE_LOCAL_SUPABASE_URL: parsed.url,
-      HIVE_LOCAL_SERVICE_KEY: serviceKey,
+      HIVE_LOCAL_SERVICE_KEY: bearer,
+      HIVE_LOCAL_GATEWAY_KEY: gatewayKey,
       HIVE_LOCAL_CLIENT_KEY: parsed.clientKey,
       ...extraEnv,
     },
@@ -212,23 +282,23 @@ function runHarness(scriptName, extraEnv = {}) {
   }
 }
 
-function seed() {
-  runHarness('seed-local.mjs');
+async function seed() {
+  await runHarness('seed-local.mjs');
 }
 
 /** Black-box auth executability proof (P0-1/P0-2): OTP by emailed token,
  * unknown-email negative, TOTP enrollment, refresh, PostgREST negatives. */
-function e2e() {
-  runHarness('e2e-local-auth.mjs');
+async function e2e() {
+  await runHarness('e2e-local-auth.mjs');
 }
 
 /** Checked loopback factor reset for one synthetic account — the
  * pre-step for a repeatable Maestro enrollment flow (RETURN-3 area 5). */
-function resetTotp(email) {
+async function resetTotp(email) {
   if (!email) {
     fail('usage: local-supabase.mjs reset-totp <synthetic-email>');
   }
-  runHarness('reset-totp.mjs', { HIVE_RESET_TOTP_EMAIL: email });
+  await runHarness('reset-totp.mjs', { HIVE_RESET_TOTP_EMAIL: email });
 }
 
 function stop() {
@@ -252,13 +322,13 @@ if (isMain) {
       break;
     }
     case 'seed':
-      seed();
+      await seed();
       break;
     case 'e2e':
-      e2e();
+      await e2e();
       break;
     case 'reset-totp':
-      resetTotp(process.argv[3]);
+      await resetTotp(process.argv[3]);
       break;
     case 'stop':
       stop();

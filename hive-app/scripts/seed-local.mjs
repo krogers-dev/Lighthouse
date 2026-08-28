@@ -32,6 +32,9 @@ import { SYNTHETIC_IDENTITIES, membershipRows } from './lib/synthetic-identities
 
 const url = process.env.HIVE_LOCAL_SUPABASE_URL;
 const serviceKey = process.env.HIVE_LOCAL_SERVICE_KEY;
+// Kong's apikey gate wants an ISSUED key; the bearer above carries the
+// role (a JWT — PostgREST demotes any unparseable bearer to anon).
+const gatewayKey = process.env.HIVE_LOCAL_GATEWAY_KEY ?? serviceKey;
 
 if (!url || !serviceKey) {
   console.error('seed-local: run through `node scripts/local-supabase.mjs seed`');
@@ -47,7 +50,7 @@ async function adminRequest(pathname, options = {}) {
   const response = await fetch(`${url}/auth/v1${pathname}`, {
     ...options,
     headers: {
-      apikey: serviceKey,
+      apikey: gatewayKey,
       Authorization: `Bearer ${serviceKey}`,
       'Content-Type': 'application/json',
       ...options.headers,
@@ -67,7 +70,7 @@ async function restRequest(pathname, options = {}) {
   const response = await fetch(`${url}/rest/v1${pathname}`, {
     ...options,
     headers: {
-      apikey: serviceKey,
+      apikey: gatewayKey,
       Authorization: `Bearer ${serviceKey}`,
       'Content-Type': 'application/json',
       ...options.headers,
