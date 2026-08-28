@@ -608,7 +608,7 @@ at all:
 3. **No ordering of `up` and `env:synthetic` produced a configuration an
    emulator could sign in with.** `up` wrote the real local key with
    `127.0.0.1` (which inside an emulator is the emulator); `env:synthetic
-   --android-emulator` wrote the reachable `10.0.2.2` origin with a
+--android-emulator` wrote the reachable `10.0.2.2` origin with a
    deliberately nonfunctional key; the README sequence ran the latter
    first and `up` then clobbered it. The lane is now one step:
    `up --android-emulator` writes the REAL local key with the
