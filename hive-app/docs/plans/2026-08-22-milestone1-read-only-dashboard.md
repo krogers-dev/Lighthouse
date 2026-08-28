@@ -750,6 +750,20 @@ close), status conveyed by icon and words rather than colour alone,
 all five nav destinations, Brand Kit v2.0 throughout. Screenshots
 captured by Kody (synthetic data is cleared for QA screenshots): the
 sign-in screen, the chooser, and signed-in Home — the project's
-first-ever pixel evidence, closing the desktop bring-up. Outstanding
-desktop evidence is now Phase 6 only: the CLI-composition e2e, Maestro
-flows on the emulator, and expo-doctor 21/21.
+first-ever pixel evidence, closing the desktop bring-up.
+
+**Phase 6, first two lanes, same evening.** The CLI-composition e2e —
+the one lane no cloud container could ever run — completed on the
+desktop against the live CLI stack: **e2e-local-auth: 157 passed, 0
+failed**, covering all nine identities' OTP journeys with canonical JWT
+subs, the unknown-email negative (no account created), TOTP enrollment
+to AAL2 with repeat-login against the existing factor, mandatory
+refresh rotation at AAL1 and AAL2, and the full AAL1-zero /
+AAL2-exact-ID row matrices including the cross-client and cross-entity
+zeros. expo-doctor on an unrestricted network: **20/21** — the one
+failure is patch drift, not breakage: twelve packages now trail the
+current SDK 57 patch releases (expo ~57.0.18 vs the pinned 57.0.11,
+react-native 0.86.3 vs 0.86.2, and ten more), because the pins are
+exact by design and upstream moved in the week since they were locked.
+The deliberate patch-refresh is filed as cloud work with a full gate
+sweep. Remaining desktop evidence: Maestro flows on the emulator.
