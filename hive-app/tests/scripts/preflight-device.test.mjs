@@ -15,6 +15,7 @@ import {
   deviceLanePlan,
   parseAccelCheck,
   parseAvdNames,
+  parseJavaMajor,
   resolveJdk,
 } from '../../scripts/preflight-device.mjs';
 
@@ -172,21 +173,49 @@ test('NEGATIVE: an undeterminable accel answer is null, never a silent true', ()
 });
 
 // ---- the JDK Gradle builds with ----
-// Found the expensive way on the first Windows bring-up (2026-08-28):
-// every Android line was green — SDK, adb, AVD, WHPX — and
-// `expo run:android` would still have died in its first minute, because
-// Android Studio ships a JDK without exporting JAVA_HOME or touching
-// PATH. The probe mirrors gradlew's own resolution order; these tests
-// pin that order.
+// Both halves of this check were found the expensive way on the first
+// Windows bring-up (2026-08-28). Presence: every Android line was green
+// — SDK, adb, AVD, WHPX — and `expo run:android` would still have died
+// in its first minute, because Android Studio ships a JDK without
+// exporting JAVA_HOME or touching PATH. Version: once JAVA_HOME pointed
+// at that bundled JBR, the build ran EIGHTEEN MINUTES and then failed
+// its configureCMake tasks with JEP-472 restricted-method errors — the
+// JBR was newer than the Android Gradle Plugin supports. The probe
+// mirrors gradlew's own resolution order; these tests pin the order and
+// the version boundary.
 
-test('a valid JAVA_HOME answers and names itself', () => {
+test('a valid 17–21 JAVA_HOME answers, naming the path and the version', () => {
   const jdk = resolveJdk({
-    javaHome: 'C:\\Android\\jbr',
+    javaHome: 'C:\\jdk-21',
     javaHomeValid: true,
+    javaHomeVersionOutput: 'openjdk 21.0.5 2024-10-15 LTS\nOpenJDK Runtime Environment\n',
     pathJavaVersion: null,
   });
   assert.equal(jdk.ok, true);
-  assert.equal(jdk.detail, 'JAVA_HOME=C:\\Android\\jbr');
+  assert.equal(jdk.detail, 'JAVA_HOME=C:\\jdk-21 (openjdk 21.0.5 2024-10-15 LTS)');
+});
+
+test("NEGATIVE: a JAVA_HOME past the supported range is a miss — the desktop's exact failure", () => {
+  const jdk = resolveJdk({
+    javaHome: 'C:\\Program Files\\Android\\Android Studio\\jbr',
+    javaHomeValid: true,
+    javaHomeVersionOutput: 'openjdk 25 2025-09-16\nOpenJDK Runtime Environment JBR\n',
+    pathJavaVersion: null,
+  });
+  assert.equal(jdk.ok, false);
+  assert.match(jdk.detail, /JDK 25 is too new/);
+  assert.match(jdk.detail, /17–21/);
+});
+
+test('NEGATIVE: a JDK below 17 is a miss', () => {
+  const jdk = resolveJdk({
+    javaHome: '/opt/jdk8',
+    javaHomeValid: true,
+    javaHomeVersionOutput: 'openjdk 11.0.2 2019-01-15',
+    pathJavaVersion: null,
+  });
+  assert.equal(jdk.ok, false);
+  assert.match(jdk.detail, /below React Native's minimum/);
 });
 
 test('NEGATIVE: a broken JAVA_HOME fails even when java is on PATH', () => {
@@ -195,28 +224,83 @@ test('NEGATIVE: a broken JAVA_HOME fails even when java is on PATH', () => {
   const jdk = resolveJdk({
     javaHome: '/uninstalled/jdk',
     javaHomeValid: false,
+    javaHomeVersionOutput: null,
     pathJavaVersion: 'openjdk 21.0.5 2024-10-15 LTS',
   });
   assert.equal(jdk.ok, false);
   assert.match(jdk.detail, /JAVA_HOME=\/uninstalled\/jdk/);
 });
 
-test('no JAVA_HOME defers to java on PATH, first line only', () => {
-  const jdk = resolveJdk({
+test("NEGATIVE: a JAVA_HOME whose java won't answer --version is a miss, not a silent ok", () => {
+  for (const javaHomeVersionOutput of [null, '', '   ']) {
+    const jdk = resolveJdk({
+      javaHome: '/broken/jdk',
+      javaHomeValid: true,
+      javaHomeVersionOutput,
+      pathJavaVersion: null,
+    });
+    assert.equal(jdk.ok, false, `output: ${String(javaHomeVersionOutput)}`);
+    assert.match(jdk.detail, /did not answer --version/);
+  }
+});
+
+test('no JAVA_HOME defers to java on PATH, with the same version boundary', () => {
+  const ok = resolveJdk({
     javaHome: null,
     javaHomeValid: false,
-    pathJavaVersion: 'openjdk 21.0.5 2024-10-15 LTS\nOpenJDK Runtime Environment Temurin-21\n',
+    javaHomeVersionOutput: null,
+    pathJavaVersion: 'openjdk 17.0.11 2024-04-16\nOpenJDK Runtime Environment Temurin-17\n',
+  });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.detail, 'openjdk 17.0.11 2024-04-16');
+
+  const tooNew = resolveJdk({
+    javaHome: null,
+    javaHomeValid: false,
+    javaHomeVersionOutput: null,
+    pathJavaVersion: 'openjdk 24.0.1 2025-04-15',
+  });
+  assert.equal(tooNew.ok, false);
+  assert.match(tooNew.detail, /too new/);
+});
+
+test('an unreadable version string reports what it saw rather than inventing a verdict', () => {
+  // A vendor string the parser cannot read is not evidence of a bad JDK;
+  // failing there would block a working machine on a formatting change.
+  const jdk = resolveJdk({
+    javaHome: '/opt/some-jdk',
+    javaHomeValid: true,
+    javaHomeVersionOutput: 'Vendor Custom JDK build 9999',
+    pathJavaVersion: null,
   });
   assert.equal(jdk.ok, true);
-  assert.equal(jdk.detail, 'openjdk 21.0.5 2024-10-15 LTS');
+  assert.match(jdk.detail, /Vendor Custom JDK build 9999/);
 });
 
 test('NEGATIVE: neither JAVA_HOME nor a PATH java is a miss, never a silent ok', () => {
   // run() returns null for a missing command; '' guards a probe that ran
   // and printed nothing. Both must read as absent.
   for (const pathJavaVersion of [null, undefined, '', '   ']) {
-    const jdk = resolveJdk({ javaHome: null, javaHomeValid: false, pathJavaVersion });
+    const jdk = resolveJdk({
+      javaHome: null,
+      javaHomeValid: false,
+      javaHomeVersionOutput: null,
+      pathJavaVersion,
+    });
     assert.equal(jdk.ok, false, `pathJavaVersion: ${String(pathJavaVersion)}`);
     assert.match(jdk.detail, /JAVA_HOME is not set/);
+  }
+});
+
+test('parseJavaMajor reads the shapes java --version really prints', () => {
+  assert.equal(parseJavaMajor('openjdk 21.0.5 2024-10-15 LTS'), 21);
+  assert.equal(parseJavaMajor('openjdk 25 2025-09-16'), 25);
+  assert.equal(parseJavaMajor('java 24.0.1 2025-04-15'), 24);
+  assert.equal(parseJavaMajor('openjdk version "17.0.11" 2024-04-16'), 17);
+});
+
+test('NEGATIVE: parseJavaMajor yields null for unreadable output, never a guess', () => {
+  for (const input of [null, undefined, '', 'no digits here', 'Vendor Custom JDK build']) {
+    assert.equal(parseJavaMajor(input), null, `input: ${String(input)}`);
   }
 });

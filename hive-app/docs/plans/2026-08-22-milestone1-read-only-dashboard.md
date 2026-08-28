@@ -577,13 +577,13 @@ waiting, and they are independent of each other:
 
 The run path for (1) is in README.md.
 
-## 2026-08-28 — first Windows desktop execution: three composition finds
+## 2026-08-28 — first Windows desktop execution: four composition finds
 
 The Windows desktop (item (1) above) reached a fully green
 `preflight:device` — Node 22.23.2/npm 10.9.8 after displacing a
 pre-existing Node 24, Docker Desktop on the WSL2 backend, Android Studio
 with a Pixel_8 API 36 AVD, WHPX acceleration, 7.8 GB RAM — and the first
-real execution of the device lane surfaced three defects that no
+real execution of the device lane surfaced four defects that no
 container run could have, because no prior machine could run this lane
 at all:
 
@@ -619,8 +619,22 @@ at all:
    plain `up`); `env:synthetic` remains the no-Docker gate-lane tool it
    was built as.
 
-Fresh counts at this entry's commit: node:test **294 passed, 0 failed**
-(7 new — describeRun and selectWrittenOrigin, positives and negatives),
+4. **The JDK presence check was not a JDK suitability check.** With
+   `JAVA_HOME` pointed at Android Studio's bundled JBR, preflight said
+   ok — and the first real Gradle build ran EIGHTEEN MINUTES before
+   `configureCMakeDebug` failed on react-native-screens and
+   react-native-worklets with JEP-472 "restricted method in
+   `java.lang.System`" errors: that JBR is newer than the Android Gradle
+   Plugin supports. `resolveJdk` now reads the version too
+   (`parseJavaMajor`) and holds it to 17–21 — 17 is React Native's
+   documented minimum, 21 the observed upper bound, encoded with the
+   observation date rather than guessed; an unreadable vendor string
+   reports what it saw instead of inventing a verdict. The desktop lane
+   moved to Temurin 21 with `JAVA_HOME` repointed; Android Studio keeps
+   its own JBR for itself.
+
+Fresh counts at the commits recording this entry: node:test **300
+passed, 0 failed** (13 new across finds 1–4, positives and negatives),
 eslint `--max-warnings 0` clean, prettier clean. Device-lane execution
-on the desktop continues past `up` from here; pixels remain unclaimed
+on the desktop continues from the JDK swap; pixels remain unclaimed
 until the emulator shows them.

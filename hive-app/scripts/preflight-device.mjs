@@ -53,6 +53,21 @@ function run(command, args, timeoutMs = 20_000) {
   }
 }
 
+/** run() for an absolute path to a real executable. No shell: cmd.exe
+ * would split an unquoted spaced path ("C:\Program Files\…\java.exe"),
+ * and a real .exe needs no batch-file interpreter anyway. */
+function runDirect(command, args, timeoutMs = 20_000) {
+  try {
+    return execFileSync(command, args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: timeoutMs,
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
 /** Count the bootable iOS simulators in `xcrun simctl list --json` output.
  *
  * Parsed from JSON rather than the tabular form: the table interleaves
@@ -137,27 +152,83 @@ export function parseAccelCheck(output) {
   return null;
 }
 
+/** Major version from `java --version` output, e.g. "openjdk 21.0.5
+ * 2024-10-15 LTS" → 21. Null when it cannot be read — which callers must
+ * keep distinct from a bad version. */
+export function parseJavaMajor(output) {
+  if (typeof output !== 'string') return null;
+  const match = output.match(/^\s*(?:openjdk|java)\s+(?:version\s+"?)?(\d+)/im);
+  if (!match) return null;
+  const major = Number(match[1]);
+  return Number.isInteger(major) && major > 0 ? major : null;
+}
+
+/** The JDK majors the Android build is known to work with here. 17 is
+ * React Native's documented minimum; the upper bound is observed, not
+ * guessed: Android Studio's bundled JBR on the first Windows bring-up
+ * (2026-08-28) was newer, and Gradle's configureCMake tasks failed with
+ * JEP-472 "restricted method in java.lang.System" errors after an
+ * 18-minute build. A too-new JDK costs more than a missing one. */
+const JDK_SUPPORTED = { min: 17, max: 21 };
+
+function jdkVersionVerdict(major, where) {
+  if (major === null) return { ok: true, note: '' }; // unreadable ≠ wrong; report what is known
+  if (major < JDK_SUPPORTED.min) {
+    return {
+      ok: false,
+      note: ` — JDK ${major} is below React Native's minimum of ${JDK_SUPPORTED.min}`,
+    };
+  }
+  if (major > JDK_SUPPORTED.max) {
+    return {
+      ok: false,
+      note:
+        ` — JDK ${major} is too new for the Android Gradle Plugin: its configureCMake tasks fail with ` +
+        `restricted-method errors (observed 2026-08-28${where}); use a ${JDK_SUPPORTED.min}–${JDK_SUPPORTED.max} JDK`,
+    };
+  }
+  return { ok: true, note: '' };
+}
+
 /** How Gradle finds a JDK, resolved the way gradlew itself does: an
  * explicit JAVA_HOME wins even when broken — gradlew errors out on an
  * invalid JAVA_HOME rather than falling back to PATH — and only an unset
  * JAVA_HOME defers to `java` on PATH.
  *
  * Exists because the Android section can be fully green — SDK, adb, AVD,
- * acceleration — on a machine where `expo run:android` still dies in its
- * first minute: Android Studio ships a JDK but exports no JAVA_HOME and
- * touches no PATH, so a fresh machine fails exactly there. Observed on
- * the first Windows bring-up, 2026-08-28. */
-export function resolveJdk({ javaHome, javaHomeValid, pathJavaVersion }) {
+ * acceleration — on a machine where `expo run:android` still dies:
+ * Android Studio ships a JDK but exports no JAVA_HOME and touches no
+ * PATH (first Windows bring-up, 2026-08-28) — and when JAVA_HOME is
+ * pointed at that bundled JBR, its version can be past what the Android
+ * Gradle Plugin supports, which fails eighteen minutes in rather than up
+ * front (same machine, same day). Presence and version are both the
+ * check. */
+export function resolveJdk({ javaHome, javaHomeValid, javaHomeVersionOutput, pathJavaVersion }) {
   if (javaHome) {
-    return javaHomeValid
-      ? { ok: true, detail: `JAVA_HOME=${javaHome}` }
-      : {
-          ok: false,
-          detail: `JAVA_HOME=${javaHome} has no bin/java — gradlew refuses an invalid JAVA_HOME even when java is on PATH`,
-        };
+    if (!javaHomeValid) {
+      return {
+        ok: false,
+        detail: `JAVA_HOME=${javaHome} has no bin/java — gradlew refuses an invalid JAVA_HOME even when java is on PATH`,
+      };
+    }
+    const firstLine =
+      typeof javaHomeVersionOutput === 'string' ? javaHomeVersionOutput.split('\n')[0].trim() : '';
+    if (firstLine === '') {
+      return {
+        ok: false,
+        detail: `JAVA_HOME=${javaHome} — its bin/java did not answer --version, so gradlew cannot use it`,
+      };
+    }
+    const verdict = jdkVersionVerdict(
+      parseJavaMajor(javaHomeVersionOutput),
+      ", Android Studio's JBR",
+    );
+    return { ok: verdict.ok, detail: `JAVA_HOME=${javaHome} (${firstLine})${verdict.note}` };
   }
   if (typeof pathJavaVersion === 'string' && pathJavaVersion.trim() !== '') {
-    return { ok: true, detail: pathJavaVersion.split('\n')[0].trim() };
+    const firstLine = pathJavaVersion.split('\n')[0].trim();
+    const verdict = jdkVersionVerdict(parseJavaMajor(pathJavaVersion), '');
+    return { ok: verdict.ok, detail: `${firstLine}${verdict.note}` };
   }
   return { ok: false, detail: 'JAVA_HOME is not set and no java answers on PATH' };
 }
@@ -257,22 +328,25 @@ function main() {
 
   // `--version`, not `-version`: the single-dash form prints to stderr,
   // which run() discards, so a working JDK would read as absent. Every
-  // JDK Gradle accepts here understands the double-dash form. The PATH
-  // probe is skipped when JAVA_HOME is set because JAVA_HOME decides
-  // alone either way.
+  // JDK in the supported range understands the double-dash form. The
+  // PATH probe is skipped when JAVA_HOME is set because JAVA_HOME
+  // decides alone either way.
   const javaHome = process.env.JAVA_HOME ?? null;
+  const javaHomeBinary = javaHome
+    ? path.join(javaHome, 'bin', isWindows ? 'java.exe' : 'java')
+    : null;
+  const javaHomeValid = Boolean(javaHomeBinary && existsSync(javaHomeBinary));
   const jdk = resolveJdk({
     javaHome,
-    javaHomeValid: Boolean(
-      javaHome && existsSync(path.join(javaHome, 'bin', isWindows ? 'java.exe' : 'java')),
-    ),
+    javaHomeValid,
+    javaHomeVersionOutput: javaHomeValid ? runDirect(javaHomeBinary, ['--version']) : null,
     pathJavaVersion: javaHome ? null : run('java', ['--version']),
   });
   record(
     'JDK (Gradle builds with it)',
     jdk.ok,
     jdk.detail,
-    'a JDK — Android Studio bundles one (set JAVA_HOME to its "jbr" folder), or https://adoptium.net',
+    'a JDK the range in the detail names — e.g. Temurin from https://adoptium.net; set JAVA_HOME to it',
   );
 
   const adb = run('adb', ['version']);
