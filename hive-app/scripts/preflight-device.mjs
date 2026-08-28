@@ -6,7 +6,8 @@
  *
  * `verify:toolchain` already pins the JavaScript side. This checks the
  * things it deliberately does not: a Docker daemon that actually answers,
- * a real simulator or emulator, hardware acceleration, and Maestro.
+ * a real simulator or emulator, hardware acceleration, the JDK Gradle
+ * needs, and Maestro.
  *
  * It NEVER installs anything. Installing developer tooling on someone's
  * machine is their decision, and a script that did it silently would be
@@ -25,6 +26,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import process from 'node:process';
 
 const isWindows = process.platform === 'win32';
@@ -135,6 +137,31 @@ export function parseAccelCheck(output) {
   return null;
 }
 
+/** How Gradle finds a JDK, resolved the way gradlew itself does: an
+ * explicit JAVA_HOME wins even when broken — gradlew errors out on an
+ * invalid JAVA_HOME rather than falling back to PATH — and only an unset
+ * JAVA_HOME defers to `java` on PATH.
+ *
+ * Exists because the Android section can be fully green — SDK, adb, AVD,
+ * acceleration — on a machine where `expo run:android` still dies in its
+ * first minute: Android Studio ships a JDK but exports no JAVA_HOME and
+ * touches no PATH, so a fresh machine fails exactly there. Observed on
+ * the first Windows bring-up, 2026-08-28. */
+export function resolveJdk({ javaHome, javaHomeValid, pathJavaVersion }) {
+  if (javaHome) {
+    return javaHomeValid
+      ? { ok: true, detail: `JAVA_HOME=${javaHome}` }
+      : {
+          ok: false,
+          detail: `JAVA_HOME=${javaHome} has no bin/java — gradlew refuses an invalid JAVA_HOME even when java is on PATH`,
+        };
+  }
+  if (typeof pathJavaVersion === 'string' && pathJavaVersion.trim() !== '') {
+    return { ok: true, detail: pathJavaVersion.split('\n')[0].trim() };
+  }
+  return { ok: false, detail: 'JAVA_HOME is not set and no java answers on PATH' };
+}
+
 /** The whole check. Guarded below so importing this module for its
  * parsers does not run probes or exit the importing process. */
 function main() {
@@ -226,6 +253,26 @@ function main() {
     Boolean(androidHome && existsSync(androidHome)),
     androidHome ? `ANDROID_HOME=${androidHome}` : 'ANDROID_HOME / ANDROID_SDK_ROOT is not set',
     'Android Studio — https://developer.android.com/studio (then set ANDROID_HOME)',
+  );
+
+  // `--version`, not `-version`: the single-dash form prints to stderr,
+  // which run() discards, so a working JDK would read as absent. Every
+  // JDK Gradle accepts here understands the double-dash form. The PATH
+  // probe is skipped when JAVA_HOME is set because JAVA_HOME decides
+  // alone either way.
+  const javaHome = process.env.JAVA_HOME ?? null;
+  const jdk = resolveJdk({
+    javaHome,
+    javaHomeValid: Boolean(
+      javaHome && existsSync(path.join(javaHome, 'bin', isWindows ? 'java.exe' : 'java')),
+    ),
+    pathJavaVersion: javaHome ? null : run('java', ['--version']),
+  });
+  record(
+    'JDK (Gradle builds with it)',
+    jdk.ok,
+    jdk.detail,
+    'a JDK — Android Studio bundles one (set JAVA_HOME to its "jbr" folder), or https://adoptium.net',
   );
 
   const adb = run('adb', ['version']);

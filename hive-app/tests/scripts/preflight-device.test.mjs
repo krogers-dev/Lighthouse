@@ -15,6 +15,7 @@ import {
   deviceLanePlan,
   parseAccelCheck,
   parseAvdNames,
+  resolveJdk,
 } from '../../scripts/preflight-device.mjs';
 
 /** Trimmed but structurally faithful `xcrun simctl list devices available
@@ -168,4 +169,54 @@ test('NEGATIVE: an undeterminable accel answer is null, never a silent true', ()
     assert.equal(parseAccelCheck(input), null, `input: ${String(input)}`);
   }
   assert.notEqual(parseAccelCheck('accel: 1'), null);
+});
+
+// ---- the JDK Gradle builds with ----
+// Found the expensive way on the first Windows bring-up (2026-08-28):
+// every Android line was green — SDK, adb, AVD, WHPX — and
+// `expo run:android` would still have died in its first minute, because
+// Android Studio ships a JDK without exporting JAVA_HOME or touching
+// PATH. The probe mirrors gradlew's own resolution order; these tests
+// pin that order.
+
+test('a valid JAVA_HOME answers and names itself', () => {
+  const jdk = resolveJdk({
+    javaHome: 'C:\\Android\\jbr',
+    javaHomeValid: true,
+    pathJavaVersion: null,
+  });
+  assert.equal(jdk.ok, true);
+  assert.equal(jdk.detail, 'JAVA_HOME=C:\\Android\\jbr');
+});
+
+test('NEGATIVE: a broken JAVA_HOME fails even when java is on PATH', () => {
+  // gradlew errors out on an invalid JAVA_HOME instead of falling back,
+  // so reporting ok from the PATH java here would be a false ready.
+  const jdk = resolveJdk({
+    javaHome: '/uninstalled/jdk',
+    javaHomeValid: false,
+    pathJavaVersion: 'openjdk 21.0.5 2024-10-15 LTS',
+  });
+  assert.equal(jdk.ok, false);
+  assert.match(jdk.detail, /JAVA_HOME=\/uninstalled\/jdk/);
+});
+
+test('no JAVA_HOME defers to java on PATH, first line only', () => {
+  const jdk = resolveJdk({
+    javaHome: null,
+    javaHomeValid: false,
+    pathJavaVersion: 'openjdk 21.0.5 2024-10-15 LTS\nOpenJDK Runtime Environment Temurin-21\n',
+  });
+  assert.equal(jdk.ok, true);
+  assert.equal(jdk.detail, 'openjdk 21.0.5 2024-10-15 LTS');
+});
+
+test('NEGATIVE: neither JAVA_HOME nor a PATH java is a miss, never a silent ok', () => {
+  // run() returns null for a missing command; '' guards a probe that ran
+  // and printed nothing. Both must read as absent.
+  for (const pathJavaVersion of [null, undefined, '', '   ']) {
+    const jdk = resolveJdk({ javaHome: null, javaHomeValid: false, pathJavaVersion });
+    assert.equal(jdk.ok, false, `pathJavaVersion: ${String(pathJavaVersion)}`);
+    assert.match(jdk.detail, /JAVA_HOME is not set/);
+  }
 });
