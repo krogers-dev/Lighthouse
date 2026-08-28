@@ -99,6 +99,13 @@ async function listUsersByEmail() {
 function failVerification(email, problems) {
   console.error(`seed-local: verification FAILED for ${email}:`);
   for (const problem of problems) console.error(`  - ${problem}`);
+  console.error(
+    'seed-local: this is drifted local state, not a seeding bug — users created before a config fix, or a stop/start restore, can leave accounts outside the canonical shape (a restore that dropped auth identities was observed 2026-08-28). This harness never deletes accounts; rebuild the canonical state instead:',
+  );
+  console.error(
+    '  npx supabase db reset    # wipes the LOCAL synthetic database, re-runs migrations',
+  );
+  console.error('  node scripts/local-supabase.mjs seed');
   process.exit(1);
 }
 
