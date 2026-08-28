@@ -577,13 +577,13 @@ waiting, and they are independent of each other:
 
 The run path for (1) is in README.md.
 
-## 2026-08-28 — first Windows desktop execution: four composition finds
+## 2026-08-28 — first Windows desktop execution: five composition finds
 
 The Windows desktop (item (1) above) reached a fully green
 `preflight:device` — Node 22.23.2/npm 10.9.8 after displacing a
 pre-existing Node 24, Docker Desktop on the WSL2 backend, Android Studio
 with a Pixel_8 API 36 AVD, WHPX acceleration, 7.8 GB RAM — and the first
-real execution of the device lane surfaced four defects that no
+real execution of the device lane surfaced five defects that no
 container run could have, because no prior machine could run this lane
 at all:
 
@@ -633,8 +633,28 @@ at all:
    moved to Temurin 21 with `JAVA_HOME` repointed; Android Studio keeps
    its own JBR for itself.
 
-Fresh counts at the commits recording this entry: node:test **300
-passed, 0 failed** (13 new across finds 1–4, positives and negatives),
+5. **The first real Android resource link found a dangling splash
+   reference the config lanes could never reach.** With the JDK right,
+   the build marched to `:app:processDebugResources` and aapt2 refused:
+   `resource drawable/splashscreen_logo not found`. The splash
+   configuration is deliberately imageless (text-only development mark,
+   asset release HOLD) — but expo-splash-screen 57.0.7's Android plugin
+   writes `windowSplashScreenAnimatedIcon → @drawable/splashscreen_logo`
+   into the theme unconditionally while only generating the drawable
+   when an `image` is configured. New local config plugin
+   `with-android-imageless-splash` removes the dangling item after
+   expo-splash-screen writes it; it throws rather than no-ops when the
+   group or the reference is missing, so an upstream fix retires it
+   loudly, and it must be REMOVED the day an approved splash image
+   ships. Registration order is load-bearing and pinned by test: mods
+   execute in reverse registration order, so the plugin sits FIRST in
+   app.json's plugins array to run last — proven by a real
+   `expo prebuild -p android` both ways, and the corrected order's
+   generated `res/` greps clean of `splashscreen_logo` while the theme
+   keeps its background, post-splash theme, and behavior.
+
+Fresh counts at the commits recording this entry: node:test **306
+passed, 0 failed** (19 new across finds 1–5, positives and negatives),
 eslint `--max-warnings 0` clean, prettier clean. Device-lane execution
-on the desktop continues from the JDK swap; pixels remain unclaimed
+on the desktop continues from the splash fix; pixels remain unclaimed
 until the emulator shows them.
