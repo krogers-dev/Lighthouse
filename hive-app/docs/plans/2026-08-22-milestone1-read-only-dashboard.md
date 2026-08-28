@@ -577,13 +577,13 @@ waiting, and they are independent of each other:
 
 The run path for (1) is in README.md.
 
-## 2026-08-28 — first Windows desktop execution: six composition finds
+## 2026-08-28 — first Windows desktop execution: seven composition finds
 
 The Windows desktop (item (1) above) reached a fully green
 `preflight:device` — Node 22.23.2/npm 10.9.8 after displacing a
 pre-existing Node 24, Docker Desktop on the WSL2 backend, Android Studio
 with a Pixel_8 API 36 AVD, WHPX acceleration, 7.8 GB RAM — and the first
-real execution of the device lane surfaced six defects that no
+real execution of the device lane surfaced seven defects that no
 container run could have, because no prior machine could run this lane
 at all:
 
@@ -669,10 +669,22 @@ at all:
    switch, and the unknown-email strict-422 negative is unchanged —
    it is the same semantics the black-box suite already passes under.
 
+7. **The analytics container cannot run on Windows without an
+   unacceptable Docker setting, and its health check takes the whole
+   stack down.** The first `supabase start` restart failed on
+   `supabase_analytics_hive-app: unhealthy` (Logflare's endpoint never
+   comes up); the CLI's own warning names the requirement — the Docker
+   daemon exposed on `tcp://localhost:2375`, an unauthenticated control
+   socket this project will not accept. `[analytics] enabled = false`
+   in config.toml: no HIVE lane reads Logflare (auth, PostgREST, the
+   mailbox, seed, and both e2e suites are independent of it), the first
+   morning `up` having passed its health check was timing luck, and the
+   dropped container frees real memory on the 8 GB desktop.
+
 Fresh counts at the commits recording this entry: node:test **306
 passed, 0 failed** (19 new across finds 1–5, positives and negatives;
-find 6 is configuration corrected against the observed 422 and the
-binary lane's proven pair), eslint `--max-warnings 0` clean, prettier
-clean. Device-lane execution on the desktop continues from the email
-fix; pixels are on glass, and the signed-in Home screenshot remains the
-outstanding device evidence.
+finds 6–7 are configuration corrected against observed stack behaviour),
+eslint `--max-warnings 0` clean, prettier clean. Device-lane execution
+on the desktop continues from the analytics fix; pixels are on glass,
+and the signed-in Home screenshot remains the outstanding device
+evidence.

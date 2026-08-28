@@ -406,7 +406,16 @@ deno_version = 2
 # secret_key = "env(SECRET_VALUE)"
 
 [analytics]
-enabled = true
+# Disabled: the analytics container (Logflare) needs the Docker daemon
+# exposed on unauthenticated tcp://localhost:2375 to work on Windows —
+# an open control socket this project will not accept — and without it
+# the container fails health checks and takes the whole `supabase start`
+# down (observed on the desktop's first stack restart, 2026-08-28; the
+# CLI prints the same warning). No HIVE lane reads Logflare: auth,
+# PostgREST, the mailbox, seed, and the e2e suites are all independent
+# of it, and dropping the container also frees real memory on an 8 GB
+# machine.
+enabled = false
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"
