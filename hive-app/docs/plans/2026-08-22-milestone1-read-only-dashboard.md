@@ -577,13 +577,13 @@ waiting, and they are independent of each other:
 
 The run path for (1) is in README.md.
 
-## 2026-08-28 — first Windows desktop execution: five composition finds
+## 2026-08-28 — first Windows desktop execution: six composition finds
 
 The Windows desktop (item (1) above) reached a fully green
 `preflight:device` — Node 22.23.2/npm 10.9.8 after displacing a
 pre-existing Node 24, Docker Desktop on the WSL2 backend, Android Studio
 with a Pixel_8 API 36 AVD, WHPX acceleration, 7.8 GB RAM — and the first
-real execution of the device lane surfaced five defects that no
+real execution of the device lane surfaced six defects that no
 container run could have, because no prior machine could run this lane
 at all:
 
@@ -653,8 +653,26 @@ at all:
    generated `res/` greps clean of `splashscreen_logo` while the theme
    keeps its background, post-splash theme, and behavior.
 
+6. **The CLI stack's email provider was off, so no OTP could ever
+   send.** The first real sign-in answered
+   `422 email_provider_disabled "Email logins are disabled"` to a
+   seeded user's OTP request. Root cause is a naming trap in
+   `supabase/config.toml`: `[auth.email].enable_signup` reads like a
+   second signup switch but maps to GoTrue's `EXTERNAL_EMAIL_ENABLED` —
+   the provider itself — and it was set `false` alongside the correct
+   invite-only `[auth].enable_signup = false`. The binary-stack lane
+   was never affected because it sets GoTrue's environment explicitly
+   and already ran the proven pair (`GOTRUE_DISABLE_SIGNUP=true`,
+   `GOTRUE_EXTERNAL_EMAIL_ENABLED=true`, 157/157). config.toml now
+   carries `[auth.email].enable_signup = true` with the mapping
+   documented in place; invite-only remains enforced by the global
+   switch, and the unknown-email strict-422 negative is unchanged —
+   it is the same semantics the black-box suite already passes under.
+
 Fresh counts at the commits recording this entry: node:test **306
-passed, 0 failed** (19 new across finds 1–5, positives and negatives),
-eslint `--max-warnings 0` clean, prettier clean. Device-lane execution
-on the desktop continues from the splash fix; pixels remain unclaimed
-until the emulator shows them.
+passed, 0 failed** (19 new across finds 1–5, positives and negatives;
+find 6 is configuration corrected against the observed 422 and the
+binary lane's proven pair), eslint `--max-warnings 0` clean, prettier
+clean. Device-lane execution on the desktop continues from the email
+fix; pixels are on glass, and the signed-in Home screenshot remains the
+outstanding device evidence.

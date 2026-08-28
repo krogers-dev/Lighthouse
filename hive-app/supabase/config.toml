@@ -221,8 +221,15 @@ web3 = 30
 # secret = ""
 
 [auth.email]
-# Allow/disallow new user signups via email to your project.
-enable_signup = false
+# NOT the signup switch its name suggests: the CLI maps this key to
+# GoTrue's EXTERNAL_EMAIL_ENABLED — the email PROVIDER on/off. Set to
+# false, every email OTP for an EXISTING user answers 422
+# email_provider_disabled ("Email logins are disabled"), which is how
+# the first real desktop sign-in found it (2026-08-28). Invite-only is
+# carried by [auth].enable_signup = false above (GOTRUE_DISABLE_SIGNUP),
+# the same proven pair the binary-stack lane sets explicitly in
+# scripts/e2e-binary-stack.mjs.
+enable_signup = true
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
