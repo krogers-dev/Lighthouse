@@ -577,13 +577,13 @@ waiting, and they are independent of each other:
 
 The run path for (1) is in README.md.
 
-## 2026-08-28 — first Windows desktop execution: nine composition finds
+## 2026-08-28 — first Windows desktop execution: ten composition finds
 
 The Windows desktop (item (1) above) reached a fully green
 `preflight:device` — Node 22.23.2/npm 10.9.8 after displacing a
 pre-existing Node 24, Docker Desktop on the WSL2 backend, Android Studio
 with a Pixel_8 API 36 AVD, WHPX acceleration, 7.8 GB RAM — and the first
-real execution of the device lane surfaced nine defects that no
+real execution of the device lane surfaced ten defects that no
 container run could have, because no prior machine could run this lane
 at all:
 
@@ -709,10 +709,32 @@ at all:
    loudly at the door instead of deep inside a run. Loopback-only, as
    before; nothing is printed or persisted.
 
+10. **service_role had no grants at all on this schema's tables in the
+    CLI stack.** Find 9's pre-flight probe earned its keep on its first
+    outing: it was refused (403) while presenting the STACK-ISSUED
+    legacy service_role JWT — a credential that parses perfectly — so
+    the bearer hygiene was necessary but not sufficient, and the true
+    gap was authorization. The baseline had been environmental all
+    along: supabase-shim.sql sets default privileges granting
+    service_role ALL before migrations run on the self-hosted lanes,
+    and the hosted platform provisions the same, but the CLI image does
+    neither for tables these migrations create. Migration
+    20260828120007_service_role_platform_grants.sql now carries the
+    baseline explicitly (usage + all on tables/sequences/functions in
+    public, plus matching default privileges), changing nothing for
+    anon or authenticated. Verified on the fallback database lane:
+    migration applies, pgTAP **120/120 across 7 files** still green,
+    `has_table_privilege('service_role', 'public.memberships',
+'SELECT'/'INSERT')` both true, and a live `set role service_role;
+select count(*)` succeeds — the exact operation the CLI stack
+    refused. The corrective half of the proof lands when the desktop's
+    next `db reset` + seed completes.
+
 Fresh counts at the commits recording this entry: node:test **310
 passed, 0 failed** (23 new across finds 1–5 and 9, positives and
 negatives; finds 6–8 are configuration and messages corrected against
-observed stack behaviour), eslint `--max-warnings 0` clean, prettier
-clean. Device-lane execution on the desktop continues from the bearer
-fix; pixels are on glass, and the signed-in Home screenshot remains the
-outstanding device evidence.
+observed stack behaviour), pgTAP **120 passed, 0 failed** on the
+fallback lane with the find-10 migration applied, eslint
+`--max-warnings 0` clean, prettier clean. Device-lane execution on the
+desktop continues from the grants fix; pixels are on glass, and the
+signed-in Home screenshot remains the outstanding device evidence.
