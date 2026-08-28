@@ -83,12 +83,11 @@ Everything below runs on Windows, macOS, or Linux. This is the lane that
 closes A3 (black-box e2e) and the Android half of A5 (Maestro flows).
 
 ```bash
-npm run preflight:device                       # what is missing on this machine
+npm run preflight:device                                # what is missing on this machine
 npm ci
-npm run env:synthetic -- --android-emulator    # writes the 10.0.2.2 origin
-node scripts/local-supabase.mjs up
+node scripts/local-supabase.mjs up --android-emulator   # stack + .env.local: real local key, 10.0.2.2 origin
 node scripts/local-supabase.mjs seed
-npx expo run:android                           # development build, not Expo Go
+npx expo run:android                                    # development build, not Expo Go
 ```
 
 **`--android-emulator` is not optional on an emulator.** Inside one,
@@ -96,12 +95,17 @@ npx expo run:android                           # development build, not Expo Go
 Without the flag the app is pointed at a stack that is not there, and the
 failure looks like the backend being down rather than like an address
 being wrong. Both origins are approved for development in
-`security/approved-config.json` and name the same stack.
+`security/approved-config.json` and name the same stack — the flag
+selects the manifest's `10.0.2.2` entry, it never assembles an origin.
+(`env:synthetic` is NOT this lane's tool: its key is deliberately
+nonfunctional, so an app configured by it cannot sign in anywhere. The
+first Windows bring-up, 2026-08-28, found the previous sequence here
+self-defeating — `up` overwrote the emulator origin with loopback.)
 
 On a **physical Android device over adb**, neither address works — the
-phone is not the host. Use `adb reverse tcp:54321 tcp:54321` and the
-plain `npm run env:synthetic` origin, so `127.0.0.1` on the device is
-forwarded to the host.
+phone is not the host. Use `adb reverse tcp:54321 tcp:54321` with the
+plain `node scripts/local-supabase.mjs up` configuration, so the
+`127.0.0.1` it writes is forwarded from the device to the host.
 
 Then the flows, once Maestro is installed:
 
@@ -157,15 +161,18 @@ design: what gets installed on your machine is your call.
 
 ```bash
 npm ci
-npm run env:synthetic          # writes a synthetic .env.local (0600, gitignored)
-node scripts/local-supabase.mjs up
+node scripts/local-supabase.mjs up    # starts the stack; writes .env.local (real local key, loopback)
 node scripts/local-supabase.mjs seed
-npx expo run:android           # see the Android lane below; macOS only: npx expo run:ios
+npx expo run:android           # see the Android lane above; macOS only: npx expo run:ios
 ```
 
-`env:synthetic` writes the loopback URL and a synthetic publishable-shaped
-key. It is not a credential and the values are nonfunctional outside the
-local stack. If you have your own `.env.local` it refuses to overwrite it
+`up` writes `.env.local` itself from `supabase status` (0600, gitignored):
+the loopback URL and the stack's public client key. On an Android
+emulator add `--android-emulator` — see the Android lane above.
+`env:synthetic` is the separate no-Docker tool for gate/export lanes: it
+writes a publishable-SHAPED but deliberately nonfunctional key, so an app
+configured by it cannot sign in — never use it for running the app
+against the live stack. It refuses to overwrite an existing `.env.local`
 without `--force`.
 
 Sign-in codes are delivered to the local Mailpit at

@@ -353,7 +353,9 @@ function main() {
   }
 
   if (findings.length === 0) {
-    console.log('\nNext: npm run env:synthetic && node scripts/local-supabase.mjs up');
+    console.log(
+      '\nNext: node scripts/local-supabase.mjs up (--android-emulator for an emulator), then seed',
+    );
   }
   console.log('\nNothing was installed. This check reports only.');
   process.exit(findings.length === 0 ? 0 : 1);

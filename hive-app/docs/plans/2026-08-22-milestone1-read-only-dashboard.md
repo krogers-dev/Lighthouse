@@ -576,3 +576,51 @@ waiting, and they are independent of each other:
    VoiceOver QA, the iOS Maestro flows, TestFlight later.
 
 The run path for (1) is in README.md.
+
+## 2026-08-28 — first Windows desktop execution: three composition finds
+
+The Windows desktop (item (1) above) reached a fully green
+`preflight:device` — Node 22.23.2/npm 10.9.8 after displacing a
+pre-existing Node 24, Docker Desktop on the WSL2 backend, Android Studio
+with a Pixel_8 API 36 AVD, WHPX acceleration, 7.8 GB RAM — and the first
+real execution of the device lane surfaced three defects that no
+container run could have, because no prior machine could run this lane
+at all:
+
+1. **preflight said ready on a machine that could not build.** Gradle
+   needs a JDK; Android Studio ships one but exports no `JAVA_HOME` and
+   touches no PATH, so every Android line was green while
+   `expo run:android` would have died in its first minute. preflight now
+   probes the JDK (`resolveJdk`, mirroring gradlew's own resolution
+   order: an explicit `JAVA_HOME` decides alone — gradlew refuses an
+   invalid one rather than falling back to PATH). Commit c6d8ad3.
+
+2. **local-supabase.mjs could not launch the CLI on Windows at all.**
+   npm ships `npx` there as a `.cmd` batch wrapper that CreateProcess
+   cannot execute directly, so every invocation died at spawn with
+   ENOENT — and the error path interpolated the absent stdout/stderr as
+   the literal text "undefined" in place of the reason, while the canned
+   message misattributed the failure to registry access. `runCli` now
+   passes `shell` on win32 (hardcoded-literal arguments only, the same
+   justification as preflight's `run()`), and `describeRun` surfaces
+   `result.error` for a process that never launched.
+
+3. **No ordering of `up` and `env:synthetic` produced a configuration an
+   emulator could sign in with.** `up` wrote the real local key with
+   `127.0.0.1` (which inside an emulator is the emulator); `env:synthetic
+   --android-emulator` wrote the reachable `10.0.2.2` origin with a
+   deliberately nonfunctional key; the README sequence ran the latter
+   first and `up` then clobbered it. The lane is now one step:
+   `up --android-emulator` writes the REAL local key with the
+   manifest-approved `10.0.2.2` origin (`selectWrittenOrigin`: the origin
+   comes from security/approved-config.json only, never assembled, and
+   its port must match the running stack's). README corrected for both
+   the emulator path and the physical-device path (`adb reverse` with
+   plain `up`); `env:synthetic` remains the no-Docker gate-lane tool it
+   was built as.
+
+Fresh counts at this entry's commit: node:test **294 passed, 0 failed**
+(7 new — describeRun and selectWrittenOrigin, positives and negatives),
+eslint `--max-warnings 0` clean, prettier clean. Device-lane execution
+on the desktop continues past `up` from here; pixels remain unclaimed
+until the emulator shows them.

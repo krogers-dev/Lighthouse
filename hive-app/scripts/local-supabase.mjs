@@ -16,12 +16,13 @@
  * pulled, scripts/db-local.mjs provides the database evidence lane.
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, writeFileSync } from 'node:fs';
+import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const isWindows = process.platform === 'win32';
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
 
@@ -83,12 +84,31 @@ export function buildEnvLocal(url, clientKey) {
 
 function runCli(args) {
   // Captured, never streamed: CLI output can contain credentials.
+  //
+  // `shell` on Windows is required, not a convenience: npm ships `npx`
+  // there as a `.cmd` batch wrapper, and CreateProcess cannot execute a
+  // batch file directly — without it every invocation dies at spawn with
+  // ENOENT before the CLI runs at all (found on the first Windows
+  // bring-up, 2026-08-28). Safe here because every argument this file
+  // passes to runCli is a hardcoded literal.
   return spawnSync('npx', ['--no-install', 'supabase', ...args], {
     cwd: appRoot,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     maxBuffer: 64 * 1024 * 1024,
+    shell: isWindows,
   });
+}
+
+/** Printable output of a spawnSync result. A process that never launched
+ * has no streams at all — stdout/stderr are undefined and the reason
+ * lives in result.error — and interpolating those directly surfaced the
+ * literal text "undefined" in place of the failure (same bring-up). */
+export function describeRun(result) {
+  return [result?.stdout, result?.stderr, result?.error?.message]
+    .filter((part) => typeof part === 'string' && part.trim() !== '')
+    .join('\n')
+    .trim();
 }
 
 function fail(message, output) {
@@ -97,10 +117,45 @@ function fail(message, output) {
   process.exit(1);
 }
 
+/** Which origin .env.local gets. The running stack always reports
+ * loopback (readStatus refuses anything else). An Android emulator
+ * reaches that same stack as 10.0.2.2 — the host's loopback from inside
+ * the emulator — a different spelling of the same destination, not a
+ * different destination. The spelling still has to come from the
+ * approved-config manifest: an origin this script assembled itself would
+ * not be an approved one, and config:check would reject it. The port has
+ * to match the running stack's, or the written config would name a stack
+ * that is not there. */
+export function selectWrittenOrigin(statusUrl, approvedOrigins, wantsEmulatorHost) {
+  if (!wantsEmulatorHost) return { origin: statusUrl };
+  const statusPort = new URL(statusUrl).port;
+  const match = (approvedOrigins ?? []).find((origin) => {
+    try {
+      const parsed = new URL(origin);
+      return parsed.hostname === '10.0.2.2' && parsed.port === statusPort;
+    } catch {
+      return false;
+    }
+  });
+  if (match === undefined) {
+    return {
+      error: `no approved development origin uses 10.0.2.2 on port ${statusPort} — the Android emulator cannot reach the stack without one (security/approved-config.json)`,
+    };
+  }
+  return { origin: match };
+}
+
+function readApprovedDevelopmentOrigins() {
+  const manifest = JSON.parse(
+    readFileSync(path.join(appRoot, 'security', 'approved-config.json'), 'utf8'),
+  );
+  return manifest?.profiles?.development?.approvedOrigins ?? [];
+}
+
 function readStatus() {
   const status = runCli(['status', '-o', 'json']);
   if (status.status !== 0) {
-    fail('supabase status failed', `${status.stdout}\n${status.stderr}`);
+    fail('supabase status failed', describeRun(status));
   }
   const parsed = parseStatus(status.stdout);
   if (parsed.error) {
@@ -109,19 +164,27 @@ function readStatus() {
   return { parsed, raw: status.stdout };
 }
 
-function up() {
+function up(wantsEmulatorHost) {
   const start = runCli(['start']);
   if (start.status !== 0) {
     fail(
-      'supabase start failed (a Docker-compatible engine with registry access is required; use scripts/db-local.mjs for the fallback database lane)',
-      `${start.stdout}\n${start.stderr}`,
+      'supabase start failed — see the output above (if images cannot be pulled, scripts/db-local.mjs provides the fallback database lane)',
+      describeRun(start),
     );
   }
   const { parsed } = readStatus();
+  const written = selectWrittenOrigin(
+    parsed.url,
+    readApprovedDevelopmentOrigins(),
+    wantsEmulatorHost,
+  );
+  if (written.error) {
+    fail(written.error);
+  }
   const envPath = path.join(appRoot, '.env.local');
-  writeFileSync(envPath, buildEnvLocal(parsed.url, parsed.clientKey));
+  writeFileSync(envPath, buildEnvLocal(written.origin, parsed.clientKey));
   chmodSync(envPath, 0o600);
-  console.log(`local-supabase: wrote .env.local (${parsed.keyKind} key, loopback URL)`);
+  console.log(`local-supabase: wrote .env.local (${parsed.keyKind} key, origin ${written.origin})`);
 }
 
 function runHarness(scriptName, extraEnv = {}) {
@@ -171,7 +234,7 @@ function resetTotp(email) {
 function stop() {
   const result = runCli(['stop']);
   if (result.status !== 0) {
-    fail('supabase stop failed', `${result.stdout}\n${result.stderr}`);
+    fail('supabase stop failed', describeRun(result));
   }
   console.log('local-supabase: stopped');
 }
@@ -181,7 +244,7 @@ const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.
 if (isMain) {
   switch (command) {
     case 'up':
-      up();
+      up(process.argv.includes('--android-emulator'));
       break;
     case 'status': {
       const { parsed } = readStatus();
@@ -201,6 +264,6 @@ if (isMain) {
       stop();
       break;
     default:
-      fail('usage: local-supabase.mjs <up|status|seed|e2e|reset-totp|stop>');
+      fail('usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|reset-totp|stop>');
   }
 }
