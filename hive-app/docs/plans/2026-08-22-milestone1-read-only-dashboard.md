@@ -735,6 +735,21 @@ passed, 0 failed** (23 new across finds 1–5 and 9, positives and
 negatives; finds 6–8 are configuration and messages corrected against
 observed stack behaviour), pgTAP **120 passed, 0 failed** on the
 fallback lane with the find-10 migration applied, eslint
-`--max-warnings 0` clean, prettier clean. Device-lane execution on the
-desktop continues from the grants fix; pixels are on glass, and the
-signed-in Home screenshot remains the outstanding device evidence.
+`--max-warnings 0` clean, prettier clean.
+
+**Device evidence delivered, 2026-08-28.** After the find-10 migration
+landed (`db reset` listing 20260828120007, seed completing canonical),
+the full journey ran on the desktop's Pixel_8 emulator against the live
+CLI stack: OTP email to the local mailbox, code verification, the
+workspace chooser showing both Harbor Light memberships
+(client-access subtitles correct), and Home signed into Harbor Light
+Bakery LLC (Synthetic) — both synthetic cases newest-first (2025 books
+close, "Needs attention / Waiting on records", above the approved 2024
+close), status conveyed by icon and words rather than colour alone,
+"Recorded through August 28, 2026" from the server, Refresh present,
+all five nav destinations, Brand Kit v2.0 throughout. Screenshots
+captured by Kody (synthetic data is cleared for QA screenshots): the
+sign-in screen, the chooser, and signed-in Home — the project's
+first-ever pixel evidence, closing the desktop bring-up. Outstanding
+desktop evidence is now Phase 6 only: the CLI-composition e2e, Maestro
+flows on the emulator, and expo-doctor 21/21.
