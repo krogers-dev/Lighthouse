@@ -577,15 +577,18 @@ waiting, and they are independent of each other:
 
 The run path for (1) is in README.md.
 
-## 2026-08-28 — first Windows desktop execution: ten composition finds
+## 2026-08-28 — first Windows desktop execution: twelve composition finds
 
 The Windows desktop (item (1) above) reached a fully green
 `preflight:device` — Node 22.23.2/npm 10.9.8 after displacing a
 pre-existing Node 24, Docker Desktop on the WSL2 backend, Android Studio
 with a Pixel_8 API 36 AVD, WHPX acceleration, 7.8 GB RAM — and the first
-real execution of the device lane surfaced ten defects that no
+real execution of the device lane surfaced twelve defects that no
 container run could have, because no prior machine could run this lane
-at all:
+at all (finds 11–12 landed 2026-09-03, on the SECOND desktop's
+first-ever Maestro execution — that bring-up itself took under two
+hours and added only two new environment notes, PowerShell's
+Restricted execution policy and a machine without WSL):
 
 1. **preflight said ready on a machine that could not build.** Gradle
    needs a JDK; Android Studio ships one but exports no `JAVA_HOME` and
@@ -729,6 +732,30 @@ at all:
 select count(*)` succeeds — the exact operation the CLI stack
     refused. The corrective half of the proof lands when the desktop's
     next `db reset` + seed completes.
+
+11. **Maestro 2.10.0's on-device driver wedges on `inputText` under
+    Android API 36.** The sign-in flow launched, asserted, and tapped,
+    then the driver went silent for the full 120s gRPC deadline on the
+    first text entry (`DeviceServerDiedException ... DEADLINE_EXCEEDED`,
+    twice, reproducibly). Taps work; typing does not. The Maestro lane
+    therefore runs on an **API 35** AVD — the app itself still builds
+    for and runs on API 36 (compileSdk/targetSdk unchanged, and the
+    manual QA evidence stands on API 36 emulators); only the flow
+    runner's device is pinned back. Environmental, recorded in the
+    runbook rather than the repo.
+
+12. **The first flow execution crashed in our own helper:
+    `otp-fetch.js` declared `found` as `const` and reassigned it** —
+    GraalJS threw `Assignment to constant "found"` at the exact moment
+    a fresh OTP message WAS found, proving the entire pipeline (type →
+    snapshot → submit → email → fetch) worked around the one wrong
+    keyword. Two lint layers had let it escape: the `.maestro`
+    dot-folder is invisible to `eslint .`, and no rule baseline applied
+    to those scripts even when linted directly. Now: `let found`, an
+    eslint block applying js/recommended to `.maestro/**/*.js` (their
+    GraalJS globals declared per-file via `/* global */`), and the lint
+    script names the folder explicitly — red-checked (no-const-assign
+    fired on the unfixed line, alone) before the fix went in.
 
 Fresh counts at the commits recording this entry: node:test **310
 passed, 0 failed** (23 new across finds 1–5 and 9, positives and

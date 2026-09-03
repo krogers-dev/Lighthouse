@@ -28,7 +28,7 @@ function alreadySeen(id) {
 
 // Bounded poll: GraalJS has no sleep, so pacing is a short busy-wait.
 const deadline = Date.now() + 20000;
-const found = null;
+let found = null;
 while (Date.now() < deadline && found === null) {
   const listed = json(
     http.get(mailpit + '/api/v1/search?limit=50&query=' + encodeURIComponent('to:"' + email + '"'))
