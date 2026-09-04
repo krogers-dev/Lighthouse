@@ -129,3 +129,74 @@ export function decodeSupabaseTotpQr(qrCode: string | null | undefined): string 
   }
   return xml;
 }
+
+/** Collapse a QR SVG's thousands of `<rect>` modules into ONE `<path>` per
+ * colour.
+ *
+ * GoTrue draws every QR module as its own `<rect>`, which react-native-svg
+ * turns into its own native view: the enrollment screen carried thousands
+ * of them, every Maestro view-hierarchy dump on that screen took tens of
+ * seconds, and a TOTP code fetched immediately before typing was already
+ * ~60 seconds old when it submitted — right at GoTrue's tolerance, which
+ * is why that flow passed once and then stopped (find 33, 2026-09-04).
+ * Hiding the modules from the ACCESSIBILITY tree did not help, because the
+ * cost is the view count itself.
+ *
+ * The geometry is preserved exactly — every module still drawn, same
+ * coordinates, same colours — it is simply expressed as path data instead
+ * of elements, which is one view instead of thousands.
+ *
+ * FAILS SAFE: anything this does not fully understand (a non-rect element,
+ * a coordinate that is not a plain number, a fill that is not a plain
+ * colour) returns the input UNCHANGED rather than a badly rewritten SVG.
+ * The fill is copied into the output, so it is the one attribute that
+ * could carry something other than what it claims; only `#rgb`-style hex
+ * and bare colour words are accepted. */
+const RECT_TAG = /<rect\b([^>]*)\/>/g;
+const ATTR = /([a-zA-Z-]+)\s*=\s*"([^"]*)"/g;
+const PLAIN_NUMBER = /^-?\d+(?:\.\d+)?$/;
+const PLAIN_COLOUR = /^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/;
+
+export function flattenQrSvg(svg: string | null): string | null {
+  if (svg === null) return null;
+  const openEnd = svg.indexOf('>');
+  if (!svg.startsWith('<svg') || openEnd === -1 || !svg.endsWith('</svg>')) return svg;
+  const openTag = svg.slice(0, openEnd + 1);
+  const body = svg.slice(openEnd + 1, svg.length - '</svg>'.length);
+
+  const byFill = new Map<string, string[]>();
+  let consumed = '';
+  RECT_TAG.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = RECT_TAG.exec(body)) !== null) {
+    const attrs: Record<string, string> = {};
+    ATTR.lastIndex = 0;
+    let attr: RegExpExecArray | null;
+    while ((attr = ATTR.exec(match[1] as string)) !== null) {
+      attrs[attr[1] as string] = attr[2] as string;
+    }
+    const { x = '0', y = '0', width, height, fill = '' } = attrs;
+    if (width === undefined || height === undefined) return svg;
+    for (const value of [x, y, width, height]) {
+      if (!PLAIN_NUMBER.test(value)) return svg;
+    }
+    if (fill !== '' && !PLAIN_COLOUR.test(fill)) return svg;
+    const list = byFill.get(fill) ?? [];
+    list.push(`M${x} ${y}h${width}v${height}h-${width}z`);
+    byFill.set(fill, list);
+    consumed += match[0];
+  }
+  if (byFill.size === 0) return svg;
+  // Every non-rect byte must be whitespace: a body this does not account
+  // for in full is left alone rather than partially rewritten.
+  if (body.split(consumed).join('').trim() !== '' && body.replace(RECT_TAG, '').trim() !== '') {
+    return svg;
+  }
+
+  const paths = [...byFill.entries()]
+    .map(([fill, data]) =>
+      fill === '' ? `<path d="${data.join('')}"/>` : `<path fill="${fill}" d="${data.join('')}"/>`,
+    )
+    .join('');
+  return `${openTag}${paths}</svg>`;
+}

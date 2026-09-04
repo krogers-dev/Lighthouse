@@ -20,7 +20,7 @@ import type {
   SessionInfo,
 } from '@/auth/client-lifecycle';
 import type { SessionStorage } from '@/auth/controller';
-import { decodeSupabaseTotpQr, splitTotpFactors } from '@/auth/mfa-contract';
+import { decodeSupabaseTotpQr, flattenQrSvg, splitTotpFactors } from '@/auth/mfa-contract';
 import type { EnvironmentConfig } from '@/core/env';
 import { SafeError } from '@/core/errors';
 import {
@@ -135,7 +135,9 @@ function makeAuthGateway(client: HiveSupabaseClient): AuthGateway {
       return {
         factorId: data.id,
         secret: data.totp.secret,
-        qrSvg: decodeSupabaseTotpQr(data.totp.qr_code),
+        // Flattened to one path per colour before it reaches a renderer:
+        // a module-per-rect QR is thousands of native views (find 33).
+        qrSvg: flattenQrSvg(decodeSupabaseTotpQr(data.totp.qr_code)),
         uri: data.totp.uri ?? null,
       };
     },

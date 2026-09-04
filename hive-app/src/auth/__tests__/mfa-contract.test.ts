@@ -1,4 +1,4 @@
-import { decodeSupabaseTotpQr, splitTotpFactors } from '../mfa-contract';
+import { decodeSupabaseTotpQr, flattenQrSvg, splitTotpFactors } from '../mfa-contract';
 
 /** Exact factor rows as supabase-js 2.112.3 mfa.listFactors returns them. */
 function factor(id: string, factorType: string, status: string) {
@@ -160,5 +160,65 @@ describe('decodeSupabaseTotpQr: the prolog GoTrue actually emits', () => {
 
   it('REFUSES a comment-only value with no root element', () => {
     expect(decodeSupabaseTotpQr('<!-- nothing here -->')).toBeNull();
+  });
+});
+
+describe('flattenQrSvg: one path per colour instead of thousands of rects (find 33)', () => {
+  const root =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 29 29">';
+  const rects = (n: number, fill: string) =>
+    Array.from(
+      { length: n },
+      (_, i) => `<rect x="${i}" y="${i}" width="1" height="1" fill="${fill}"/>`,
+    ).join('');
+
+  it('collapses same-coloured rects into a single path', () => {
+    const svg = `${root}${rects(500, '#000000')}</svg>`;
+    const out = flattenQrSvg(svg) as string;
+    expect(out).not.toBeNull();
+    expect((out.match(/<rect/g) ?? []).length).toBe(0);
+    expect((out.match(/<path/g) ?? []).length).toBe(1);
+    // Every module still has to be drawn — the geometry is preserved, not
+    // simplified away.
+    expect((out.match(/M/g) ?? []).length).toBe(500);
+  });
+
+  it('keeps one path per distinct colour, and keeps the root attributes', () => {
+    const svg = `${root}${rects(10, '#ffffff')}${rects(10, '#000000')}</svg>`;
+    const out = flattenQrSvg(svg) as string;
+    expect((out.match(/<path/g) ?? []).length).toBe(2);
+    expect(out).toContain('viewBox="0 0 29 29"');
+    expect(out).toContain('width="256"');
+    expect(out.startsWith('<svg')).toBe(true);
+    expect(out.endsWith('</svg>')).toBe(true);
+  });
+
+  // Failing safe matters more than flattening: a shape this does not fully
+  // understand is returned untouched rather than rewritten badly.
+  it('returns the input UNCHANGED when the body is not purely rects', () => {
+    const svg = `${root}<circle cx="1" cy="1" r="1"/>${rects(5, '#000')}</svg>`;
+    expect(flattenQrSvg(svg)).toBe(svg);
+  });
+
+  it('returns the input UNCHANGED on a non-numeric coordinate', () => {
+    const svg = `${root}<rect x="1" y="oops" width="1" height="1" fill="#000"/></svg>`;
+    expect(flattenQrSvg(svg)).toBe(svg);
+  });
+
+  // The fill is copied into the output, so it must not be able to carry
+  // anything but a colour.
+  it('returns the input UNCHANGED on a fill that is not a plain colour', () => {
+    const svg = `${root}<rect x="1" y="1" width="1" height="1" fill="url(#x)&quot; onload=&quot;x()"/></svg>`;
+    expect(flattenQrSvg(svg)).toBe(svg);
+  });
+
+  it('passes null through', () => {
+    expect(flattenQrSvg(null)).toBeNull();
+  });
+
+  it('output still survives the decoder it will be handed to', () => {
+    const svg = `${root}${rects(50, '#000000')}</svg>`;
+    const out = flattenQrSvg(svg) as string;
+    expect(decodeSupabaseTotpQr(out)).toBe(out);
   });
 });

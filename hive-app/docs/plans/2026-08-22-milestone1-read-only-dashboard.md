@@ -1685,3 +1685,92 @@ Five commits sit local: `git push` was refused by the Claude Code auto-mode
 permission classifier, not by any repository rule. It needs Kody to run the
 push or to allow the action. Recorded because a day of device evidence
 living on one desktop's disk is the risk it sounds like.
+
+## 2026-09-04, evening — find 33 measured and fixed; the flow it blocks still fails
+
+Kody freed the machine (19.6 GB available, up from 4.5), which made a real
+device iteration loop possible for the first time today.
+
+### The fix: one path per colour instead of 4,225 rects
+
+Measured first rather than assumed. A live enrollment's `totp.qr_code` is
+**321,600 characters containing 4,225 `<rect>` elements**, and the document
+contains only two tag names, `svg` and `rect`. react-native-svg turns each
+rect into its own native view, so the enrollment screen carried thousands
+of them and every Maestro view-hierarchy dump on it crawled.
+
+`flattenQrSvg` collapses those rects into ONE `<path>` per fill colour.
+The geometry is preserved exactly — every module still drawn, same
+coordinates, same colours — expressed as path data instead of elements.
+
+It **fails safe**: a non-rect element, a coordinate that is not a plain
+number, or a fill that is not a plain colour returns the input UNCHANGED
+rather than a badly rewritten SVG. The fill is the one attribute copied
+into the output, so only `#rgb`-style hex and bare colour words are
+accepted; a crafted `fill="url(#x)&quot; onload=&quot;x()"` is refused.
+Red-checked on all seven cases before the implementation existed.
+
+**The measurement that matters**, from GoTrue's own audit log. Before, the
+gap between `factor_in_progress` and the first `challenge_created` ran
+~2.5 minutes. After, the run reached its failure point 49 seconds after
+enrollment having completed nine steps — **about 5.5 seconds per step
+against roughly 20 before, a ~4x improvement.** That is the finding closed:
+the device lane on that screen is no longer slow enough to expire a TOTP
+code between fetching it and submitting it.
+
+It is also a real accessibility improvement independent of the lane: a
+screen reader met thousands of meaningless module nodes and now meets one
+labelled image.
+
+### What it did NOT fix, stated plainly
+
+`mfa-enroll.yaml` still fails, now at a different place: after
+`hideKeyboard`, `mfa-submit` cannot be found — not by a tap, not by
+`scrollUntilVisible` at 100% or 60% visibility, and not by a 15-second
+`extendedWaitUntil`. The button is always rendered (it is merely
+`disabled` while the field is empty), so "not visible" points at either the
+typed code not landing or the control sitting outside the viewport in a way
+scrolling does not resolve.
+
+A last experiment — removing `hideKeyboard` on the theory that
+`adjustResize` scrolls the focused field's button INTO view and dismissing
+the keyboard scrolls it back out — could not be completed: the runner hung
+after the Maestro process exited and had to be stopped. The flows are
+therefore left with `hideKeyboard` restored, which is the configuration
+that once reached the final assertion, and the experiment is recorded
+rather than half-applied.
+
+**Diagnosing this properly needs the enrollment screen's view hierarchy,
+and that screen shows the QR and the setup key** — so it cannot be dumped
+to `~/.maestro/tests` or to `/sdcard` the way any other screen could. The
+next attempt should drive a probe through a confined output directory the
+way `maestro-enroll-runner.mjs` does, inspect the hierarchy inside it, and
+scrub it — not reach for `uiautomator dump`.
+
+### Cleanup after the interrupted run, because it was interrupted
+
+Stopping the runner mid-flight skipped part of its own cleanup. Verified by
+hand afterwards: the loopback `totp-helper` was **still listening** and was
+killed (in-memory secret discarded), `reset-totp` confirmed
+`0 deleted, readback verified zero`, and the clipboard scrub — which had
+reported FAILED — was re-run to completion. Recorded because the runner's
+guarantees hold when it exits on its own and do not when something kills
+it, which is worth knowing before anyone kills it again.
+
+### State
+
+| Lane                          | Result                                                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Maestro                       | **12 of 18 pass**, unchanged; spot-checked sign-in, requests and quarantine-recovery green after this change |
+| jest                          | **403 passed**, 30 suites (7 new for the flattener)                                                          |
+| node:test                     | 325 tests, 291 passed, 0 failed, 34 platform-skipped                                                         |
+| typecheck / eslint / prettier | exit 0 / clean / clean                                                                                       |
+| maestro:validate              | OK across 18 flows                                                                                           |
+
+### Next
+
+1. **The `mfa-submit` visibility question** — with a confined-artifact
+   probe, not a raw dump. Four flows sit behind it.
+2. **Find 21 / find 20** — the mid-flow revoke helper and the stored-token
+   pre-step.
+3. **TalkBack**, and measured contrast on hardware.
