@@ -1151,7 +1151,7 @@ green afterwards.
    stored-token pre-step for `expired-session`.
 5. **A QA build** (`EXPO_PUBLIC_QA_HOOKS=1`) for `quarantine-recovery`.
 
-## 2026-09-03, later — both open defects fixed; the lane reaches 12 of 17
+## 2026-09-03, later — both open defects fixed; the lane reaches 11 of 17
 
 Kody delegated the engineering calls after the first Phase 6 report. Finds
 18 and 19 were fixed, three more finds came out of fixing them, and the
@@ -1251,7 +1251,7 @@ reliably but must not exist in a release bundle, where `expo export`'s route
 count and `bundle:inspect` both have opinions. Left HOLD with the cause
 now precisely known instead of merely "needs a QA build".
 
-### The tally: 12 PASS, 0 FAIL, 5 HOLD
+### The tally: 11 PASS, 0 FAIL, 6 HOLD
 
 | Flow                         | Result                                                   |
 | ---------------------------- | -------------------------------------------------------- |
@@ -1275,7 +1275,7 @@ now precisely known instead of merely "needs a QA build".
 
 Eleven ran back to back in one sweep with no failures; `quarantine-recovery`
 was attempted separately and produced find 24. **Nothing now fails.** The
-five HOLDs are three kinds of missing thing — an operator attestation, two
+six HOLDs are three kinds of missing thing — an operator attestation, two
 harness helpers, and one hook design — not defects in the app.
 
 Gates at this commit: typecheck exit 0, eslint `--max-warnings 0` clean,
