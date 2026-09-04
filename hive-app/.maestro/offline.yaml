@@ -4,6 +4,10 @@ name: Offline shows the explicit offline state and recovers on retry (Android la
 # case manually (Control Center) with the same assertions.
 ---
 - launchApp
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session lands on the chooser rather than the last workspace.
+- assertVisible: 'Choose a workspace'
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
 - assertVisible: 'Home'
 - setAirplaneMode: enabled
 - tapOn:
@@ -19,7 +23,9 @@ name: Offline shows the explicit offline state and recovers on retry (Android la
 - tapOn:
     id: 'settings-switch-scope'
 - assertVisible: 'Choose a workspace'
-- tapOn: 'Harbor Light Bakery LLC (Synthetic).*'
+# Full accessibility label, parentheses escaped: Maestro matches text as a
+# regex, and the client name alone appears in BOTH rows' subtitles.
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
 - assertVisible: 'You are offline'
 - setAirplaneMode: disabled
 - tapOn: 'Check connection'

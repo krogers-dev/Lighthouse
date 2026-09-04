@@ -24,12 +24,20 @@ function installedVersion(packageName) {
   }
 }
 
+/** npm and npx ship on Windows as `.cmd` batch wrappers, which
+ * CreateProcess cannot execute directly — so execFileSync threw ENOENT and
+ * this gate reported two tools at their EXACT pinned versions as "missing"
+ * (find 15, 2026-09-03; the same Windows trap as find 2 in
+ * local-supabase.mjs). `shell` on win32 is safe here for the same reason it
+ * was there: every command and argument below is a hardcoded literal, and
+ * nothing from the environment reaches this call. */
 function commandVersion(command, args, parse) {
   try {
     const out = execFileSync(command, args, {
       cwd: appRoot,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
+      shell: process.platform === 'win32',
     });
     return parse(out.trim());
   } catch {

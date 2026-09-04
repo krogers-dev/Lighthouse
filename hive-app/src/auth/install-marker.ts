@@ -10,7 +10,7 @@
  * items use a this-device-only Keychain class, so no cross-device restore
  * can pair a foreign marker with foreign session material.
  */
-import { newOpaqueToken, type RandomSource, cryptoRandomSource } from '@/core/ids';
+import { newOpaqueToken, type RandomSource } from '@/core/ids';
 
 export interface MarkerFileStore {
   read(): Promise<string | null>;
@@ -26,9 +26,13 @@ interface MarkerContent {
 const MARKER_VERSION = 1;
 
 export class InstallMarker {
+  /** `random` is REQUIRED, deliberately. It defaulted to core's web-crypto
+   * source, which throws under Hermes — so the one caller that mattered got
+   * a source that could not work and nothing said so (find 14). Every
+   * construction site now names the source it is using. */
   constructor(
     private readonly store: MarkerFileStore,
-    private readonly random: RandomSource = cryptoRandomSource,
+    private readonly random: RandomSource,
     private readonly now: () => number = () => Date.now(),
   ) {}
 

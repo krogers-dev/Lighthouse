@@ -13,6 +13,10 @@ name: Storage quarantine blocks protected UI; scrub is the only recovery
 # stopping the app, so the corruption write cannot be cut short.
 ---
 - launchApp
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session lands on the chooser rather than the last workspace.
+- assertVisible: 'Choose a workspace'
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
 - assertVisible: 'Home'
 - openLink: hivedev://qa/corrupt-storage
 # Wait for the completion acknowledgment before killing the app.

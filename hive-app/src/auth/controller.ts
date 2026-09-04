@@ -200,9 +200,14 @@ export class AuthController {
         }
         try {
           await this.deps.marker.ensure();
-        } catch {
+        } catch (error) {
           // A missing marker fails closed on the next boot (re-scrub); boot
-          // continues.
+          // continues. It must never fail SILENTLY: an unwritable marker
+          // makes every subsequent boot look like a reinstall and purge the
+          // session, which is exactly how find 14 stayed invisible.
+          this.deps.diagnostics.record('install_marker_failed', {
+            code: toSafeError(error).code,
+          });
         }
         const bundle = this.createClient();
         let session: SessionInfo | null;

@@ -292,3 +292,95 @@ test('NEGATIVE: launchApp, eraseText, setAirplaneMode payloads are checked', () 
     [],
   );
 });
+
+// Find 13: Maestro matches a text selector as a REGEX, so an unescaped
+// "(Synthetic)" is a capture group and the selector asks for text no screen
+// renders. In `tapOn` that fails loudly. In `assertNotVisible` it can never
+// fail — the two cross-entity leak assertions in scope-switch.yaml were
+// passing vacuously for exactly this reason. The strings below are the real
+// pre-fix selector text, not invented fixtures.
+test('an UNESCAPED parenthesis in a text selector is rejected', () => {
+  const base = `appId: com.myhbcfo.hive.development\nname: fixture\n---\n`;
+  const problems = validateFlowText(
+    `${base}- tapOn: 'Harbor Light Bakery LLC (Synthetic).*'\n`,
+    context,
+  );
+  assert.ok(
+    problems.some((p) => p.includes('unescaped')),
+    `expected an unescaped-parenthesis problem, got ${JSON.stringify(problems)}`,
+  );
+});
+
+test('the vacuous assertNotVisible that could never fail is rejected', () => {
+  const base = `appId: com.myhbcfo.hive.development\nname: fixture\n---\n`;
+  const problems = validateFlowText(
+    `${base}- assertNotVisible: '2025 books close (Synthetic)'\n`,
+    context,
+  );
+  assert.ok(
+    problems.some((p) => p.includes('unescaped')),
+    `expected an unescaped-parenthesis problem, got ${JSON.stringify(problems)}`,
+  );
+});
+
+test('the map form of a text selector is checked too', () => {
+  const base = `appId: com.myhbcfo.hive.development\nname: fixture\n---\n`;
+  const problems = validateFlowText(
+    `${base}- assertVisible:\n    text: 'Bank statement (Synthetic)'\n`,
+    context,
+  );
+  assert.ok(problems.some((p) => p.includes('unescaped')));
+});
+
+test('ESCAPED parentheses and deliberate regex groups are accepted', () => {
+  const base = `appId: com.myhbcfo.hive.development\nname: fixture\n---\n`;
+  // The corrected selectors from sign-in.yaml and scope-switch.yaml, plus a
+  // genuine alternation group, which is a legitimate regex and must pass.
+  assert.deepEqual(
+    validateFlowText(
+      `${base}- tapOn: 'Harbor Light Bakery LLC \\(Synthetic\\), Harbor Light Bakery LLC \\(Synthetic\\), Client access'\n` +
+        `- assertNotVisible: '2025 books close \\(Synthetic\\)'\n` +
+        `- assertVisible: 'Needs attention|Waiting on records'\n`,
+      context,
+    ),
+    [],
+  );
+});
+
+// Find 17: Help's content version sits below the fold, so `assertVisible`
+// alone could never see it — the flows had no scroll vocabulary at all.
+const scrollBase = `appId: com.myhbcfo.hive.development\nname: fixture\n---\n`;
+
+test('scrollUntilVisible with an element selector validates', () => {
+  assert.deepEqual(
+    validateFlowText(
+      `${scrollBase}- scrollUntilVisible:\n    element:\n      id: 'mfa-code'\n`,
+      context,
+    ),
+    [],
+  );
+});
+
+test('scrollUntilVisible without an element is rejected', () => {
+  const problems = validateFlowText(`${scrollBase}- scrollUntilVisible: 'down'\n`, context);
+  assert.ok(
+    problems.some((p) => p.includes('element')),
+    `expected an element requirement, got ${JSON.stringify(problems)}`,
+  );
+});
+
+test('a testID nested under scrollUntilVisible is still cross-checked', () => {
+  const problems = validateFlowText(
+    `${scrollBase}- scrollUntilVisible:\n    element:\n      id: 'no-such-test-id'\n`,
+    context,
+  );
+  assert.ok(problems.some((p) => p.includes('matches no testID')));
+});
+
+test('an unknown scrollUntilVisible field is rejected', () => {
+  const problems = validateFlowText(
+    `${scrollBase}- scrollUntilVisible:\n    element:\n      id: 'mfa-code'\n    sideways: true\n`,
+    context,
+  );
+  assert.ok(problems.some((p) => p.includes('sideways')));
+});

@@ -27,7 +27,11 @@ name: Invite-only OTP sign-in reaches the scoped dashboard
     id: 'otp-submit'
 # client.owner holds two memberships, so explicit scope selection is forced.
 - assertVisible: 'Choose a workspace'
-- tapOn: 'Harbor Light Bakery LLC (Synthetic).*'
+# The row's full accessibility label — "<client>, <entity>, <role>" — is the
+# only selector that names ONE row: both rows carry the same client name in
+# their subtitle, so a client-name prefix would match the other entity too.
+# Parentheses are escaped because Maestro matches text as a REGEX.
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
 - assertVisible: 'Home'
 - assertVisible:
     id: 'dashboard-workspace'

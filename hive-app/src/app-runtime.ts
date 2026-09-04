@@ -8,6 +8,7 @@ import { AppState } from 'react-native';
 import { AuthController, type SessionStorage } from '@/auth/controller';
 import { InstallMarker } from '@/auth/install-marker';
 import { documentMarkerFileStore } from '@/auth/marker-file-store';
+import { expoCryptoRandomSource } from '@/auth/native-random-source';
 import { SessionStorageAdapter } from '@/auth/secure-store-adapter';
 import { expoSecureStoreBackend } from '@/auth/secure-store-backend';
 import { systemClock } from '@/core/clock';
@@ -89,7 +90,9 @@ export function getRuntime(): RuntimeResult {
       };
     },
     storage,
-    marker: new InstallMarker(documentMarkerFileStore),
+    // The random source is explicit, not defaulted: core's web-crypto
+    // default throws under Hermes (find 14).
+    marker: new InstallMarker(documentMarkerFileStore, expoCryptoRandomSource),
     registry,
     diagnostics: nullDiagnostics,
     clock: systemClock,

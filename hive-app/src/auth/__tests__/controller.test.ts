@@ -52,10 +52,14 @@ class FakeSessionStorage implements SessionStorage {
 
 class FakeMarkerStore {
   content: string | null = null;
+  /** Set to simulate a marker that cannot be persisted — the device
+   * condition behind find 14, where the write threw and nothing said so. */
+  writeError: Error | null = null;
   async read(): Promise<string | null> {
     return this.content;
   }
   async write(content: string): Promise<void> {
+    if (this.writeError) throw this.writeError;
     this.content = content;
   }
 }
@@ -283,6 +287,21 @@ describe('reinstall reconciliation', () => {
     expect(h.log.indexOf('storage.scrubAll')).toBeLessThan(h.log.indexOf('factory.create'));
     expect(h.controller.getState().name).toBe('signed_out');
     expect(h.markerStore.content).not.toBeNull();
+  });
+
+  // Find 14: on device the marker write threw, boot swallowed it in an empty
+  // catch, and every later boot therefore took the reinstall branch and
+  // destroyed the session. Boot must still continue — a marker is not a
+  // session — but it must never fail silently again.
+  it('records a diagnostic when the marker cannot be written', async () => {
+    const h = makeHarness();
+    h.markerStore.writeError = new Error('Secure random source unavailable');
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    expect(h.markerStore.content).toBeNull();
+    expect(h.diagnosticsLog.map((e) => e.name)).toContain('install_marker_failed');
+    // Boot is not aborted by it: the session still loads.
+    expect(h.controller.getState().name).toBe('authorized');
   });
 
   it('does not scrub when the marker matches', async () => {

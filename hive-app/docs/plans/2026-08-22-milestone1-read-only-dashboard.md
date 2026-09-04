@@ -794,3 +794,359 @@ react-native 0.86.3 vs 0.86.2, and ten more), because the pins are
 exact by design and upstream moved in the week since they were locked.
 The deliberate patch-refresh is filed as cloud work with a full gate
 sweep. Remaining desktop evidence: Maestro flows on the emulator.
+
+## 2026-09-03 — Phase 6 final lane: Maestro on the API 35 emulator
+
+The last outstanding desktop evidence. The lane now executes: the
+instrumentation failure that blocked it is cleared, and the first flows in
+this project's history have run green on a device. Two more finds landed,
+numbered 13 and 14 in the running list, and the second one is a P0.
+
+### The blocker itself was environmental, and took three separate clears
+
+`maestro test .maestro/sign-in.yaml` had been dying at instrumentation
+start with `java.io.EOFException`. Uninstalling Maestro's two driver
+packages (`adb uninstall dev.mobile.maestro`, `.maestro.test`) cleared the
+EOF — both answered `DELETE_FAILED_INTERNAL_ERROR`, i.e. already absent,
+so what was stale was the adb-side state rather than the packages. The run
+then reached the workspace chooser before the driver's gRPC channel died
+mid-`viewHierarchy` with the adb transport reporting `device offline`; the
+emulator had NOT rebooted (uptime unbroken), so this was the host adb
+connection dropping, not a crash. A second run died the same way on the
+first tap. A cold boot (`adb emu kill`, `adb kill-server`, then
+`emulator -avd Pixel_8 -no-snapshot-load`) ended the driver deaths for the
+rest of the session: every subsequent flow ran to a real assertion result.
+
+### Find 13 — Maestro text selectors are regexes, and `(Synthetic)` is a capture group
+
+The cold-booted run reached the chooser and failed honestly:
+`Element not found: Text matching regex: Harbor Light Bakery LLC (Synthetic).*`.
+Maestro matches a text selector as a REGEX, so unescaped `(Synthetic)` is a
+capture group — the selector asks for the literal text
+"Harbor Light Bakery LLC Synthetic", which no screen renders. Five
+occurrences across three flows; other flows had escaped theirs
+(`\(Synthetic\)`), so the defect was inconsistency rather than a
+misunderstanding.
+
+**The `assertNotVisible` half is the serious one.** `scope-switch.yaml`
+carried `assertNotVisible: '2025 books close (Synthetic)'` twice — the
+assertions that prove prior-entity content does not survive an entity
+switch. Against text no screen renders, a "not visible" assertion cannot
+fail. Both were passing vacuously, so the flow's cross-entity leak check
+was a check in name only. A wrong `tapOn` fails loudly; a wrong
+`assertNotVisible` fails silently forever, which is why this is recorded as
+a defect rather than a typo.
+
+**A second, independent defect in the same selectors.** Escaping alone
+would not have made them correct. The chooser renders each row as the
+entity name over `"<client> · <role>"`, and BOTH memberships belong to
+client Harbor Light Bakery LLC (Synthetic) — so
+`Harbor Light Bakery LLC \(Synthetic\).*` matches the Holdings row's
+subtitle and the Holdings row's accessibility label as well as the Bakery
+row's. The flow would have tapped whichever node the hierarchy listed first
+and then asserted that a dashboard was on screen: the WRONG workspace,
+silently proving nothing. The selectors are now each row's full
+accessibility label — `"<client>, <entity>, <role>"` — which names exactly
+one row. Verified against the captured hierarchy, and the passing run's
+screenshot shows Harbor Light Bakery LLC (Synthetic) on Home with both
+synthetic cases newest-first.
+
+`maestro:validate` cannot catch this class today: it proves `id:` selectors
+resolve to real testIDs, but a text selector's regex is never compared with
+anything the app renders. A rule rejecting an unescaped `(` in a text
+selector would have caught all five, and is proposed rather than written.
+
+### Find 14 (P0) — the install marker is never written on device, so every launch signs the user out
+
+With the selector fixed, `sign-in.yaml` passed. Every flow whose pre-step is
+"signed in as client.owner with the Bakery workspace selected" then failed
+on its first assertion, with the app sitting on the sign-in screen.
+Reproduced with no Maestro involved: sign in, `adb shell am force-stop`,
+`am start` — signed out.
+
+Measured on device, which is what makes this a diagnosis rather than a
+theory:
+
+| Observation                                                    | Meaning                                                |
+| -------------------------------------------------------------- | ------------------------------------------------------ |
+| `shared_prefs/SecureStore.xml` is **3898 bytes** after sign-in | The session persisted: manifest + two encrypted chunks |
+| The same file is **65 bytes** (`<map />`) after one relaunch   | `scrubAll()` ran during boot and deleted every key     |
+| `files/` never contains `hive-install-marker.json`             | The install marker is never written                    |
+
+Those three facts are the whole failure. `AuthController.boot()` treats
+`residue && !markerExists` as "reinstall over a stale Keychain" and purges
+before any auth evaluation. With the marker permanently absent, EVERY boot
+takes that branch, so the session is destroyed on every launch and no one
+can stay signed in. The chunked SecureStore adapter itself is vindicated:
+its two-phase commit worked correctly on real hardware on the first attempt.
+
+**Why the marker write fails.** `InstallMarker.ensure()` builds the id with
+`newOpaqueToken(16, cryptoRandomSource)`, and `cryptoRandomSource.fill`
+throws `Secure random source unavailable` unless
+`globalThis.crypto.getRandomValues` exists. Hermes and React Native do not
+provide it, and nothing in this dependency tree installs it: there is no
+`expo-crypto`, no `react-native-get-random-values`, no `getRandomValues`
+anywhere in the `expo` package (its winter runtime polyfills AbortSignal,
+DOMException, FormData, TextDecoder, URL and fetch — not crypto), and no
+`globalThis.crypto =` assignment in expo, react-native, expo-modules-core,
+or @supabase. Recorded precisely: the throw itself was NOT observed, because
+`boot()` wraps `marker.ensure()` in an empty `catch {}`. The absent random
+source is the only candidate that throws before `store.write` is reached,
+and it explains a marker file that never appears; expo-file-system's Android
+`write` creates a missing file itself (`FileSystemFile.kt`:
+`if (!exists) create()`), so the file binding is unlikely to be the failing
+call. Confirming which line throws needs a diagnostic in that catch and a
+rebuild.
+
+**Why no lane caught it.** Every `InstallMarker` test injects `fixedRandom`,
+and the live-bridge lane swaps both native byte stores for in-memory
+synthetics. `cryptoRandomSource` and `documentMarkerFileStore` — the two
+real bindings — have never executed in any lane, in any container, until
+this run. 369 jest tests, 157 black-box assertions and 7 live-bridge
+journeys all pass over a session that persists, because in every one of them
+it does.
+
+**Severity.** Availability, not confinement: the control fails CLOSED, so
+nothing leaks — it destroys the session rather than trusting it. But the
+product is unusable (sign in on every launch), and the reinstall-scrub
+control now fires constantly instead of on reinstall, so it can no longer
+evidence the thing it exists to evidence. `reinstall.yaml` passes and cannot
+detect this, because a cleared install and a broken marker look identical at
+boot.
+
+**Not fixed here.** The fix adds a working random source to the auth boot
+path — `expo-crypto` is the Expo-official answer, and it is a new native
+dependency plus a prebuild and a full Gradle rebuild, in a security path.
+The empty `catch {}` must also stop swallowing the failure, which is the
+reason a P0 sat undetected behind six green lanes. Both are Kody's call.
+
+### The 17-flow tally, as executed
+
+Run individually in dependency order rather than as `maestro test .maestro`:
+a directory run executes alphabetically with no state orchestration
+(sign-in would run 16th), it includes `confinement-probe.yaml` which is
+DESIGNED to fail, and it would run the enrollment pair outside the runner
+that this repo makes mandatory for QR/setup-key artifact confinement.
+
+| Flow                         | Result                                                                      |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `sign-in.yaml`               | **PASS** — OTP from Mailpit mid-flow, chooser, Bakery workspace, Home       |
+| `accessibility-smoke.yaml`   | **PASS** (assertions only; a TalkBack pass is still outstanding)            |
+| `reinstall.yaml`             | **PASS** — but see find 14: it cannot detect the marker defect              |
+| `clipboard-scrub.yaml`       | **PASS**                                                                    |
+| `activity-and-help.yaml`     | FAIL — find 14                                                              |
+| `requests.yaml`              | FAIL — find 14                                                              |
+| `nav-persistence.yaml`       | FAIL — find 14                                                              |
+| `sign-out.yaml`              | FAIL — find 14                                                              |
+| `scope-switch.yaml`          | FAIL — find 14 (selectors fixed, never reached)                             |
+| `offline.yaml`               | FAIL — find 14 (selector fixed, never reached; airplane mode never toggled) |
+| `read-surfaces-offline.yaml` | FAIL — find 14                                                              |
+| `read-surfaces-denied.yaml`  | FAIL — find 14 (its operator revoke step was never reached)                 |
+| `expired-session.yaml`       | FAIL — find 14; passed `assertNotVisible: Home` for the wrong reason        |
+| `quarantine-recovery.yaml`   | FAIL — find 14; also needs a QA build (`EXPO_PUBLIC_QA_HOOKS=1`)            |
+| `mfa-enroll.yaml`            | **HOLD** — runner refuses, toolchain pin unfilled                           |
+| `mfa-login.yaml`             | **HOLD** — same                                                             |
+| `confinement-probe.yaml`     | **HOLD** — same                                                             |
+
+**4 PASS, 10 FAIL on one root cause, 3 HOLD.**
+
+The three HOLDs are the designed fail-closed state, not a breakage:
+`npm run maestro:enroll` exits 3 because `security/hardware-toolchain.json`
+still carries `status: "HOLD-operator-fill"` with null version, artifactUrl,
+sha256 and verifiedBy. That record attests to a download whose provenance
+this session cannot establish, so it stays with Kody or the QA lead: record
+the official release URL for Maestro 2.10.0 and its sha256, set status
+`pinned`, name the verifier, then re-run `maestro:validate`.
+
+**Environment notes for the runbook.** The lane needs the stack reachable at
+`10.0.2.2:54321` from inside the emulator (it was, throughout), and a
+cold-booted AVD — a snapshot-resumed emulator produced repeated
+`DeviceServerDiedException` / `device offline` driver deaths that a cold
+boot ended completely.
+
+### Find 14 fixed, and verified on the device that found it
+
+Kody authorized the fix on 2026-09-03. Three changes, smallest first:
+
+- **`src/auth/native-random-source.ts`** (new) binds `expo-crypto` 57.0.2,
+  pinned exactly like every other dependency, and `app-runtime.ts` injects
+  it into `InstallMarker`. Core keeps its web-crypto source — it is shared
+  with the Node script lanes, where `globalThis.crypto` is real — so the
+  device binding sits beside the SecureStore and marker-file bindings
+  rather than inside core.
+- **`InstallMarker`'s `random` parameter is now REQUIRED.** It defaulted to
+  the web-crypto source, so the one caller that mattered silently got a
+  source that could not work. Every construction site now names what it
+  uses, including the live lane, which says in place that it uses the Node
+  source because it cannot load the device binding — which is exactly the
+  seam find 14 lived in.
+- **`boot()` no longer swallows the failure.** The empty `catch {}` records
+  `install_marker_failed` (a new allowlisted diagnostic name). Boot still
+  continues, because a marker is not a session, but an unwritable marker
+  can never again be invisible.
+
+**Proven on device, not inferred.** After a clean install and one
+`sign-in.yaml`, `files/hive-install-marker.json` exists and holds
+`{"v":1,"installId":"<32 hex>","createdAt":…}` — 16 bytes of real
+randomness, which is the diagnosis confirming itself: the write had never
+been reached because the RANDOM SOURCE threw, not because the file binding
+failed. `am force-stop` then `am start` now restores the session instead of
+purging it.
+
+Red-checked first, per ENGINEERING METHOD: the new controller test
+(`records a diagnostic when the marker cannot be written`) failed with
+`Received array: ["auth_transition"]` before the change and passes after.
+A second test pins the Hermes condition itself — `newOpaqueToken()` throws
+`Secure random source unavailable` when `globalThis.crypto` is removed —
+next to the pre-existing "uses the platform secure random source by
+default" case, which passes under Node and was precisely the false comfort.
+
+### Five more finds, all from running the lane rather than reading it
+
+**Find 15 — `verify:toolchain` reported two matching tools as missing.**
+On Windows npm and npx are `.cmd` batch wrappers that CreateProcess cannot
+execute, so `execFileSync` threw ENOENT and the gate printed
+`FAIL npm (packageManager): expected 10.9.8, found missing` on a machine
+running exactly 10.9.8, and the same for the Supabase CLI at exactly
+2.115.0. The same Windows trap as find 2. `shell` on win32, justified as
+before by every command and argument being a hardcoded literal.
+**verify:toolchain OK.**
+
+**Find 16 — nine flows assumed a selected workspace survives a relaunch.**
+Once sessions persisted, every "already signed in" flow still failed: the
+app resumes to the CHOOSER, not to the last workspace. That is correct.
+`docs/data-classification.md` puts Actor, ScopeKey and memberships in
+Memory and names "persisted copies" as the thing that must not exist, so a
+resumed session deliberately re-asks which workspace. The flows encoded an
+assumption the data classification forbids; they now re-select the
+workspace after `launchApp`, which also makes each one prove the session
+survived the relaunch.
+
+**Find 17 — the flows had no scroll vocabulary at all.** `activity-and-help`
+asserts Help's content-version line, which is the last element on a screen
+taller than the viewport: `help-version` was absent from the hierarchy
+entirely, with `help-section-contact` clipped exactly at the 2400px screen
+bottom. `assertVisible` sees the viewport, not the document, so the
+assertion could never have passed on a phone. `scrollUntilVisible` is now a
+known command with a payload schema (element required, direction
+constrained, numerics checked) and nested testIDs still cross-checked by
+the existing selector walk. Red-checked: four new tests, all failing
+before.
+
+**Find 18 (OPEN, product defect) — the nav is not persistent.**
+`AuthorizedScreen` renders `PrimaryNav` INSIDE the scrolling `Screen`, as a
+sibling of the children. On any destination whose content exceeds the
+viewport the nav scrolls out of view — on Help, at default text size, on a
+stock Pixel 8, the nav is not on screen at all. `nav-persistence.yaml`
+fails on `nav-home`, which is the flow doing exactly the job it was written
+for: the plan's own words are that a destination which drops the nav
+"would strand the reader with only a system back gesture, which is not a
+persistent label and is not discoverable with a screen reader". CLAUDE.md
+requires persistent labels and 200% text, and at 200% every screen becomes
+a long screen. The jest screen-level accessibility suite cannot see this —
+it renders without a viewport, so nothing is ever below a fold. The fix is
+to lift `PrimaryNav` out of the ScrollView into a pinned footer, which
+moves safe-area padding and the tablet max-width with it; that is shared
+chrome and a visual change, so it is left for Kody and Stacie rather than
+taken here.
+
+**Find 19 (OPEN, product defect) — system back from Account leaves the app,
+and an assertion hid it.** `offline.yaml` failed tapping `nav-account` with
+the ANDROID LAUNCHER on screen. Reproduced with a minimal probe using a
+testID instead of a word: sign in, open Account, press back — the app
+exits to the home screen instead of returning to the dashboard. CLAUDE.md
+requires safe back/cancel. No crash appears in logcat; the routing cause is
+not yet established.
+
+It stayed hidden because **`assertVisible: 'Home'` matches the Android
+launcher.** The launcher's workspace carries `accessibilityText` of exactly
+"Home", and Maestro matches accessibility text as well as text, so the
+flow's `- assertVisible: 'Home'` after `back` passed against the device
+home screen with the app closed. That assertion appears in most flows as
+the "we are on the dashboard" check, and it can pass with the app not
+running. The dashboard has a testID (`dashboard-workspace`) that cannot be
+confused with anything; the word should be replaced by it. Recorded rather
+than changed, because it touches most flows and belongs with the find 18
+decision.
+
+**Find 20 — `expired-session.yaml`'s pre-step does not produce the state it
+assumes.** Its header revokes the account's sessions server-side and
+expects the next launch to fail closed with the expired notice. Deleting
+every `auth.sessions` and `auth.refresh_tokens` row for the account (the
+admin `/logout` endpoint answers 404 on this GoTrue) left the app still
+reaching the workspace chooser: the STORED ACCESS TOKEN is a JWT, PostgREST
+validates it statelessly and never consults `auth.sessions`, so a revoked
+session keeps reading until that token expires — an hour, at the local
+stack's default. That is Supabase's documented model rather than an app
+defect, and the app's own boot-time expiry check is separately covered by
+unit tests. The flow needs a pre-step that makes the STORED TOKEN unusable
+— a short `jwt_expiry` on the local stack, or corrupting the stored token
+through a QA hook — not a session revocation. Not executed; HOLD.
+
+**Find 21 — `read-surfaces-denied.yaml` cannot be run as authored.** Its
+header names `node scripts/local-supabase.mjs seed --revoke <email>
+<entity>`; that command does not exist (`local-supabase.mjs` offers
+`up|status|seed|e2e|reset-totp|stop`). Worse, the revocation has to land
+between "the requests list is on screen" and the refresh tap, and the flow
+offers no synchronization point for it. Driven from a watcher on Maestro's
+own output, the delete (confirmed `DELETE 1`) still landed after the
+refresh request went out, so the reload returned rows and the stale state
+never appeared. The fix is the pattern this repo already uses for the OTP:
+a loopback `runScript` helper that performs the revoke mid-flow, the way
+`otp-fetch.js` reads Mailpit. Not executed; HOLD.
+
+### The 17-flow tally after the fixes — supersedes the table above
+
+| Flow                         | Result                                                                        |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| `sign-in.yaml`               | **PASS**                                                                      |
+| `requests.yaml`              | **PASS** — list, detail, cross-scope rows absent, no write control            |
+| `activity-and-help.yaml`     | **PASS** — roles not people; Help renders with the network off                |
+| `read-surfaces-offline.yaml` | **PASS** — offline REPLACES content, then recovers                            |
+| `scope-switch.yaml`          | **PASS** — and its two leak assertions are real now (find 13)                 |
+| `sign-out.yaml`              | **PASS** — protected UI gone, and gone after relaunch                         |
+| `reinstall.yaml`             | **PASS**                                                                      |
+| `accessibility-smoke.yaml`   | **PASS** (assertions only; a TalkBack pass is still outstanding)              |
+| `clipboard-scrub.yaml`       | **PASS**                                                                      |
+| `nav-persistence.yaml`       | **FAIL — find 18**, a real product defect, correctly caught                   |
+| `offline.yaml`               | **FAIL — find 19**, a real product defect, correctly caught                   |
+| `expired-session.yaml`       | HOLD — find 20, the pre-step cannot produce the state                         |
+| `read-surfaces-denied.yaml`  | HOLD — find 21, no mid-flow revoke helper exists                              |
+| `quarantine-recovery.yaml`   | HOLD — needs a QA build (`EXPO_PUBLIC_QA_HOOKS=1`); this is a plain dev build |
+| `mfa-enroll.yaml`            | HOLD — the Maestro toolchain pin is unfilled                                  |
+| `mfa-login.yaml`             | HOLD — same                                                                   |
+| `confinement-probe.yaml`     | HOLD — same                                                                   |
+
+**9 PASS, 2 FAIL on genuine product defects, 6 HOLD** (was 4 / 10 / 3
+before the fixes). Both failures are the lane earning its keep: neither
+defect is reachable from any container, and one of them —
+`nav-persistence` — is the flow that exists specifically to catch it.
+
+Gates at this commit: typecheck exit 0, eslint `--max-warnings 0` clean,
+jest **379 passed / 30 suites**, node:test **318 tests, 286 passed**,
+`maestro:validate` OK across 17 flows, `verify:toolchain` OK. The 32
+node:test failures are PRE-EXISTING on this desktop and unrelated: a clean
+`git stash` of every change in this entry reproduces exactly 278/310 with
+the same 32 names (audit-gate and export lanes, which need registry access
+and a full `expo export`). All eight tests added here pass.
+
+**Local stack note.** Driving find 21 by hand left `client.owner` outside
+the canonical shape, and `seed` refused it — find 8's guard working. The
+documented recovery (`npx supabase db reset`, then seed) restored **9
+users, 15 memberships, all ids canonical**, and the lane was re-verified
+green afterwards.
+
+### Next, in priority order
+
+1. **Find 18 and find 19** — two open product defects, owner Kody with
+   Stacie on the nav's client experience. Both are UX requirements the
+   brief already states (persistent labels, safe back), so the decision is
+   how to implement, not whether.
+2. **Replace `assertVisible: 'Home'` with the `dashboard-workspace`
+   testID** across the flows, once (1) is settled — an assertion that
+   passes against the Android home screen is not an assertion.
+3. **Fill the Maestro pin** in `security/hardware-toolchain.json` to
+   release the three enrollment/confinement flows.
+4. **A mid-flow revoke helper** for `read-surfaces-denied`, and a
+   stored-token pre-step for `expired-session`.
+5. **A QA build** (`EXPO_PUBLIC_QA_HOOKS=1`) for `quarantine-recovery`.

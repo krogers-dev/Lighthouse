@@ -40,6 +40,10 @@ export const KNOWN_COMMANDS = new Set([
   'back',
   'setAirplaneMode',
   'extendedWaitUntil',
+  // Added 2026-09-03 (find 17): the flows had no scroll vocabulary, so an
+  // element below the fold — Help's content version — could not be asserted
+  // at all. assertVisible sees the viewport, not the document.
+  'scrollUntilVisible',
 ]);
 
 const EXPECTED_APP_ID = 'com.myhbcfo.hive.development';
@@ -80,6 +84,15 @@ const SELECTOR_FIELDS = new Set([
 
 const SELECTOR_COMMANDS = new Set(['tapOn', 'assertVisible', 'assertNotVisible', 'copyTextFrom']);
 
+const SCROLL_FIELDS = new Set([
+  'element',
+  'direction',
+  'timeout',
+  'speed',
+  'visibilityPercentage',
+  'centerElement',
+]);
+
 const LAUNCH_FIELDS = new Set([
   'appId',
   'clearState',
@@ -89,11 +102,37 @@ const LAUNCH_FIELDS = new Set([
   'arguments',
 ]);
 
+const BACKSLASH = String.fromCharCode(92);
+
+/** Maestro matches a text selector as a REGEX, so an unescaped parenthesis
+ * is a capture group rather than the character on screen: '(Synthetic)'
+ * asks for the literal text "Synthetic" with no brackets, which no screen
+ * renders. In `tapOn` that fails loudly. In `assertNotVisible` it can NEVER
+ * fail — two cross-entity leak assertions in scope-switch.yaml passed
+ * vacuously for exactly this reason until the first device run (find 13,
+ * 2026-09-03). Selectors in these flows carry literal on-screen labels, so
+ * a bare parenthesis is always the mistake; there is deliberately no
+ * opt-out, because adding one re-opens the same silent failure. */
+function unescapedParenProblems(where, what, value) {
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i];
+    if ((char === '(' || char === ')') && value[i - 1] !== BACKSLASH) {
+      return [
+        `${where}: ${what} text contains an unescaped "${char}" — Maestro matches text as a regex, ` +
+          `so write "${BACKSLASH}${char}" for the literal character. An unescaped group can make ` +
+          `an assertion that never fails.`,
+      ];
+    }
+  }
+  return [];
+}
+
 /** A selector is a non-empty string or a non-empty map of known selector
  * fields — never a list, never empty, never a bare number. */
 function selectorProblems(where, payload, what = 'selector') {
   if (typeof payload === 'string') {
-    return payload.trim() === '' ? [`${where}: ${what} is an empty string`] : [];
+    if (payload.trim() === '') return [`${where}: ${what} is an empty string`];
+    return unescapedParenProblems(where, what, payload);
   }
   if (Array.isArray(payload)) {
     return [`${where}: ${what} must be a string or a map, not a list`];
@@ -114,6 +153,8 @@ function selectorProblems(where, payload, what = 'selector') {
   }
   if (typeof payload.text !== 'undefined' && typeof payload.text !== 'string') {
     problems.push(`${where}: ${what} text must be a string`);
+  } else if (typeof payload.text === 'string') {
+    problems.push(...unescapedParenProblems(where, what, payload.text));
   }
   if (typeof payload.index !== 'undefined' && !Number.isInteger(payload.index)) {
     problems.push(`${where}: ${what} index must be an integer`);
@@ -206,6 +247,36 @@ export function validateStepPayload(command, payload, where, scriptFiles) {
     case 'back': {
       if (payload !== null && typeof payload !== 'undefined' && typeof payload !== 'string') {
         problems.push(`${where}: ${command} takes no payload (or an appId string)`);
+      }
+      break;
+    }
+    case 'scrollUntilVisible': {
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+        problems.push(
+          `${where}: scrollUntilVisible payload must be a map with an element selector`,
+        );
+        break;
+      }
+      for (const key of Object.keys(payload)) {
+        if (!SCROLL_FIELDS.has(key)) {
+          problems.push(`${where}: unknown scrollUntilVisible field "${key}"`);
+        }
+      }
+      if (typeof payload.element === 'undefined') {
+        problems.push(`${where}: scrollUntilVisible needs an element selector to scroll toward`);
+      } else {
+        problems.push(...selectorProblems(where, payload.element, 'scrollUntilVisible element'));
+      }
+      if (
+        typeof payload.direction !== 'undefined' &&
+        !['UP', 'DOWN', 'LEFT', 'RIGHT'].includes(payload.direction)
+      ) {
+        problems.push(`${where}: scrollUntilVisible direction must be UP, DOWN, LEFT or RIGHT`);
+      }
+      for (const numeric of ['timeout', 'visibilityPercentage']) {
+        if (typeof payload[numeric] !== 'undefined' && !Number.isInteger(payload[numeric])) {
+          problems.push(`${where}: scrollUntilVisible ${numeric} must be an integer`);
+        }
       }
       break;
     }

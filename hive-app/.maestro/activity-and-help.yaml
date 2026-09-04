@@ -7,6 +7,11 @@ tags:
 ---
 - launchApp:
     clearState: false
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session lands on the chooser rather than the last workspace.
+# Re-selecting here is also what proves the session survived the relaunch.
+- assertVisible: 'Choose a workspace'
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
 - assertVisible: 'Home'
 - tapOn:
     id: 'nav-activity'
@@ -27,6 +32,13 @@ tags:
 - assertVisible: 'Help'
 - assertVisible:
     id: 'help-section-what-hive-shows'
+# Help's content is taller than the viewport, so the version line — the last
+# element on the screen — is below the fold. assertVisible sees the viewport,
+# not the document, so it has to be scrolled to (find 17). Scrolling with the
+# network off also proves the static content is genuinely local.
+- scrollUntilVisible:
+    element:
+      id: 'help-version'
 - assertVisible:
     id: 'help-version'
 - setAirplaneMode: disabled

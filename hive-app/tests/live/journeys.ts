@@ -11,6 +11,7 @@ import { InstallMarker } from '@/auth/install-marker';
 import type { AuthState } from '@/auth/machine';
 import { SessionStorageAdapter } from '@/auth/secure-store-adapter';
 import { nullDiagnostics } from '@/core/diagnostics';
+import { cryptoRandomSource } from '@/core/ids';
 import { systemClock } from '@/core/clock';
 import { validateEnvironment } from '@/core/env';
 import {
@@ -81,7 +82,11 @@ export function buildApp() {
       };
     },
     storage,
-    marker: new InstallMarker(new SyntheticMemoryMarkerStore()),
+    // This lane runs under Node, where core's web-crypto source really
+    // works, so it uses that rather than the device's expo-crypto binding —
+    // which is precisely what this lane cannot exercise, and precisely
+    // where find 14 lived. Only the device lane proves that binding.
+    marker: new InstallMarker(new SyntheticMemoryMarkerStore(), cryptoRandomSource),
     registry,
     diagnostics: nullDiagnostics,
     clock: systemClock,

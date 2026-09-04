@@ -16,6 +16,7 @@ export const DIAGNOSTIC_EVENT_NAMES = [
   'storage_scrub_result',
   'storage_write_result',
   'reinstall_purge',
+  'install_marker_failed',
   'scope_cleared',
   'env_validation_failed',
   'repository_denied',

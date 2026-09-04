@@ -33,10 +33,26 @@ describe('newOpaqueToken', () => {
     expect(token).toBe('ab'.repeat(16));
   });
 
+  // This passes under Node and the browser, where `globalThis.crypto`
+  // exists. It is NOT evidence that the source works on device, and reading
+  // it as such is how find 14 survived: Hermes ships no WebCrypto global,
+  // so on device this same default threw. The case below pins that
+  // behaviour so the limitation is stated rather than assumed.
   it('uses the platform secure random source by default', () => {
     const a = newOpaqueToken();
     const b = newOpaqueToken();
     expect(a).toMatch(/^[0-9a-f]{32}$/);
     expect(a).not.toBe(b);
+  });
+
+  it('refuses rather than weakens when the runtime has no WebCrypto (Hermes)', () => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true });
+    try {
+      expect(() => newOpaqueToken()).toThrow('Secure random source unavailable');
+    } finally {
+      if (original) Object.defineProperty(globalThis, 'crypto', original);
+      else delete (globalThis as { crypto?: unknown }).crypto;
+    }
   });
 });
