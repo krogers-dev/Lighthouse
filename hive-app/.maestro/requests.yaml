@@ -13,10 +13,12 @@ tags:
 # resumed session lands on the chooser rather than the last workspace.
 - assertVisible: 'Choose a workspace'
 - tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
-- assertVisible: 'Home'
+- assertVisible:
+    id: 'dashboard-workspace'
 - tapOn:
     id: 'nav-requests'
-- assertVisible: 'Requests'
+- assertVisible:
+    id: 'requests-screen'
 - assertVisible:
     id: 'requests-list'
 - assertVisible: 'Bank statement for the closing month \(Synthetic\)'

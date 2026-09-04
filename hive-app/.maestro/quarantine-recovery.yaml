@@ -17,7 +17,8 @@ name: Storage quarantine blocks protected UI; scrub is the only recovery
 # resumed session lands on the chooser rather than the last workspace.
 - assertVisible: 'Choose a workspace'
 - tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
-- assertVisible: 'Home'
+- assertVisible:
+    id: 'dashboard-workspace'
 - openLink: hivedev://qa/corrupt-storage
 # Wait for the completion acknowledgment before killing the app.
 - extendedWaitUntil:
@@ -27,7 +28,8 @@ name: Storage quarantine blocks protected UI; scrub is the only recovery
 - stopApp
 - launchApp
 # No protected UI and no generic retry: only the scrub action exists.
-- assertNotVisible: 'Home'
+- assertNotVisible:
+    id: 'dashboard-workspace'
 - assertVisible:
     id: 'quarantine-screen'
 - assertVisible: 'Secure sign-in data needs a reset'

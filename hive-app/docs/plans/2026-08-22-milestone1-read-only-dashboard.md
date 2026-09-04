@@ -1150,3 +1150,161 @@ green afterwards.
 4. **A mid-flow revoke helper** for `read-surfaces-denied`, and a
    stored-token pre-step for `expired-session`.
 5. **A QA build** (`EXPO_PUBLIC_QA_HOOKS=1`) for `quarantine-recovery`.
+
+## 2026-09-03, later — both open defects fixed; the lane reaches 12 of 17
+
+Kody delegated the engineering calls after the first Phase 6 report. Finds
+18 and 19 were fixed, three more finds came out of fixing them, and the
+Maestro lane now passes twelve flows including both offline ones.
+
+### Find 19 fixed — Android back was handed to an API nothing implements
+
+`app.json` carried `"predictiveBackGestureEnabled": true`, which sets
+`android:enableOnBackInvokedCallback="true"` and routes the back gesture to
+Android's predictive-back `OnBackInvokedCallback` API. Nothing in this app
+registers such a callback, so the system finished the Activity instead of
+dispatching: back from ANY destination exited the app, and JS never
+received `hardwareBackPress` at all.
+
+The diagnosis was made on the device rather than from the flow output,
+because the flow output was misleading (see find 22). A temporary probe
+logged the router's own state — `["dashboard","requests/index"]`, index 1,
+so the history was correct and two deep — while a `BackHandler` listener
+logged nothing, and a raw `adb shell input keyevent 4` with no Maestro
+anywhere still dropped the app to the launcher. Stack correct, JS never
+notified: that is the Activity finishing above React Native, not a
+navigator bug.
+
+`predictiveBackGestureEnabled` is now `false`, which is Expo's own default,
+and `config:check` fails if it is ever set back to `true` without predictive
+back actually being implemented — red-checked before the rule went in.
+Verified on device after the rebuild: back from Account and back from
+Requests both return to the dashboard.
+
+### Find 18 fixed — the nav is pinned chrome now
+
+`AuthorizedScreen` rendered `PrimaryNav` inside the scrolling `Screen`, so
+it scrolled away on any long screen. `Screen` gained a `footer` slot that
+renders outside the ScrollView, owns the bottom safe-area inset (the
+content no longer reserves it twice), and keeps the 720px readable measure
+so the bar lines up with what it navigates. `PrimaryNav` lost its
+`marginTop`, which only made sense when it followed content.
+
+Guarded by a structural test rather than a visual one, because a renderer
+has no viewport and can never see clipping: the shell test asserts the five
+destinations are NOT descendants of the scroll area while the content IS.
+Red-checked by putting the nav back inside the ScrollView — the new test
+failed and **all four pre-existing shell tests still passed**, which is the
+clearest statement of why this defect survived until a device ran it.
+Verified on Help, the tallest screen: all five destinations visible with
+content scrolling above them.
+
+### Find 22 — the flows asserted screen identity with words the nav also uses
+
+`assertVisible: 'Home'` matched the Android launcher (find 19's hiding
+place). The same flaw ran through every destination: `'Requests'`,
+`'Activity'`, `'Help'` and `'Account'` are all nav BUTTON labels, and the
+nav is present on every authorized screen — so `assertVisible: 'Help'` is
+satisfied while standing on Activity.
+
+That is not hypothetical: it happened. `activity-and-help` reported
+`Tap on id: nav-help... COMPLETED` and `Assert that "Help" is visible...
+COMPLETED`, and the captured hierarchy for the NEXT step is the Activity
+screen, nav and all. The tap had not navigated and the assertion said it
+had. Every such assertion is now the screen's own testID —
+`dashboard-workspace`, `requests-screen`, `activity-screen`, `help-screen`,
+`settings-screen` — 30 replacements across 14 flows. The failure then
+became honest, which is what exposed find 23.
+
+### Find 23 — LogBox draws over the nav, and the offline flows provoke it
+
+With sound assertions, `activity-and-help` failed reaching Help _while
+airplane mode was on_. React Native's LogBox renders its "open debugger to
+view warnings" banner across the BOTTOM of the screen — where the nav now
+lives — and going offline produces a warning by design. The banner
+swallowed the nav tap.
+
+The Maestro lane therefore runs on the **QA build**
+(`EXPO_PUBLIC_QA_HOOKS=1`), which now also suppresses the LogBox OVERLAY
+only: warnings still reach the console and logcat, so nothing is silenced,
+and the call sits behind the same `__DEV__` + QA-flag guard as the storage
+hook — forbidden outside development by `config:check` and proven absent
+from non-development exports by `bundle:inspect`. Attribution, stated
+honestly: the assertion fix and the QA build landed close together. The
+assertion fix is what made the failure legible; the banner covering the nav
+is the inferred cause of the tap itself failing, supported by a screenshot
+showing the banner over the nav with only the current-tab underline
+visible beneath it.
+
+### Find 24 — the QA storage hook cannot fire, because the router claims the URL
+
+`quarantine-recovery.yaml` was HOLD for want of a QA build. With one built,
+it got further and failed for a better reason: `hivedev://qa/corrupt-storage`
+is intercepted by **Expo Router**, which treats it as the route
+`/qa/corrupt-storage`, finds nothing, and renders its "Unmatched Route"
+screen. The app's own `Linking` listener never gets to run the corruption,
+so the acknowledgment never appears.
+
+The hook was authored where it could never be exercised. The fix is a
+design question rather than a typo: a router-native QA route would fire
+reliably but must not exist in a release bundle, where `expo export`'s route
+count and `bundle:inspect` both have opinions. Left HOLD with the cause
+now precisely known instead of merely "needs a QA build".
+
+### The tally: 12 PASS, 0 FAIL, 5 HOLD
+
+| Flow                         | Result                                                   |
+| ---------------------------- | -------------------------------------------------------- |
+| `sign-in.yaml`               | **PASS**                                                 |
+| `requests.yaml`              | **PASS**                                                 |
+| `activity-and-help.yaml`     | **PASS** — including Help rendering with the network off |
+| `nav-persistence.yaml`       | **PASS** — the find-18 fix, proven on the device         |
+| `read-surfaces-offline.yaml` | **PASS**                                                 |
+| `scope-switch.yaml`          | **PASS** — with the leak assertions real (find 13)       |
+| `offline.yaml`               | **PASS** — the find-19 fix, proven on the device         |
+| `sign-out.yaml`              | **PASS**                                                 |
+| `reinstall.yaml`             | **PASS**                                                 |
+| `accessibility-smoke.yaml`   | **PASS** (assertions only; TalkBack still outstanding)   |
+| `clipboard-scrub.yaml`       | **PASS**                                                 |
+| `quarantine-recovery.yaml`   | HOLD — find 24                                           |
+| `expired-session.yaml`       | HOLD — find 20, the pre-step cannot produce the state    |
+| `read-surfaces-denied.yaml`  | HOLD — find 21, no mid-flow revoke helper exists         |
+| `mfa-enroll.yaml`            | HOLD — the Maestro toolchain pin is unfilled             |
+| `mfa-login.yaml`             | HOLD — same                                              |
+| `confinement-probe.yaml`     | HOLD — same                                              |
+
+Eleven ran back to back in one sweep with no failures; `quarantine-recovery`
+was attempted separately and produced find 24. **Nothing now fails.** The
+five HOLDs are three kinds of missing thing — an operator attestation, two
+harness helpers, and one hook design — not defects in the app.
+
+Gates at this commit: typecheck exit 0, eslint `--max-warnings 0` clean,
+prettier clean, jest **380 passed / 30 suites**, node:test **320 tests, 288
+passed** (the same 32 pre-existing desktop failures, unchanged and
+unrelated), `maestro:validate` OK across 17 flows, `config:check` OK,
+`verify:toolchain` OK.
+
+### Runbook notes earned the hard way
+
+- **The lane needs Metro up, and `expo run:android` leaves a wedged node
+  process holding port 8081 after it exits.** Twice the next `expo start`
+  refused the port and skipped the dev server, and every launch then hit
+  "Unable to load script". Free the port before starting Metro.
+- **A flow that fails mid-way can leave airplane mode ON**, which breaks
+  the next flow's bundle fetch and looks like an unrelated failure. The
+  sweep disables it between flows.
+- **The Maestro lane runs on the QA build** (`EXPO_PUBLIC_QA_HOOKS=1`), for
+  the LogBox reason above.
+
+### Next
+
+1. **Fill the Maestro pin** in `security/hardware-toolchain.json` — official
+   2.10.0 release URL, sha256, status `pinned`, and a named verifier. Owner
+   Kody; it is an attestation, so it cannot be delegated. Unblocks three
+   flows.
+2. **Find 24** — a QA corruption hook that survives Expo Router without
+   shipping a route in release.
+3. **Find 20 / find 21** — a stored-token pre-step and a loopback mid-flow
+   revoke helper, both modelled on `otp-fetch.js`.
+4. **TalkBack pass** on `accessibility-smoke`, and measured contrast on
+   hardware. Still the only part of A4 that hardware can settle.

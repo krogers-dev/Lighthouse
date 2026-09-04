@@ -20,7 +20,7 @@
         "backgroundImage": "./assets/images/adaptive-icon-background.png",
         "monochromeImage": "./assets/images/adaptive-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": true
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",

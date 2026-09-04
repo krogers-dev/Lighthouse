@@ -36,4 +36,5 @@ name: Subsequent staff login verifies against the existing factor (no second QR)
 - inputText: ${output.totpCode}
 - tapOn:
     id: 'mfa-submit'
-- assertVisible: 'Home'
+- assertVisible:
+    id: 'dashboard-workspace'

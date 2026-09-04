@@ -10,7 +10,8 @@ name: Expired/revoked session fails closed into a fresh sign-in
 # The relaunch must show no protected content and the expired notice.
 ---
 - launchApp
-- assertNotVisible: 'Home'
+- assertNotVisible:
+    id: 'dashboard-workspace'
 - assertVisible:
     id: 'signed-out-reason'
 - assertVisible: 'Your session ended. Sign in again to continue.'

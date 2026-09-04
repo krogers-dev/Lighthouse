@@ -8,18 +8,22 @@ name: Offline shows the explicit offline state and recovers on retry (Android la
 # resumed session lands on the chooser rather than the last workspace.
 - assertVisible: 'Choose a workspace'
 - tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
-- assertVisible: 'Home'
+- assertVisible:
+    id: 'dashboard-workspace'
 - setAirplaneMode: enabled
 - tapOn:
     id: 'nav-account'
-- assertVisible: 'Account'
+- assertVisible:
+    id: 'settings-screen'
 - back
-- assertVisible: 'Home'
+- assertVisible:
+    id: 'dashboard-workspace'
 # Force a fresh read while offline: the dashboard shows the offline state,
 # never stale content presented as current.
 - tapOn:
     id: 'nav-account'
-- assertVisible: 'Account'
+- assertVisible:
+    id: 'settings-screen'
 - tapOn:
     id: 'settings-switch-scope'
 - assertVisible: 'Choose a workspace'

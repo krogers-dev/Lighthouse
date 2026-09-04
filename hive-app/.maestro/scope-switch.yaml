@@ -6,10 +6,12 @@ name: Entity switch clears content and rebinds the dashboard
 # resumed session lands on the chooser rather than the last workspace.
 - assertVisible: 'Choose a workspace'
 - tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
-- assertVisible: 'Home'
+- assertVisible:
+    id: 'dashboard-workspace'
 - tapOn:
     id: 'nav-account'
-- assertVisible: 'Account'
+- assertVisible:
+    id: 'settings-screen'
 - tapOn:
     id: 'settings-switch-scope'
 - assertVisible: 'Choose a workspace'
@@ -21,6 +23,7 @@ name: Entity switch clears content and rebinds the dashboard
 # Full accessibility label: both rows carry the same client name in their
 # subtitle, so only "<client>, <entity>, <role>" names one row.
 - tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Holdings LLC \(Synthetic\), Client access'
-- assertVisible: 'Home'
+- assertVisible:
+    id: 'dashboard-workspace'
 - assertVisible: 'Nothing needs your attention'
 - assertNotVisible: '2025 books close \(Synthetic\)'

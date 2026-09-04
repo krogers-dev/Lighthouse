@@ -88,6 +88,5 @@ name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, corr
     id: 'mfa-submit'
 # reviewer.rae holds a single membership -> straight to Home at AAL2.
 # Evidence retention may begin from here: the secret is no longer visible.
-- assertVisible: 'Home'
 - assertVisible:
     id: 'dashboard-workspace'

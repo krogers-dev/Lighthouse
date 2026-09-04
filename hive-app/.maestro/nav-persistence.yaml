@@ -18,13 +18,15 @@ tags:
 # resumed session lands on the chooser rather than the last workspace.
 - assertVisible: 'Choose a workspace'
 - tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
-- assertVisible: 'Home'
+- assertVisible:
+    id: 'dashboard-workspace'
 - assertVisible:
     id: 'nav-account'
 
 - tapOn:
     id: 'nav-requests'
-- assertVisible: 'Requests'
+- assertVisible:
+    id: 'requests-screen'
 - assertVisible:
     id: 'nav-home'
 - assertVisible:
@@ -32,7 +34,8 @@ tags:
 
 - tapOn:
     id: 'nav-activity'
-- assertVisible: 'Activity'
+- assertVisible:
+    id: 'activity-screen'
 - assertVisible:
     id: 'nav-home'
 - assertVisible:
@@ -40,7 +43,8 @@ tags:
 
 - tapOn:
     id: 'nav-help'
-- assertVisible: 'Help'
+- assertVisible:
+    id: 'help-screen'
 - assertVisible:
     id: 'nav-home'
 - assertVisible:
@@ -48,7 +52,8 @@ tags:
 
 - tapOn:
     id: 'nav-account'
-- assertVisible: 'Account'
+- assertVisible:
+    id: 'settings-screen'
 - assertVisible:
     id: 'nav-home'
 - assertVisible:
@@ -62,6 +67,7 @@ tags:
 # the nav and a safe back are different moves, and both still work.
 - tapOn:
     id: 'settings-back'
-- assertVisible: 'Help'
+- assertVisible:
+    id: 'help-screen'
 - assertVisible:
     id: 'nav-account'

@@ -99,6 +99,19 @@ export function checkAppConfig(expo, profile) {
   if (iosProps.deploymentTarget !== '16.4') {
     problems.push('iOS deployment target must be 16.4');
   }
+  // Opting into predictive back sets android:enableOnBackInvokedCallback,
+  // which hands the back gesture to the OnBackInvokedCallback API. Nothing
+  // here registers a callback, so Android finished the Activity instead:
+  // back from ANY destination left the app rather than returning, and JS
+  // never saw hardwareBackPress at all (find 19, proven on device with a
+  // raw key event while the router's own stack was two deep). The brief
+  // requires safe back, so this stays off until predictive back is
+  // implemented and tested on hardware.
+  if (expo?.android?.predictiveBackGestureEnabled === true) {
+    problems.push(
+      'predictive back must stay disabled: it routes the back gesture to OnBackInvokedCallback, which nothing here registers, so the app exits instead of navigating back (find 19)',
+    );
+  }
   return problems;
 }
 

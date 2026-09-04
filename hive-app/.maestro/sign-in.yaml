@@ -32,6 +32,5 @@ name: Invite-only OTP sign-in reaches the scoped dashboard
 # their subtitle, so a client-name prefix would match the other entity too.
 # Parentheses are escaped because Maestro matches text as a REGEX.
 - tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
-- assertVisible: 'Home'
 - assertVisible:
     id: 'dashboard-workspace'

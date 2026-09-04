@@ -105,3 +105,51 @@ describe('AuthorizedScreen', () => {
     expect(screen.queryAllByRole('tab')).toHaveLength(0);
   });
 });
+
+describe('the nav is pinned chrome, not scrolling content', () => {
+  // Find 18: the nav used to be an ordinary child of the scrollable Screen,
+  // so on any destination taller than the viewport it scrolled out of view —
+  // on Help, at default text size, on a stock Pixel 8, it was off screen
+  // entirely, and at 200% text every screen is a long screen. A renderer
+  // has no viewport and so can never see that clipping; the property is
+  // therefore asserted STRUCTURALLY, which is the part that regressing
+  // would silently undo: the nav must not sit inside the scroll area.
+  type Json = { type?: string; props?: Record<string, unknown>; children?: Json[] | null };
+
+  const collect = (node: Json | null, hit: (n: Json) => boolean, into: Json[] = []): Json[] => {
+    if (!node || typeof node !== 'object') return into;
+    if (hit(node)) into.push(node);
+    for (const child of node.children ?? []) collect(child, hit, into);
+    return into;
+  };
+
+  const isScroller = (n: Json) => typeof n.type === 'string' && n.type.includes('ScrollView');
+  const isTab = (n: Json) => n.props?.['accessibilityRole'] === 'tab';
+
+  it('renders the nav outside the scrolling region', async () => {
+    mockState = AUTHORIZED;
+    await renderShell(
+      <AuthorizedScreen current="home" testID="shell">
+        <AppText>content</AppText>
+      </AuthorizedScreen>,
+    );
+    const tree = screen.toJSON() as unknown as Json;
+
+    const allTabs = collect(tree, isTab);
+    expect(allTabs).toHaveLength(5);
+
+    const scrollers = collect(tree, isScroller);
+    expect(scrollers).toHaveLength(1);
+
+    // Not one of the five destinations may live inside the scroll area.
+    const tabsInsideScroller = collect(scrollers[0] as Json, isTab);
+    expect(tabsInsideScroller).toHaveLength(0);
+
+    // The content, by contrast, must scroll — otherwise the fix would have
+    // been "stop scrolling", which breaks 200% text instead.
+    const textsInsideScroller = collect(scrollers[0] as Json, (n) =>
+      JSON.stringify(n.children ?? []).includes('content'),
+    );
+    expect(textsInsideScroller.length).toBeGreaterThan(0);
+  });
+});

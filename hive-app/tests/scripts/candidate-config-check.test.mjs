@@ -235,3 +235,32 @@ test('NEGATIVE: the release manifest approves no origins yet (HOLD)', () => {
   );
   assert.ok(problems.some((p) => p.includes('no approved origins in the manifest (HOLD)')));
 });
+
+// Find 19: `predictiveBackGestureEnabled: true` sets
+// android:enableOnBackInvokedCallback="true", which routes Android back
+// through the OnBackInvokedCallback API. Nothing in this app registers a
+// callback, so the system finished the Activity instead: back from ANY
+// destination exited the app rather than returning, and JS never received
+// hardwareBackPress at all. Verified on device with a raw `input keyevent
+// 4`, with the router's own stack showing depth 2. Re-enabling it without
+// implementing predictive back would silently break safe back again.
+test('predictive back must stay off until it is actually implemented', () => {
+  const optedIn = {
+    ...devExpo,
+    android: { ...devExpo.android, predictiveBackGestureEnabled: true },
+  };
+  const problems = checkAppConfig(optedIn, 'development');
+  assert.ok(
+    problems.some((p) => p.includes('predictive back')),
+    `expected a predictive-back problem, got ${JSON.stringify(problems)}`,
+  );
+});
+
+test('predictive back absent or false is accepted', () => {
+  assert.deepEqual(checkAppConfig(devExpo, 'development'), []);
+  const explicitlyOff = {
+    ...devExpo,
+    android: { ...devExpo.android, predictiveBackGestureEnabled: false },
+  };
+  assert.deepEqual(checkAppConfig(explicitlyOff, 'development'), []);
+});

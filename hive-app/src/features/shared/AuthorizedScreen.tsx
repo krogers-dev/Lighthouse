@@ -42,21 +42,29 @@ export function AuthorizedScreen({
   const redirect = guardRedirect(state, 'authorized', ...alsoAllow);
   if (redirect) return redirect;
   return (
-    <Screen testID={testID}>
+    <Screen
+      testID={testID}
+      // Pinned below the scroll area, not scrolled with the content: the nav
+      // promises five PERSISTENT destinations, and a bar that leaves the
+      // viewport on a long screen keeps neither half of that promise. On
+      // Help it was off screen entirely (find 18).
+      footer={
+        /* The nav renders only while authorized. During sign-out the
+           destinations still exist but must not be reachable: a tap would
+           push back into protected UI while the session is being torn
+           down. Absent, not disabled — there is nothing to come back to. */
+        state.name === 'authorized' ? (
+          <PrimaryNav
+            current={current}
+            onNavigate={(destination) => {
+              if (destination === current) return;
+              router.push(ROUTE_FOR[destination] as never);
+            }}
+          />
+        ) : null
+      }
+    >
       {children}
-      {/* The nav renders only while authorized. During sign-out the
-          destinations still exist but must not be reachable: a tap would
-          push back into protected UI while the session is being torn
-          down. Absent, not disabled — there is nothing to come back to. */}
-      {state.name === 'authorized' ? (
-        <PrimaryNav
-          current={current}
-          onNavigate={(destination) => {
-            if (destination === current) return;
-            router.push(ROUTE_FOR[destination] as never);
-          }}
-        />
-      ) : null}
     </Screen>
   );
 }

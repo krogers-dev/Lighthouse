@@ -10,7 +10,8 @@ name: Reinstall purges stale secure data before auth starts
 ---
 - launchApp:
     clearState: true
-- assertNotVisible: 'Home'
+- assertNotVisible:
+    id: 'dashboard-workspace'
 - assertNotVisible:
     id: 'quarantine-screen'
 - assertVisible: 'Sign in with your authorized email. We will send a one-time code.'

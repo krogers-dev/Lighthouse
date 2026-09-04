@@ -12,10 +12,12 @@ tags:
 # Re-selecting here is also what proves the session survived the relaunch.
 - assertVisible: 'Choose a workspace'
 - tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
-- assertVisible: 'Home'
+- assertVisible:
+    id: 'dashboard-workspace'
 - tapOn:
     id: 'nav-activity'
-- assertVisible: 'Activity'
+- assertVisible:
+    id: 'activity-screen'
 - assertVisible:
     id: 'activity-list'
 - assertVisible: 'Request opened'
@@ -29,7 +31,8 @@ tags:
 - setAirplaneMode: enabled
 - tapOn:
     id: 'nav-help'
-- assertVisible: 'Help'
+- assertVisible:
+    id: 'help-screen'
 - assertVisible:
     id: 'help-section-what-hive-shows'
 # Help's content is taller than the viewport, so the version line — the last

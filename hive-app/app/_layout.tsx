@@ -86,8 +86,30 @@ function ConfigurationFatal({ problems }: { problems: readonly string[] }): Reac
   );
 }
 
+/** QA-build only (RETURN-3 area 8, extended 2026-09-03): React Native's
+ * LogBox draws its "open debugger to view warnings" banner across the
+ * BOTTOM of the screen, which is exactly where the persistent nav lives.
+ * The offline flows provoke a network warning by design, so the banner
+ * appeared and swallowed every nav tap after it — `activity-and-help`
+ * failed reaching Help with the tap landing on the banner instead (find
+ * 23). This suppresses the OVERLAY only: warnings still reach the console
+ * and logcat, so nothing is silenced, and the whole call sits behind the
+ * same `__DEV__` + QA-flag guard as the storage hook, which config:check
+ * forbids outside development and bundle:inspect proves absent from
+ * non-development exports. */
+function useQaLogBoxSuppression(): void {
+  React.useEffect(() => {
+    if (!(__DEV__ && process.env.EXPO_PUBLIC_QA_HOOKS === '1')) return;
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const { LogBox } = require('react-native') as typeof import('react-native');
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    LogBox.ignoreAllLogs(true);
+  }, []);
+}
+
 export default function RootLayout(): React.JSX.Element {
   const qaCorrupted = useDevQaHooks();
+  useQaLogBoxSuppression();
   const runtime = getRuntime();
   if (!runtime.ok) {
     return <ConfigurationFatal problems={runtime.problems} />;

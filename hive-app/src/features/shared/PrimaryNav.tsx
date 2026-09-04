@@ -37,7 +37,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.xs,
-    marginTop: spacing.lg,
+    // No marginTop: the bar is pinned chrome below the scroll area now, so
+    // it sits against the content edge rather than being pushed away from
+    // the last element it used to follow (find 18).
     paddingTop: spacing.sm,
     borderTopWidth: 1,
   },
