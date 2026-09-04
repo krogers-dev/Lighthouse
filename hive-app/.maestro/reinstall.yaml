@@ -10,6 +10,15 @@ name: Reinstall purges stale secure data before auth starts
 ---
 - launchApp:
     clearState: true
+# The boot must actually LAND before any negative below means anything: on
+# a blank first frame — which a data-cleared install shows while it starts —
+# both assertNotVisible checks pass vacuously, so this flow's entire point
+# could succeed because the app had not booted yet (find 32). Waiting for
+# the signed-out screen first is what makes the two negatives evidence.
+- extendedWaitUntil:
+    visible:
+      text: 'Sign in with your authorized email. We will send a one-time code.'
+    timeout: 30000
 - assertNotVisible:
     id: 'dashboard-workspace'
 - assertNotVisible:

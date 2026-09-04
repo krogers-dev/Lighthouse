@@ -82,7 +82,7 @@ test('the sequence never revokes between enrollment and the subsequent login', (
   assert.deepEqual(steps, [
     'reset-factors',
     'mfa-enroll.yaml',
-    'sign-out.yaml',
+    'staff-sign-out.yaml',
     'mfa-login.yaml',
     'revoke-factor',
   ]);
@@ -115,23 +115,29 @@ test('NEGATIVE: an unpinned or mismatched Maestro CLI is refused (RETURN-4 P2-1)
     },
   };
   assert.deepEqual(pinnedMaestroProblems(pinned, 'maestro 1.39.9\n'), []);
-  // The repository's CURRENT record must not be mistaken for a pin. As of
-  // 2026-09-04 its mechanical fields are filled and verified (the artifact
-  // was downloaded, its sha256 computed and matched against the vendor's
-  // published checksum, and the installed tree compared file by file), so
-  // the reason it is still refused has MOVED: no longer a missing digest,
-  // now a missing human attestation. The refusal itself is what this
-  // asserts — a record that verifies itself is still not a record someone
-  // has signed.
+  // The repository's LIVE record was signed by Kody Rogers on 2026-09-04,
+  // so it is now expected to be complete — but "complete" is asserted
+  // field by field rather than trusted, because a pin is the thing that
+  // lets an unreviewed binary near the enrollment QR. A record that says
+  // 'pinned' while carrying a placeholder digest or an empty verifier is
+  // worse than one that says nothing.
   const { readFileSync } = await import('node:fs');
   const recordPath = new URL('../../security/hardware-toolchain.json', import.meta.url);
   const record = JSON.parse(readFileSync(recordPath, 'utf8'));
-  const live = pinnedMaestroProblems(record, 'maestro 1.39.9\n');
-  assert.ok(live.length > 0, 'the live record must never run the enrollment lane unsigned');
-  assert.ok(live.some((p) => p.includes('not pinned')));
-  assert.ok(live.some((p) => p.includes('no verifier')));
-  // Whatever digest it carries must be a real one, never a placeholder.
+  assert.equal(record.maestro.status, 'pinned');
   assert.match(record.maestro.sha256 ?? '', /^[0-9a-f]{64}$/);
+  assert.ok((record.maestro.verifiedBy ?? '').trim().length > 0);
+  assert.match(record.maestro.verifiedOn ?? '', /^\d{4}-\d{2}-\d{2}$/);
+  assert.match(record.maestro.artifactUrl ?? '', /^https:\/\/github\.com\/.*maestro\.zip$/);
+  // With the version it names, the live record must actually clear.
+  assert.deepEqual(pinnedMaestroProblems(record, `maestro ${record.maestro.version}\n`), []);
+  // And it must still refuse a DIFFERENT installed binary: a signature
+  // pins one version, never whatever happens to be on the machine.
+  assert.ok(
+    pinnedMaestroProblems(record, 'maestro 9.9.9\n').some((p) =>
+      p.includes('is not the pinned version'),
+    ),
+  );
   // A version mismatch between record and installed binary is refused.
   assert.ok(
     pinnedMaestroProblems(pinned, 'maestro 1.40.0\n').some((p) =>

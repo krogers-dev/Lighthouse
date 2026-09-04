@@ -34,7 +34,15 @@ name: Subsequent staff login verifies against the existing factor (no second QR)
 - tapOn:
     id: 'mfa-code'
 - inputText: ${output.totpCode}
+# Dismiss the keyboard first: it covers the verify control, which then
+# cannot be tapped OR scrolled to full visibility (find 30).
+- hideKeyboard
 - tapOn:
     id: 'mfa-submit'
-- assertVisible:
-    id: 'dashboard-workspace'
+# TOTP verify is a server round trip (challenge, verify, then the scoped
+# read), so the dashboard is not instantaneous: assert with a bounded
+# wait rather than racing it (find 31).
+- extendedWaitUntil:
+    visible:
+      id: 'dashboard-workspace'
+    timeout: 20000

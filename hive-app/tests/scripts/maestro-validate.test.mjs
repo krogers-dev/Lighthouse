@@ -122,9 +122,14 @@ test('EVERY real flow in .maestro/ validates cleanly', () => {
   // scrub), the two Milestone 1 read-surface flows (requests,
   // activity-and-help), the two Milestone 1 read-surface state flows
   // (offline replaces content; revoked membership leaves no stale
-  // rows), and the nav-persistence flow (the five destinations are
-  // peers, so the nav survives arriving at each one).
-  assert.equal(flowCount, 17);
+  // rows), the nav-persistence flow (the five destinations are peers, so
+  // the nav survives arriving at each one), and staff-sign-out, which the
+  // enrollment runner uses instead of sign-out because the two identities
+  // resume differently: client.owner is re-asked which workspace,
+  // reviewer.rae goes straight to Home (find 34).
+  //
+  // Exact, not a floor: an accidental extra flow should be noticed.
+  assert.equal(flowCount, 18);
   assert.ok(scriptCount >= 4);
 });
 
@@ -383,4 +388,19 @@ test('an unknown scrollUntilVisible field is rejected', () => {
     context,
   );
   assert.ok(problems.some((p) => p.includes('sideways')));
+});
+
+// Find 30: with the soft keyboard up (adjustResize) the verify control on
+// the tall enrollment screen could not be tapped and could not even be
+// scrolled to 100% visibility — the keyboard covered it. Dismissing the
+// keyboard first is what a person does, and it needs to be a command the
+// validator knows.
+test('hideKeyboard is a known command and takes no payload', () => {
+  const base = `appId: com.myhbcfo.hive.development\nname: fixture\n---\n`;
+  assert.deepEqual(validateFlowText(`${base}- hideKeyboard\n`, context), []);
+  const problems = validateFlowText(`${base}- hideKeyboard: 'yes'\n`, context);
+  assert.ok(
+    problems.some((p) => p.includes('takes no payload')),
+    `expected a no-payload problem, got ${JSON.stringify(problems)}`,
+  );
 });

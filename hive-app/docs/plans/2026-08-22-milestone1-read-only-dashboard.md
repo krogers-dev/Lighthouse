@@ -1443,3 +1443,166 @@ execute on this platform and now says so.
 The Maestro pin's signature (Kody), find 24's hook design, find 20's
 stored-token pre-step, find 21's mid-flow revoke helper, and the TalkBack
 pass. Nothing new was added to that list today.
+
+## 2026-09-04 — the pin signed, and the enrollment lane opened far enough to find five more defects
+
+Kody Rogers signed the Maestro pin on 2026-09-04 ("Verifier: Kody Rogers.
+Yes, pin it."), accepting the three recorded checks. `status: pinned`, and
+the runner stopped refusing. Everything below came out of that lane
+actually running for the first time.
+
+### Find 28 — the QR could never render, because GoTrue sends a whole SVG document
+
+`mfa-enroll.yaml` failed on `mfa-enroll-qr`. `decodeSupabaseTotpQr`
+accepted a `data:` URI or a bare `<svg>`; this GoTrue returns neither. It
+returns an SVG DOCUMENT: an XML declaration, then a generator COMMENT,
+then the root. The decoder returned null, the screen fell back to the
+manual setup key exactly as designed, and the QR assertion failed.
+
+Shape established by probing the live stack and printing STRUCTURE ONLY —
+type, length, and a character-class mask — because the QR encodes the
+secret. The first fix handled a declaration and a DOCTYPE and still
+failed; the `<!` after the prolog was a comment, not a doctype, which a
+masked dump does not distinguish. The decoder now strips a bounded prolog
+of declarations, comments and doctypes in any order.
+
+Tightened while there, not loosened: `<!ENTITY` anywhere is refused, and a
+DOCTYPE carrying an internal subset — where entity declarations live — is
+refused outright rather than sanitised, because this string is handed to a
+renderer. Every existing refusal (script, foreignObject, javascript:,
+`on*=` handlers) still holds, now also after a legitimate prolog.
+
+### Find 29 / 34 — one flow was pretending to cover two identities
+
+`sign-out.yaml` runs standalone for client.owner AND inside the enrollment
+sequence for reviewer.rae. After find 16 gave it a workspace-chooser step,
+it broke for staff: reviewer.rae holds ONE membership and resumes straight
+to Home, so there is no chooser. Making the chooser step `optional` did not
+work either, and the reason is worth recording: **`optional` does not
+wait**. On a resumed session it skipped past the chooser before the app had
+rendered it, then failed on the dashboard.
+
+The flows are now split. `sign-out.yaml` is deterministic for client.owner
+(bounded wait for the chooser, then select). New `staff-sign-out.yaml`
+is deterministic for reviewer.rae (bounded wait for the dashboard), and the
+runner's SEQUENCE names it. Two identities, two flows, no optional steps
+standing in for a branch.
+
+### Find 30 — the verify control sat under the keyboard
+
+With the soft keyboard up (`adjustResize`) on the tall enrollment screen,
+`mfa-submit` could not be tapped. Scrolling to it did not help either — the
+keyboard covered it, so 100% visibility was unreachable. `hideKeyboard` is
+now a validated command in the flow vocabulary and is used before both
+verify taps, which is what a person does.
+
+### Find 31 — a cold start is not instantaneous, and assertions raced it
+
+A dev build fetches its bundle from Metro on a cold start, so the first
+assertion after `launchApp` — especially after `clearState: true` — raced
+the boot. Bounded `extendedWaitUntil` now guards the first element in
+`mfa-enroll.yaml`, `reinstall.yaml`, `sign-out.yaml` and
+`staff-sign-out.yaml`, and the post-verify dashboard assertion in both MFA
+flows, which is a server round trip rather than an instant render.
+
+### Find 32 — reinstall.yaml could pass because the app had not booted
+
+Its two `assertNotVisible` checks ran immediately after `clearState: true`.
+On the blank first frame both pass VACUOUSLY, so the flow's whole point —
+a data-cleared install boots clean — could succeed for the worst possible
+reason. The signed-out screen is now waited for FIRST; only then are the
+negatives evaluated. Ordering is the fix, and it is the difference between
+an assertion and a decoration.
+
+### Find 33 (OPEN) — the QR makes the device lane too slow for TOTP
+
+The enrollment flow now reaches the final verification and fails there.
+GoTrue's own audit log gives the reason without guesswork:
+
+| event              | time     |
+| ------------------ | -------- |
+| login              | 12:13:41 |
+| factor_in_progress | 12:13:42 |
+| challenge_created  | 12:16:00 |
+| challenge_created  | 12:18:30 |
+
+Two and a half minutes between steps. The QR is a 321,600-character SVG,
+and every Maestro action on that screen requires a view-hierarchy dump. A
+TOTP code fetched immediately before typing is therefore ~60 seconds old
+when it submits — right at GoTrue's tolerance, which is exactly why this
+flow passed once and then did not.
+
+Hiding the QR's internals from the accessibility tree
+(`importantForAccessibility="no-hide-descendants"` on an inner wrapper,
+the labelled container unchanged) is a real improvement for a screen
+reader — thousands of meaningless stops become one labelled image — but it
+did NOT speed the lane up, so the cost is the native view tree rather than
+the accessibility tree. Recorded as unresolved rather than dressed up: the
+remaining work is to make that screen cheap to inspect, or to shorten the
+path between fetching a code and submitting it.
+
+`mfa-enroll.yaml` therefore still fails, and `staff-sign-out.yaml`,
+`mfa-login.yaml` and `confinement-probe.yaml` are not reached. What DID
+prove out, in a single clean run: staff OTP sign-in, the QR rendering, the
+setup key, the handoff of that key to the loopback helper's memory, the
+immediate clipboard overwrite, and a guaranteed-wrong code producing a
+notice with the enrollment still on screen.
+
+**The runner's confinement held throughout.** On every failure it
+terminated the helper, overwrote the clipboard, revoked the disposable
+factor, and removed and verified its artifact tree. Twice the clipboard
+scrub itself failed and it said so LOUDLY rather than exiting quietly;
+both times the clipboard was scrubbed manually afterwards and
+`reset-totp` confirmed `0 deleted, readback verified zero`.
+
+### The tally: 11 of 18
+
+| Flow                         | Result                                                 |
+| ---------------------------- | ------------------------------------------------------ |
+| `sign-in.yaml`               | **PASS**                                               |
+| `requests.yaml`              | **PASS**                                               |
+| `activity-and-help.yaml`     | **PASS**                                               |
+| `nav-persistence.yaml`       | **PASS**                                               |
+| `read-surfaces-offline.yaml` | **PASS**                                               |
+| `scope-switch.yaml`          | **PASS**                                               |
+| `offline.yaml`               | **PASS**                                               |
+| `sign-out.yaml`              | **PASS** (client path, after the split)                |
+| `reinstall.yaml`             | **PASS** (and now for the right reason — find 32)      |
+| `accessibility-smoke.yaml`   | **PASS** (assertions only; TalkBack still outstanding) |
+| `clipboard-scrub.yaml`       | **PASS**                                               |
+| `mfa-enroll.yaml`            | FAIL — find 33, device-lane timing on the QR screen    |
+| `staff-sign-out.yaml`        | not reached (sequence stops at enrollment)             |
+| `mfa-login.yaml`             | not reached                                            |
+| `confinement-probe.yaml`     | not run                                                |
+| `quarantine-recovery.yaml`   | HOLD — find 24                                         |
+| `expired-session.yaml`       | HOLD — find 20                                         |
+| `read-surfaces-denied.yaml`  | HOLD — find 21                                         |
+
+Eleven ran back to back in one sweep with no failures. The count is 11 of
+18 rather than 11 of 17 because splitting the sign-out flow added one.
+
+### A runbook note that cost several runs to learn
+
+**Warm the app before each flow.** `adb shell am start`, wait ~8s, then
+`am force-stop`. Without it the first assertion after `launchApp` races the
+bundle fetch and flows fail in ways that look like logic errors: a batch
+that failed 6/6 passed 6/6 with a warm-up and no other change. The bounded
+waits added above cover the flows that clear state; the warm-up covers the
+rest until every flow has one.
+
+### Gates
+
+typecheck exit 0 · eslint `--max-warnings 0` clean · prettier clean · jest
+**391 passed / 30 suites** · node:test **325 tests, 291 passed, 0 failed,
+34 platform-skipped** · maestro:validate OK across **18 flows** ·
+config:check OK · verify:toolchain OK.
+
+### Next
+
+1. **Find 33** — make the enrollment screen cheap enough to drive, or
+   shorten the fetch-to-submit path. It is the only thing between here and
+   four more passing flows.
+2. **Find 24** — a QA corruption hook Expo Router does not claim.
+3. **Find 20 / 21** — the stored-token pre-step and the mid-flow revoke
+   helper.
+4. **TalkBack**, and measured contrast on hardware.

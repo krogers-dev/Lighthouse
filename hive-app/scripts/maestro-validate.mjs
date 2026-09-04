@@ -44,6 +44,11 @@ export const KNOWN_COMMANDS = new Set([
   // element below the fold — Help's content version — could not be asserted
   // at all. assertVisible sees the viewport, not the document.
   'scrollUntilVisible',
+  // Added 2026-09-04 (find 30): with the soft keyboard up, the verify
+  // control on the tall enrollment screen could not be tapped and could not
+  // be scrolled to full visibility — the keyboard was over it. Dismissing
+  // the keyboard is what a person does before tapping it.
+  'hideKeyboard',
 ]);
 
 const EXPECTED_APP_ID = 'com.myhbcfo.hive.development';
@@ -240,6 +245,12 @@ export function validateStepPayload(command, payload, where, scriptFiles) {
       const link = typeof payload === 'string' ? payload : payload?.link;
       if (typeof link !== 'string' || link.trim() === '') {
         problems.push(`${where}: openLink needs a link string`);
+      }
+      break;
+    }
+    case 'hideKeyboard': {
+      if (payload !== null && typeof payload !== 'undefined') {
+        problems.push(`${where}: hideKeyboard takes no payload`);
       }
       break;
     }

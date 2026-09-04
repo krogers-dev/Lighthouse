@@ -38,6 +38,13 @@ name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, corr
 ---
 - launchApp:
     clearState: true
+# A data-cleared install has to boot before it can be typed into; in a dev
+# build that includes fetching the bundle, which is not instantaneous
+# (find 31). Bounded wait rather than a race.
+- extendedWaitUntil:
+    visible:
+      id: 'sign-in-email'
+    timeout: 30000
 - tapOn:
     id: 'sign-in-email'
 - inputText: 'reviewer.rae@example.invalid'
@@ -71,6 +78,9 @@ name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, corr
 - tapOn:
     id: 'mfa-code'
 - inputText: ${output.totpWrongCode}
+# Dismiss the keyboard first: it covers the verify control, which then
+# cannot be tapped OR scrolled to full visibility (find 30).
+- hideKeyboard
 - tapOn:
     id: 'mfa-submit'
 - assertVisible:
@@ -84,9 +94,17 @@ name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, corr
 - eraseText
 - runScript: totp-code.js
 - inputText: ${output.totpCode}
+# Dismiss the keyboard first: it covers the verify control, which then
+# cannot be tapped OR scrolled to full visibility (find 30).
+- hideKeyboard
 - tapOn:
     id: 'mfa-submit'
 # reviewer.rae holds a single membership -> straight to Home at AAL2.
 # Evidence retention may begin from here: the secret is no longer visible.
-- assertVisible:
-    id: 'dashboard-workspace'
+# TOTP verify is a server round trip (challenge, verify, then the scoped
+# read), so the dashboard is not instantaneous: assert with a bounded
+# wait rather than racing it (find 31).
+- extendedWaitUntil:
+    visible:
+      id: 'dashboard-workspace'
+    timeout: 20000

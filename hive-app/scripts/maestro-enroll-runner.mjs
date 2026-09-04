@@ -67,7 +67,7 @@ export const DEFAULT_MAESTRO_TESTS = path.join(homedir(), '.maestro', 'tests');
 export const SEQUENCE = [
   { step: 'reset-factors', kind: 'admin' },
   { step: 'mfa-enroll.yaml', kind: 'flow', retainArtifacts: false },
-  { step: 'sign-out.yaml', kind: 'flow', retainArtifacts: true },
+  { step: 'staff-sign-out.yaml', kind: 'flow', retainArtifacts: true },
   { step: 'mfa-login.yaml', kind: 'flow', retainArtifacts: true },
   { step: 'revoke-factor', kind: 'admin' },
 ];

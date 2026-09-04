@@ -80,7 +80,17 @@ export function MfaView({
           accessibilityLabel="Authenticator setup QR code. If you cannot scan it, use the setup key below."
           testID="mfa-enroll-qr"
         >
-          <SvgXml xml={enrollment.qrSvg} width={180} height={180} />
+          {/* The QR is ONE labelled image, but its SVG is a few hundred KB
+              of individual modules, and every one of them was surfacing as
+              its own accessibility node. That is thousands of meaningless
+              stops for a screen reader — and on the device lane it made
+              each subsequent action take tens of seconds, long enough for
+              the freshly fetched TOTP code to expire before it could be
+              submitted (find 33). The label above is the accessible
+              content; the geometry beneath it is decoration. */}
+          <View importantForAccessibility="no-hide-descendants">
+            <SvgXml xml={enrollment.qrSvg} width={180} height={180} />
+          </View>
         </View>
       ) : null}
       {enrollment ? (

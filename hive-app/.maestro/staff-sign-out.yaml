@@ -1,0 +1,38 @@
+appId: com.myhbcfo.hive.development
+name: Staff sign-out between enrollment and the subsequent login
+tags:
+  - milestone1
+# Used ONLY by scripts/maestro-enroll-runner.mjs, between mfa-enroll.yaml
+# and mfa-login.yaml, to return the staff account to a signed-out state so
+# the login flow proves the EXISTING factor verifies from scratch.
+#
+# Why this is not sign-out.yaml: the two flows sign out two different
+# identities, and the identities behave differently on resume.
+# client.owner holds two memberships and is re-asked which workspace;
+# reviewer.rae holds one and goes straight to Home. A single flow tried to
+# cover both with an optional chooser step, and optional does not WAIT — on
+# a resumed session it skipped past the chooser before it had rendered and
+# then failed on the dashboard (find 34). Two identities, two flows, both
+# deterministic.
+---
+- launchApp
+# reviewer.rae holds a single membership, so a resumed session lands
+# directly on Home. Bounded wait: a dev build fetches its bundle on a cold
+# start and that is not instantaneous (find 31).
+- extendedWaitUntil:
+    visible:
+      id: 'dashboard-workspace'
+    timeout: 30000
+- tapOn:
+    id: 'nav-account'
+- assertVisible:
+    id: 'settings-screen'
+- tapOn:
+    id: 'settings-sign-out'
+- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+# The session must not survive a relaunch.
+- stopApp
+- launchApp
+- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+- assertNotVisible:
+    id: 'dashboard-workspace'

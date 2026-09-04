@@ -42,7 +42,7 @@
     "for."
   ],
   "maestro": {
-    "status": "verified-pending-attestation",
+    "status": "pinned",
     "version": "2.10.0",
     "artifactUrl": "https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip",
     "sha256": "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991",
@@ -51,9 +51,10 @@
     "installCommand": "extract maestro.zip so that maestro/bin and maestro/lib land in %LOCALAPPDATA%\\Programs\\maestro, then add %LOCALAPPDATA%\\Programs\\maestro\\bin to PATH (this is the layout verified byte-for-byte on the desktop)",
     "installedTreeVerifiedOn": "2026-09-04",
     "installedTreeVerification": "198/198 files sha256-identical to the extracted official release; 0 missing, 0 mismatched",
-    "verifiedBy": null,
-    "verifiedOn": null,
-    "schemaBasis": "scripts/maestro-validate.mjs per-command payload schemas are declared against the pinned version recorded here"
+    "verifiedBy": "Kody Rogers",
+    "verifiedOn": "2026-09-04",
+    "schemaBasis": "scripts/maestro-validate.mjs per-command payload schemas are declared against the pinned version recorded here",
+    "attestation": "Instructed by Kody Rogers in session 013KQCE4 on 2026-09-04, accepting the three recorded checks (vendor checksum fetched, artifact sha256 computed and matched, 198/198 installed files byte-identical to the official release) as the basis for running this CLI on the device lane."
   },
   "deviceLane": {
     "status": "RUNNING",
