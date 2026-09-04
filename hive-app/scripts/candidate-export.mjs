@@ -37,6 +37,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { collectFiles, loadApproved } from './bundle-inspect.mjs';
+import { nodeCliCommand } from './lib/node-cli.mjs';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -105,7 +106,9 @@ function toolVersions() {
   );
   let npmVersion = 'unknown';
   try {
-    npmVersion = execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim();
+    // .cmd wrapper on Windows — see scripts/lib/node-cli.mjs (find 27).
+    const { command, args } = nodeCliCommand('npm', ['--version']);
+    npmVersion = execFileSync(command, args, { encoding: 'utf8' }).trim();
   } catch {
     // recorded as unknown; node + expo pins still identify the toolchain
   }
@@ -184,7 +187,13 @@ if (isMain) {
   console.log(
     `export:candidate: qaHooks ${qaControl ? 'ENABLED (positive control)' : 'disabled (EXPO_PUBLIC_QA_HOOKS deleted from the child environment)'}; effective profile: candidate`,
   );
-  const exported = spawnSync(command[0], command.slice(1), {
+  // The run record keeps `command` as the LOGICAL command (line 246), which
+  // is what a reader needs to reproduce the export; only the spawn is
+  // routed through the Windows command processor, and by argv array rather
+  // than a shell string because outDir is a generated temp path that may
+  // contain a space (find 27; see scripts/lib/node-cli.mjs).
+  const spawnCmd = nodeCliCommand(command[0], command.slice(1));
+  const exported = spawnSync(spawnCmd.command, spawnCmd.args, {
     cwd: appRoot,
     env: childEnv,
     encoding: 'utf8',

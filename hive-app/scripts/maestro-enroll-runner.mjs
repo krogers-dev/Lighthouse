@@ -113,6 +113,30 @@ export function maestroArgs(flowFile, { debugDir, testOutputDir }) {
  * displays the enrollment QR, and the validator's payload schemas are
  * declared against one specific version. Returns problems; empty means
  * the installed CLI matches the pinned record. */
+/** Windows ships the Maestro CLI as `maestro.bat`, which CreateProcess
+ * cannot execute: every spawn below named `maestro` directly, so on the
+ * desktop that actually owns the device lane the runner read an empty
+ * `--version` (reported as the installed CLI being "unknown" and therefore
+ * not the pinned version), an empty `--help` (reported as the CLI not
+ * supporting `--debug-output`), and could not have launched a flow at all
+ * — find 25, 2026-09-04, the same trap as find 2 and find 15.
+ *
+ * Routing through the command processor with an ARGV ARRAY is deliberate:
+ * these arguments include generated temporary paths, so a `shell: true`
+ * command STRING would be a quoting hazard — a run root containing a space
+ * would split and confine QR-bearing screenshots to the wrong directory,
+ * which is the one failure this runner exists to prevent. */
+export function maestroCommand(args, platform = process.platform) {
+  if (platform !== 'win32') return { command: 'maestro', args };
+  return { command: process.env.ComSpec ?? 'cmd.exe', args: ['/c', 'maestro', ...args] };
+}
+
+/** `which` is not a Windows command; `where` is. */
+export function lookupMaestroCommand(platform = process.platform) {
+  if (platform !== 'win32') return { command: 'which', args: ['maestro'] };
+  return { command: process.env.ComSpec ?? 'cmd.exe', args: ['/c', 'where', 'maestro'] };
+}
+
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 export function pinnedMaestroProblems(record, installedVersion) {
   const pin = record?.maestro ?? {};
@@ -171,7 +195,8 @@ if (isMain) {
     console.error('maestro:enroll ENGINE FAILURE: .maestro/ is missing');
     process.exit(2);
   }
-  const maestroBin = spawnSync('which', ['maestro'], { encoding: 'utf8' });
+  const lookup = lookupMaestroCommand();
+  const maestroBin = spawnSync(lookup.command, lookup.args, { encoding: 'utf8' });
   if (maestroBin.status !== 0) {
     console.error(
       'maestro:enroll HOLD — the Maestro CLI is not installed here. This runner executes on the QA machine with the device lane; the build container has no device, simulator, or Maestro binary (exit 3)',
@@ -191,7 +216,9 @@ if (isMain) {
     );
     process.exit(2);
   }
-  const installedVersion = spawnSync('maestro', ['--version'], { encoding: 'utf8' }).stdout ?? '';
+  const versionCmd = maestroCommand(['--version']);
+  const installedVersion =
+    spawnSync(versionCmd.command, versionCmd.args, { encoding: 'utf8' }).stdout ?? '';
   const pinProblems = pinnedMaestroProblems(toolchainRecord, installedVersion);
   if (pinProblems.length > 0) {
     for (const problem of pinProblems) console.error(`HOLD ${problem}`);
@@ -201,7 +228,8 @@ if (isMain) {
     process.exit(3);
   }
   // Confinement must be provable before anything shows a QR.
-  const help = spawnSync('maestro', ['test', '--help'], { encoding: 'utf8' });
+  const helpCmd = maestroCommand(['test', '--help']);
+  const help = spawnSync(helpCmd.command, helpCmd.args, { encoding: 'utf8' });
   const helpText = `${help.stdout ?? ''}${help.stderr ?? ''}`;
   const flagProblems = outputFlagProblems(helpText);
   if (flagProblems.length > 0) {
@@ -241,18 +269,18 @@ if (isMain) {
   function scrubClipboard(reason) {
     // A run that died between "copy the setup key" and "overwrite the
     // clipboard" leaves the synthetic key on the device clipboard.
-    const result = spawnSync(
-      'maestro',
-      [
-        'test',
-        '--debug-output',
-        debugDir,
-        '--test-output-dir',
-        testOutputDir,
-        path.join('.maestro', 'clipboard-scrub.yaml'),
-      ],
-      { cwd: appRoot, encoding: 'utf8' },
-    );
+    const scrubCmd = maestroCommand([
+      'test',
+      '--debug-output',
+      debugDir,
+      '--test-output-dir',
+      testOutputDir,
+      path.join('.maestro', 'clipboard-scrub.yaml'),
+    ]);
+    const result = spawnSync(scrubCmd.command, scrubCmd.args, {
+      cwd: appRoot,
+      encoding: 'utf8',
+    });
     if (result.status === 0) {
       console.log(`maestro:enroll: device clipboard overwritten (${reason})`);
     } else {
@@ -305,7 +333,8 @@ if (isMain) {
     console.log(
       `maestro:enroll: running ${flowFile} (sequential; artifacts confined to ${runRoot})`,
     );
-    const result = spawnSync('maestro', args, {
+    const flowCmd = maestroCommand(args);
+    const result = spawnSync(flowCmd.command, flowCmd.args, {
       cwd: appRoot,
       encoding: 'utf8',
       stdio: ['ignore', 'inherit', 'inherit'],

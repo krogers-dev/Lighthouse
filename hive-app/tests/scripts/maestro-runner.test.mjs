@@ -3,13 +3,16 @@
  * deterministic sequence — are unit-tested here because the device lane
  * itself is HOLD in this container. */
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { test } from 'node:test';
 
 import {
   DEFAULT_MAESTRO_TESTS,
   SEQUENCE,
   detectDefaultLocationLeak,
+  lookupMaestroCommand,
   maestroArgs,
+  maestroCommand,
   outputFlagProblems,
   snapshotDefaultLocation,
 } from '../../scripts/maestro-enroll-runner.mjs';
@@ -31,7 +34,10 @@ test('screenshots are directed to --test-output-dir, not --debug-output', () => 
   );
   // Exactly one flow file, and never a sharding flag: execution is
   // sequential by construction.
-  assert.equal(args.at(-1), '.maestro/mfa-enroll.yaml');
+  // path.join, so the separator is the platform's — asserting a literal
+  // '/' failed on the Windows desktop that actually owns this lane
+  // (find 26).
+  assert.equal(args.at(-1), path.join('.maestro', 'mfa-enroll.yaml'));
   assert.ok(!args.some((a) => a.startsWith('--shard')));
 });
 
@@ -109,14 +115,23 @@ test('NEGATIVE: an unpinned or mismatched Maestro CLI is refused (RETURN-4 P2-1)
     },
   };
   assert.deepEqual(pinnedMaestroProblems(pinned, 'maestro 1.39.9\n'), []);
-  // The repository's CURRENT record is an operator-fill HOLD: it must not
-  // be mistaken for a pin.
+  // The repository's CURRENT record must not be mistaken for a pin. As of
+  // 2026-09-04 its mechanical fields are filled and verified (the artifact
+  // was downloaded, its sha256 computed and matched against the vendor's
+  // published checksum, and the installed tree compared file by file), so
+  // the reason it is still refused has MOVED: no longer a missing digest,
+  // now a missing human attestation. The refusal itself is what this
+  // asserts — a record that verifies itself is still not a record someone
+  // has signed.
   const { readFileSync } = await import('node:fs');
   const recordPath = new URL('../../security/hardware-toolchain.json', import.meta.url);
   const record = JSON.parse(readFileSync(recordPath, 'utf8'));
   const live = pinnedMaestroProblems(record, 'maestro 1.39.9\n');
+  assert.ok(live.length > 0, 'the live record must never run the enrollment lane unsigned');
   assert.ok(live.some((p) => p.includes('not pinned')));
-  assert.ok(live.some((p) => p.includes('no sha256')));
+  assert.ok(live.some((p) => p.includes('no verifier')));
+  // Whatever digest it carries must be a real one, never a placeholder.
+  assert.match(record.maestro.sha256 ?? '', /^[0-9a-f]{64}$/);
   // A version mismatch between record and installed binary is refused.
   assert.ok(
     pinnedMaestroProblems(pinned, 'maestro 1.40.0\n').some((p) =>
@@ -136,4 +151,40 @@ test('NEGATIVE: an unpinned or mismatched Maestro CLI is refused (RETURN-4 P2-1)
       'maestro 1.39.9\n',
     ).some((p) => p.includes('no verifier')),
   );
+});
+
+// Find 25: Windows ships the Maestro CLI as maestro.bat, which
+// CreateProcess cannot execute. Every spawn in this runner named 'maestro'
+// directly, so on the desktop that actually owns the device lane the
+// runner read an empty --version (reported as the installed CLI being
+// "unknown" and therefore not the pinned 2.10.0), an empty --help
+// (reported as the CLI not supporting --debug-output), and could not have
+// launched a flow at all. Same trap as find 2 (local-supabase) and find 15
+// (verify:toolchain).
+test('on Windows the Maestro CLI is invoked through the command processor', () => {
+  const { command, args } = maestroCommand(['test', '--help'], 'win32');
+  assert.match(command, /cmd\.exe$/i);
+  assert.deepEqual(args, ['/c', 'maestro', 'test', '--help']);
+});
+
+test('on POSIX the Maestro CLI is invoked directly', () => {
+  const { command, args } = maestroCommand(['test', '--help'], 'linux');
+  assert.equal(command, 'maestro');
+  assert.deepEqual(args, ['test', '--help']);
+});
+
+// Arguments carry generated temp paths, so they must stay an ARGV array
+// that Node quotes — a `shell: true` command STRING would split a path
+// containing a space and confine screenshots to the wrong directory.
+test('generated paths stay separate argv entries, never concatenated', () => {
+  const dir = 'C:\\Users\\qa lead\\AppData\\Local\\Temp\\run root';
+  const { args } = maestroCommand(['test', '--debug-output', dir], 'win32');
+  assert.ok(args.includes(dir), 'the path must survive as one argument');
+  assert.equal(args.filter((a) => a === dir).length, 1);
+});
+
+test('the CLI lookup also goes through the command processor on Windows', () => {
+  assert.match(lookupMaestroCommand('win32').command, /cmd\.exe$/i);
+  assert.deepEqual(lookupMaestroCommand('win32').args, ['/c', 'where', 'maestro']);
+  assert.equal(lookupMaestroCommand('darwin').command, 'which');
 });

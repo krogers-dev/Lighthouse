@@ -39,6 +39,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { nodeCliCommand } from './lib/node-cli.mjs';
+
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const GHSA_PATTERN = /^GHSA(-[a-z0-9]{4}){3}$/;
@@ -602,7 +604,11 @@ export function checkWaiverBindings(waivers, currentLockfileSha256) {
 }
 
 export function runNpmAudit(env = process.env) {
-  const result = spawnSync('npm', ['audit', '--json'], {
+  // npm is a .cmd wrapper on Windows; spawning it directly died with
+  // ENOENT and this gate reported "could not spawn npm", which read as an
+  // environment problem rather than the platform trap it is (find 27).
+  const { command, args } = nodeCliCommand('npm', ['audit', '--json']);
+  const result = spawnSync(command, args, {
     cwd: appRoot,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],

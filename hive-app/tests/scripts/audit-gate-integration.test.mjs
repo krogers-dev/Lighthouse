@@ -13,6 +13,27 @@ import { test } from 'node:test';
 
 import { manifestSha256 } from '../../scripts/lib/ratification.mjs';
 
+/** These tests drive the real gate through a FAKE executable: a
+ * `#!/bin/sh` script with no file extension, found through a `:`-joined
+ * PATH. Windows can run neither — CreateProcess cannot execute an
+ * extensionless shell script, and its PATH separator is `;`. So on the
+ * Windows desktop that owns the device lane this whole file failed, and
+ * those failures were long read as "the audit/export lanes need registry
+ * access here". They did not: the gates themselves were separately broken
+ * on Windows (find 27, npm/npx are .cmd wrappers) and are now fixed and
+ * exercised live there.
+ *
+ * Rather than leave permanent red that trains people to ignore red — the
+ * same reasoning that makes preflight:device report BLOCKED instead of a
+ * finding — this file SKIPS on win32 with the reason stated. It is not
+ * disabled: it runs in full on POSIX, which is where CI and the container
+ * lane execute it, and rewriting the fakes to be cross-platform is
+ * recorded as follow-up rather than done here. */
+const POSIX_ONLY =
+  process.platform === 'win32'
+    ? 'POSIX-only harness (sh fake executable, ":"-joined PATH); the gate itself is exercised on Windows directly'
+    : false;
+
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const gate = path.join(appRoot, 'scripts', 'audit-gate.mjs');
 
@@ -170,138 +191,174 @@ function clearApproval() {
   rmSync(DECISION_ABS, { force: true });
 }
 
-test('clean report with no waivers passes', () => {
+test('clean report with no waivers passes', { skip: POSIX_ONLY }, () => {
   const result = runGate('clean', CLEAN_REPORT, []);
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('RATIFIED waived high finding passes ONLY with a verifiable decision record', () => {
-  try {
-    const { waiver, digest } = withApproval();
-    const result = runGate('findings', HIGH_REPORT, [waiver], {
-      digests: digest,
-      records: DECISION_ABS,
-    });
-    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-    assert.match(result.stdout, /waived \(ratified 2026-08-02/);
-    assert.match(result.stdout, /GHSA-aaaa-bbbb-cccc/);
-  } finally {
-    clearApproval();
-  }
-});
-
-test('NEGATIVE: a self-declared ratification with NO record supplied fails (a repo field is not authority)', () => {
-  clearApproval();
-  const result = runGate('findings', HIGH_REPORT, [VALID_WAIVER], { digests: 'a'.repeat(64) });
-  assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
-  assert.match(result.stderr, /no out-of-band decision record/);
-});
-
-test('NEGATIVE: without the OUT-OF-BAND digest an internally consistent record does not clear HOLD', () => {
-  try {
-    const { waiver } = withApproval();
-    const result = runGate('findings', HIGH_REPORT, [waiver], { digests: '' });
-    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
-    assert.match(result.stderr, /out-of-band/);
-  } finally {
-    clearApproval();
-  }
-});
-
-test('NEGATIVE: a decision record MUTATED after ratification invalidates the approval', () => {
-  try {
-    const { waiver, digest } = withApproval();
-    // Same path, different bytes. The loader keys records by their COMPUTED
-    // digest, so the edited file no longer answers to the approved one.
-    writeFileSync(
-      DECISION_ABS,
-      JSON.stringify({ approver: 'Kody', destination: 'somewhere else entirely' }),
-    );
-    const result = runGate('findings', HIGH_REPORT, [waiver], {
-      digests: digest,
-      records: DECISION_ABS,
-    });
-    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
-    assert.match(result.stderr, /no out-of-band decision record/);
-  } finally {
-    clearApproval();
-  }
-});
-
-test('NEGATIVE: a decision record committed INSIDE the repository is refused (RETURN-5)', () => {
-  try {
-    const { waiver, digest } = withApproval();
-    // Copy the byte-identical, fully valid record into the working tree and
-    // point the gate at it there. It must be refused for its LOCATION, not
-    // its contents — that is what keeps approval outside the artifact.
-    const inRepo = path.join(appRoot, 'security', 'in-repo-approval-fixture.json');
-    writeFileSync(inRepo, readFileSync(DECISION_ABS));
+test(
+  'RATIFIED waived high finding passes ONLY with a verifiable decision record',
+  { skip: POSIX_ONLY },
+  () => {
     try {
+      const { waiver, digest } = withApproval();
       const result = runGate('findings', HIGH_REPORT, [waiver], {
         digests: digest,
-        records: inRepo,
+        records: DECISION_ABS,
+      });
+      assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      assert.match(result.stdout, /waived \(ratified 2026-08-02/);
+      assert.match(result.stdout, /GHSA-aaaa-bbbb-cccc/);
+    } finally {
+      clearApproval();
+    }
+  },
+);
+
+test(
+  'NEGATIVE: a self-declared ratification with NO record supplied fails (a repo field is not authority)',
+  { skip: POSIX_ONLY },
+  () => {
+    clearApproval();
+    const result = runGate('findings', HIGH_REPORT, [VALID_WAIVER], { digests: 'a'.repeat(64) });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /no out-of-band decision record/);
+  },
+);
+
+test(
+  'NEGATIVE: without the OUT-OF-BAND digest an internally consistent record does not clear HOLD',
+  { skip: POSIX_ONLY },
+  () => {
+    try {
+      const { waiver } = withApproval();
+      const result = runGate('findings', HIGH_REPORT, [waiver], { digests: '' });
+      assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+      assert.match(result.stderr, /out-of-band/);
+    } finally {
+      clearApproval();
+    }
+  },
+);
+
+test(
+  'NEGATIVE: a decision record MUTATED after ratification invalidates the approval',
+  { skip: POSIX_ONLY },
+  () => {
+    try {
+      const { waiver, digest } = withApproval();
+      // Same path, different bytes. The loader keys records by their COMPUTED
+      // digest, so the edited file no longer answers to the approved one.
+      writeFileSync(
+        DECISION_ABS,
+        JSON.stringify({ approver: 'Kody', destination: 'somewhere else entirely' }),
+      );
+      const result = runGate('findings', HIGH_REPORT, [waiver], {
+        digests: digest,
+        records: DECISION_ABS,
       });
       assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
-      assert.match(result.stderr, /inside the repository/);
+      assert.match(result.stderr, /no out-of-band decision record/);
     } finally {
-      rmSync(inRepo, { force: true });
+      clearApproval();
     }
-  } finally {
-    clearApproval();
-  }
-});
+  },
+);
 
-test('NEGATIVE: an approval for a DIFFERENT candidate does not approve this one', () => {
-  try {
-    const { waiver, digest } = withApproval({}, { candidate: 'e'.repeat(40) });
-    const result = runGate('findings', HIGH_REPORT, [waiver], {
-      digests: digest,
-      records: DECISION_ABS,
-    });
-    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
-    assert.match(result.stderr, /not the one under verification/);
-  } finally {
-    clearApproval();
-  }
-});
+test(
+  'NEGATIVE: a decision record committed INSIDE the repository is refused (RETURN-5)',
+  { skip: POSIX_ONLY },
+  () => {
+    try {
+      const { waiver, digest } = withApproval();
+      // Copy the byte-identical, fully valid record into the working tree and
+      // point the gate at it there. It must be refused for its LOCATION, not
+      // its contents — that is what keeps approval outside the artifact.
+      const inRepo = path.join(appRoot, 'security', 'in-repo-approval-fixture.json');
+      writeFileSync(inRepo, readFileSync(DECISION_ABS));
+      try {
+        const result = runGate('findings', HIGH_REPORT, [waiver], {
+          digests: digest,
+          records: inRepo,
+        });
+        assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+        assert.match(result.stderr, /inside the repository/);
+      } finally {
+        rmSync(inRepo, { force: true });
+      }
+    } finally {
+      clearApproval();
+    }
+  },
+);
 
-test('NEGATIVE: an unauthorized approver cannot ratify, however consistent the record', () => {
-  try {
-    const { waiver, digest } = withApproval({ ratifiedBy: 'Mallory' }, { approver: 'Mallory' });
-    const result = runGate('findings', HIGH_REPORT, [waiver], {
-      digests: digest,
-      records: DECISION_ABS,
-    });
-    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
-    assert.match(result.stderr, /not an authorized approver/);
-  } finally {
-    clearApproval();
-  }
-});
+test(
+  'NEGATIVE: an approval for a DIFFERENT candidate does not approve this one',
+  { skip: POSIX_ONLY },
+  () => {
+    try {
+      const { waiver, digest } = withApproval({}, { candidate: 'e'.repeat(40) });
+      const result = runGate('findings', HIGH_REPORT, [waiver], {
+        digests: digest,
+        records: DECISION_ABS,
+      });
+      assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+      assert.match(result.stderr, /not the one under verification/);
+    } finally {
+      clearApproval();
+    }
+  },
+);
 
-test('NEGATIVE: an approval bound to a DIFFERENT raw-audit archive fails', () => {
-  try {
-    const { waiver, digest } = withApproval({}, { rawAuditSha256: '7'.repeat(64) });
-    const result = runGate('findings', HIGH_REPORT, [waiver], {
-      digests: digest,
-      records: DECISION_ABS,
-    });
-    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
-    assert.match(result.stderr, /raw-audit digest/);
-  } finally {
-    clearApproval();
-  }
-});
+test(
+  'NEGATIVE: an unauthorized approver cannot ratify, however consistent the record',
+  { skip: POSIX_ONLY },
+  () => {
+    try {
+      const { waiver, digest } = withApproval({ ratifiedBy: 'Mallory' }, { approver: 'Mallory' });
+      const result = runGate('findings', HIGH_REPORT, [waiver], {
+        digests: digest,
+        records: DECISION_ABS,
+      });
+      assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+      assert.match(result.stderr, /not an authorized approver/);
+    } finally {
+      clearApproval();
+    }
+  },
+);
 
-test('PROPOSED waiver produces HOLD with exit 3, never approval wording', () => {
-  const result = runGate('findings', HIGH_REPORT, [PROPOSED_WAIVER]);
-  assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);
-  assert.match(result.stdout, /PROPOSED/);
-  assert.match(result.stdout, /HOLD/);
-  assert.ok(!/waived \(ratified/.test(result.stdout));
-});
+test(
+  'NEGATIVE: an approval bound to a DIFFERENT raw-audit archive fails',
+  { skip: POSIX_ONLY },
+  () => {
+    try {
+      const { waiver, digest } = withApproval({}, { rawAuditSha256: '7'.repeat(64) });
+      const result = runGate('findings', HIGH_REPORT, [waiver], {
+        digests: digest,
+        records: DECISION_ABS,
+      });
+      assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+      assert.match(result.stderr, /raw-audit digest/);
+    } finally {
+      clearApproval();
+    }
+  },
+);
 
-test('TAMPERED waiver package fails against the live report', () => {
+test(
+  'PROPOSED waiver produces HOLD with exit 3, never approval wording',
+  { skip: POSIX_ONLY },
+  () => {
+    const result = runGate('findings', HIGH_REPORT, [PROPOSED_WAIVER]);
+    assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /PROPOSED/);
+    assert.match(result.stdout, /HOLD/);
+    assert.ok(!/waived \(ratified/.test(result.stdout));
+  },
+);
+
+test('TAMPERED waiver package fails against the live report', { skip: POSIX_ONLY }, () => {
   try {
     // A fully approved world, then the package is edited: the finding no
     // longer matches the live report AND the manifest digest no longer
@@ -320,23 +377,27 @@ test('TAMPERED waiver package fails against the live report', () => {
   }
 });
 
-test('actual spawn ENOENT (npm missing from PATH) is an engine failure', () => {
-  const emptyDir = mkdtempSync(path.join(tmpdir(), 'hive-empty-path-'));
-  const waiverPath = makeWaivers([]);
-  const result = spawnSync(process.execPath, [gate], {
-    encoding: 'utf8',
-    env: {
-      HOME: process.env.HOME ?? '/root',
-      PATH: emptyDir,
-      HIVE_WAIVERS_PATH: waiverPath,
-    },
-  });
-  assert.equal(result.status, 2, `${result.stdout}\n${result.stderr}`);
-  assert.match(result.stderr, /could not spawn npm/);
-  assert.match(result.stderr, /ENOENT/);
-});
+test(
+  'actual spawn ENOENT (npm missing from PATH) is an engine failure',
+  { skip: POSIX_ONLY },
+  () => {
+    const emptyDir = mkdtempSync(path.join(tmpdir(), 'hive-empty-path-'));
+    const waiverPath = makeWaivers([]);
+    const result = spawnSync(process.execPath, [gate], {
+      encoding: 'utf8',
+      env: {
+        HOME: process.env.HOME ?? '/root',
+        PATH: emptyDir,
+        HIVE_WAIVERS_PATH: waiverPath,
+      },
+    });
+    assert.equal(result.status, 2, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /could not spawn npm/);
+    assert.match(result.stderr, /ENOENT/);
+  },
+);
 
-test('INCONSISTENT summary counts are an engine failure', () => {
+test('INCONSISTENT summary counts are an engine failure', { skip: POSIX_ONLY }, () => {
   const inconsistent = JSON.parse(HIGH_REPORT);
   inconsistent.metadata.vulnerabilities.high = 4;
   inconsistent.metadata.vulnerabilities.total = 4;
@@ -345,49 +406,57 @@ test('INCONSISTENT summary counts are an engine failure', () => {
   assert.match(result.stderr, /does not reconcile/);
 });
 
-test('valid unwaived high finding fails with exit 1', () => {
+test('valid unwaived high finding fails with exit 1', { skip: POSIX_ONLY }, () => {
   const result = runGate('findings', HIGH_REPORT, []);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /unwaived high advisory GHSA-aaaa-bbbb-cccc/);
 });
 
-test('npm engine failure (empty stdout, exit 1) is an engine failure, never findings', () => {
-  const result = runGate('engine-fail', '', [VALID_WAIVER]);
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /ENGINE FAILURE/);
-});
+test(
+  'npm engine failure (empty stdout, exit 1) is an engine failure, never findings',
+  { skip: POSIX_ONLY },
+  () => {
+    const result = runGate('engine-fail', '', [VALID_WAIVER]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /ENGINE FAILURE/);
+  },
+);
 
-test('registry error payload is an engine failure', () => {
+test('registry error payload is an engine failure', { skip: POSIX_ONLY }, () => {
   const result = runGate('registry-error', '', []);
   assert.equal(result.status, 2);
   assert.match(result.stderr, /top-level error/);
 });
 
-test('malformed JSON is an engine failure', () => {
+test('malformed JSON is an engine failure', { skip: POSIX_ONLY }, () => {
   const result = runGate('malformed', '', []);
   assert.equal(result.status, 2);
   assert.match(result.stderr, /not valid JSON/);
 });
 
-test('empty output is an engine failure', () => {
+test('empty output is an engine failure', { skip: POSIX_ONLY }, () => {
   const result = runGate('empty', '', []);
   assert.equal(result.status, 2);
   assert.match(result.stderr, /no output/);
 });
 
-test('unexpected exit code is an engine failure even with a clean-looking report', () => {
-  const result = runGate('weird-exit', CLEAN_REPORT, []);
-  assert.equal(result.status, 2);
-  assert.match(result.stderr, /exited 7/);
-});
+test(
+  'unexpected exit code is an engine failure even with a clean-looking report',
+  { skip: POSIX_ONLY },
+  () => {
+    const result = runGate('weird-exit', CLEAN_REPORT, []);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /exited 7/);
+  },
+);
 
-test('signal termination is an engine failure', () => {
+test('signal termination is an engine failure', { skip: POSIX_ONLY }, () => {
   const result = runGate('signal', '', []);
   assert.equal(result.status, 2);
   assert.match(result.stderr, /signal/i);
 });
 
-test('invalid report schema is an engine failure', () => {
+test('invalid report schema is an engine failure', { skip: POSIX_ONLY }, () => {
   const result = runGate(
     'clean',
     JSON.stringify({ auditReportVersion: 1, vulnerabilities: {} }),
@@ -397,20 +466,20 @@ test('invalid report schema is an engine failure', () => {
   assert.match(result.stderr, /auditReportVersion/);
 });
 
-test('expired waiver fails so the retest happens', () => {
+test('expired waiver fails so the retest happens', { skip: POSIX_ONLY }, () => {
   const expired = { ...VALID_WAIVER, expires: '2026-08-02' };
   const result = runGate('findings', HIGH_REPORT, [expired]);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /expired/);
 });
 
-test('duplicate waiver entries fail', () => {
+test('duplicate waiver entries fail', { skip: POSIX_ONLY }, () => {
   const result = runGate('findings', HIGH_REPORT, [VALID_WAIVER, VALID_WAIVER]);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /duplicate/);
 });
 
-test('orphaned waiver fails when the advisory is no longer present', () => {
+test('orphaned waiver fails when the advisory is no longer present', { skip: POSIX_ONLY }, () => {
   try {
     const { waiver, digest } = withApproval();
     const result = runGate('clean', CLEAN_REPORT, [waiver], {
@@ -424,7 +493,7 @@ test('orphaned waiver fails when the advisory is no longer present', () => {
   }
 });
 
-test('malformed waiver fields fail', () => {
+test('malformed waiver fields fail', { skip: POSIX_ONLY }, () => {
   const bad = { ...VALID_WAIVER, advisory: 'not-a-ghsa', owner: '' };
   const result = runGate('findings', HIGH_REPORT, [bad]);
   assert.equal(result.status, 1);
@@ -432,16 +501,20 @@ test('malformed waiver fields fail', () => {
   assert.match(result.stderr, /missing owner/);
 });
 
-test('a ratified waiver bound to a DIFFERENT lockfile digest fails (re-approval required)', () => {
-  try {
-    const { waiver, digest } = withApproval({ lockfileSha256: 'b'.repeat(64) });
-    const result = runGate('findings', HIGH_REPORT, [waiver], {
-      digests: digest,
-      records: DECISION_ABS,
-    });
-    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
-    assert.match(result.stderr, /different lockfile digest/);
-  } finally {
-    clearApproval();
-  }
-});
+test(
+  'a ratified waiver bound to a DIFFERENT lockfile digest fails (re-approval required)',
+  { skip: POSIX_ONLY },
+  () => {
+    try {
+      const { waiver, digest } = withApproval({ lockfileSha256: 'b'.repeat(64) });
+      const result = runGate('findings', HIGH_REPORT, [waiver], {
+        digests: digest,
+        records: DECISION_ABS,
+      });
+      assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+      assert.match(result.stderr, /different lockfile digest/);
+    } finally {
+      clearApproval();
+    }
+  },
+);

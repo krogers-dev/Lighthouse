@@ -1308,3 +1308,138 @@ unrelated), `maestro:validate` OK across 17 flows, `config:check` OK,
    revoke helper, both modelled on `otp-fetch.js`.
 4. **TalkBack pass** on `accessibility-smoke`, and measured contrast on
    hardware. Still the only part of A4 that hardware can settle.
+
+## 2026-09-04 — the Maestro pin verified to the edge of a signature, and a correction
+
+### The pin: everything mechanical is done and checked
+
+`security/hardware-toolchain.json` sat at `HOLD-operator-fill` with four
+null fields. Three of them are now filled, and filled by verification
+rather than transcription:
+
+1. `checksums_sha256.txt` was fetched from the official `cli-2.10.0`
+   release and publishes `29b675e1…cd991` for `maestro.zip`.
+2. `maestro.zip` (314,828,521 bytes) was downloaded from the official
+   release URL and its sha256 **computed locally**. It equals the published
+   value. The digest in the record is that computed number.
+3. The release was extracted and compared with the CLI already installed at
+   `%LOCALAPPDATA%\Programs\maestro`: **198 files in the release, 198 in
+   the install, 0 missing, 0 content mismatches** by sha256. The Maestro
+   that runs these flows is byte-identical to the official artifact — which
+   is the question a recorded digest cannot answer by itself, since the
+   runner never recomputes it.
+
+Status is `verified-pending-attestation`, deliberately not `pinned`. What
+is left is a person putting their name to it, which is the one thing here
+that cannot be delegated: a checksum says the binary is what the vendor
+published, not that anyone accepts responsibility for running it. The
+runner now reports exactly two problems, both of that kind:
+
+```
+HOLD the Maestro CLI is not pinned (status "verified-pending-attestation")
+HOLD the Maestro pin records no verifier
+```
+
+The negative test that guards this was updated rather than left to rot: it
+used to assert the live record fails for "no sha256", which is no longer
+true. It now asserts the record still fails, names the reasons that
+actually apply, and additionally requires that whatever digest the record
+carries is a real 64-hex value and never a placeholder.
+
+### Find 25 — the enrollment runner could not launch Maestro on Windows
+
+Filling the pin exposed the next layer. The runner reported "the installed
+Maestro CLI (unknown) is not the pinned version 2.10.0" on a machine where
+`maestro --version` prints `2.10.0`. Windows ships the CLI as
+`maestro.bat`, which CreateProcess cannot execute, so all four spawns died
+at ENOENT: `--version` read empty (reported as "unknown"), `test --help`
+read empty (which `outputFlagProblems` reports as the CLI not supporting
+`--debug-output`, i.e. an unconfinable run), and neither the clipboard
+scrub nor a flow could have run at all. The runner was non-functional on
+the only machine that owns the device lane, and every symptom pointed
+somewhere else.
+
+Fixed with `maestroCommand`/`lookupMaestroCommand`, unit-tested including
+the case that matters: arguments stay an **argv array** rather than a
+shell string, because they carry generated temp paths and a run root with
+a space would otherwise split — confining QR-bearing screenshots to the
+wrong directory, the single failure this runner exists to prevent. The
+version-mismatch line is gone; the two attestation lines remain.
+
+### Find 26 — a test asserted a POSIX path separator
+
+`maestroArgs` builds its flow path with `path.join`, so on Windows it ends
+`.maestro\mfa-enroll.yaml`; the test asserted the literal
+`.maestro/mfa-enroll.yaml`. Now asserted with `path.join`.
+
+### Find 27 — the same Windows trap in the audit and export gates
+
+`audit:gate` reported `could not spawn npm (ENOENT)` and the export lane
+`spawnSync npx ENOENT`. Same cause a fourth and fifth time: npm and npx are
+`.cmd` wrappers. Both now route through `scripts/lib/node-cli.mjs`, a
+single shared helper that documents the two survival strategies and why the
+choice is not stylistic — `shell: true` re-parses one command string and is
+safe only for hardcoded literals (which is why local-supabase and
+verify-toolchain use it), while an argv array preserves per-argument
+quoting and is required wherever a generated path appears.
+
+Proven live rather than by unit test: `npm` and `npx` both spawn and return
+their versions through the helper, and a path containing a space survives
+as one argument. `npm run audit:gate` now reaches the real registry instead
+of dying at spawn — and today fails closed on a genuine upstream outage
+(`503 Service Unavailable` from the npm audit endpoint), which is the gate
+behaving correctly, not a regression. `export:candidate` now reaches its
+own configuration check and refuses because the device lane's `.env.local`
+carries the emulator origin `10.0.2.2`, approved for development only —
+also correct.
+
+### A correction to the previous two entries
+
+Those entries said the 32 failing node:test cases on this desktop were
+"pre-existing and unrelated — audit-gate and export lanes, which need
+registry access and a full `expo export`". **That was wrong**, and it was
+an inference from test names rather than a diagnosis. The real causes were
+two, and one of them was a live defect:
+
+- the gates themselves were broken on Windows (find 27), which is fixed;
+- the two integration files drive those gates through a `#!/bin/sh` fake
+  executable found on a `":"`-joined PATH. Windows can run neither. Those
+  files are POSIX-only by construction and were never going to pass here.
+
+The clean-tree baseline I cited (278/310) was accurate as a measurement;
+the explanation attached to it was not. Recorded because a wrong
+explanation for a red test is worse than no explanation — it is what let
+thirty-one failures sit unexamined across two reports.
+
+Both files now SKIP on win32 with the reason stated, following the same
+reasoning that makes `preflight:device` report BLOCKED rather than a
+finding: permanent red trains people to ignore red. They are not disabled —
+they run in full on POSIX, where CI and the container lane execute them.
+Making the fakes cross-platform is follow-up, not done here.
+
+### Gates on this desktop, all green
+
+| Lane                      | Result                                                           |
+| ------------------------- | ---------------------------------------------------------------- |
+| typecheck                 | exit 0                                                           |
+| eslint `--max-warnings 0` | clean                                                            |
+| prettier                  | clean                                                            |
+| jest                      | **380 passed**, 30 suites                                        |
+| node:test                 | **324 tests, 290 passed, 0 failed, 34 platform-skipped**         |
+| maestro:validate          | OK — 17 flows, 4 helper scripts                                  |
+| config:check              | OK (development)                                                 |
+| verify:toolchain          | OK                                                               |
+| audit:gate                | ENGINE FAILURE — npm audit endpoint returning 503 upstream today |
+| export:candidate          | refuses: the device lane's emulator origin is development-only   |
+| Maestro flows             | 11 PASS, 0 FAIL, 6 HOLD (unchanged from yesterday)               |
+
+The node:test suite went from 31 failures to zero without a single
+assertion being weakened: one was a real Windows defect in the runner, one
+was a POSIX-only path assertion, and the rest were a harness that cannot
+execute on this platform and now says so.
+
+### Still outstanding, unchanged
+
+The Maestro pin's signature (Kody), find 24's hook design, find 20's
+stored-token pre-step, find 21's mid-flow revoke helper, and the TalkBack
+pass. Nothing new was added to that list today.
