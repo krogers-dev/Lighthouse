@@ -20,14 +20,25 @@ import { MANIFEST_KEY, type SecureStoreBackend } from '@/auth/secure-store-adapt
 
 export const QA_CORRUPT_HOOK_MARKER = 'HIVE_QA_CORRUPT_HOOK';
 
-/** The one exact QA deep link: hivedev://qa/corrupt-storage */
+/** The one exact QA deep link: hivedev:///?qa=corrupt-storage
+ *
+ * It addresses the ROOT with a query rather than a path, and that shape is
+ * load-bearing. The previous link, `hivedev://qa/corrupt-storage`, was
+ * claimed by EXPO ROUTER as the route `/qa/corrupt-storage` — which does
+ * not exist — so the router rendered its "Unmatched Route" screen and this
+ * module's listener never ran (find 24, proven on device). A QA-only route
+ * would fix that by shipping a route in the release bundle, which is the
+ * wrong trade. The root resolves to a route that already exists, so the
+ * router navigates normally and Linking still delivers the whole URL. */
 export const QA_CORRUPT_SCHEME = 'hivedev:';
-export const QA_CORRUPT_HOST = 'qa';
-export const QA_CORRUPT_PATHNAME = '/corrupt-storage';
+export const QA_CORRUPT_PARAM = 'qa';
+export const QA_CORRUPT_VALUE = 'corrupt-storage';
 
-/** Exact scheme, host, and path (RETURN-3 area 8) — parsed, never
- * substring-matched, so `https://evil/qa/corrupt-storage` and
- * `hivedev://qa/corrupt-storage-extra` never trigger the hook. */
+/** Exact scheme, no host, root path, and exactly ONE query parameter with
+ * exactly the expected value (RETURN-3 area 8) — parsed, never
+ * substring-matched. `https://evil/?qa=corrupt-storage`,
+ * `hivedev://evil/?qa=corrupt-storage`, a trailing path, a longer value,
+ * and any extra parameter riding along all fail to trigger the hook. */
 export function isQaCorruptUrl(url: string): boolean {
   let parsed: URL;
   try {
@@ -35,11 +46,13 @@ export function isQaCorruptUrl(url: string): boolean {
   } catch {
     return false;
   }
-  return (
-    parsed.protocol === QA_CORRUPT_SCHEME &&
-    parsed.hostname === QA_CORRUPT_HOST &&
-    parsed.pathname === QA_CORRUPT_PATHNAME
-  );
+  if (parsed.protocol !== QA_CORRUPT_SCHEME) return false;
+  if (parsed.hostname !== '') return false;
+  if (parsed.pathname !== '' && parsed.pathname !== '/') return false;
+  const params = [...parsed.searchParams.entries()];
+  if (params.length !== 1) return false;
+  const [[name, value]] = params as [[string, string]];
+  return name === QA_CORRUPT_PARAM && value === QA_CORRUPT_VALUE;
 }
 
 export async function corruptStoredSessionForQa(backend: SecureStoreBackend): Promise<void> {

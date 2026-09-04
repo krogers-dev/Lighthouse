@@ -10,7 +10,7 @@ import { AppText, Notice, Screen } from '@/ui';
 
 /** Development-only QA hook (RETURN-2 area 7; RETURN-3 area 8): a QA
  * build (dev build with EXPO_PUBLIC_QA_HOOKS=1) corrupts the stored
- * session on the exact deep link hivedev://qa/corrupt-storage so the
+ * session on the exact deep link hivedev:///?qa=corrupt-storage so the
  * quarantine device flow is executable, and returns true once the
  * corruption write has COMPLETED so Maestro can wait for the on-screen
  * acknowledgment before stopping the app. The `__DEV__` guard means

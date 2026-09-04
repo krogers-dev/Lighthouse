@@ -14,5 +14,10 @@ name: Expired/revoked session fails closed into a fresh sign-in
     id: 'dashboard-workspace'
 - assertVisible:
     id: 'signed-out-reason'
-- assertVisible: 'Your session ended. Sign in again to continue.'
+# The Notice primitive PREFIXES an info notice with "Note: " — that
+# prefix is deliberate (status is never colour-only), so it is part of
+# what the screen actually renders and therefore part of what a
+# full-match text assertion has to say. Periods escaped: Maestro matches
+# text as a regex (find 35).
+- assertVisible: 'Note: Your session ended\. Sign in again to continue\.'
 - assertVisible: 'Email'

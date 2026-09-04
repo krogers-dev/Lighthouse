@@ -32,7 +32,7 @@ targets, and banned secret channels across every flow.
 2. A development build installed (`npx --no-install expo run:ios` /
    `run:android`). For `quarantine-recovery.yaml` only, the build must be
    exported with `EXPO_PUBLIC_QA_HOOKS=1` (QA build) — that enables the
-   dev-only `hivedev://qa/corrupt-storage` hook, which `config:check`
+   dev-only `hivedev:///?qa=corrupt-storage` hook, which `config:check`
    forbids outside development and `bundle:inspect` proves absent from
    non-development exports.
 3. One-time codes arrive in the local Mailpit (http://127.0.0.1:54324) and

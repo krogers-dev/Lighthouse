@@ -1606,3 +1606,82 @@ config:check OK · verify:toolchain OK.
 3. **Find 20 / 21** — the stored-token pre-step and the mid-flow revoke
    helper.
 4. **TalkBack**, and measured contrast on hardware.
+
+## 2026-09-04, later — find 24 closed; quarantine recovery proven on hardware
+
+### The system killed Metro, and the reason was mine
+
+A background notification reported Metro stopped for low memory. Three
+orphaned Expo processes from earlier runs in this session were holding
+~1.5 GB between them — `expo run:android` and two `expo start` instances
+that outlived the tasks that spawned them. Killing them returned 1.6 GB.
+Worth the runbook line: **these processes survive their parent**, and they
+also hold port 8081, which is the same wedge that twice made `expo start`
+refuse the port earlier.
+
+### Find 24 fixed — a deep link the router does not claim
+
+`hivedev://qa/corrupt-storage` was intercepted by Expo Router as the route
+`/qa/corrupt-storage`, which does not exist: the router rendered
+"Unmatched Route" and the app's own `Linking` listener never ran. The
+obvious repair — a QA route — would put that route in the release bundle,
+which `expo export`'s route count and `bundle:inspect` both have opinions
+about, and which is the wrong trade for a test affordance.
+
+The link now addresses the ROOT with a query:
+`hivedev:///?qa=corrupt-storage`. The router resolves it to a route that
+already exists and navigates normally, while `Linking` still delivers the
+whole URL to the hook.
+
+Exactness did not loosen in the move — it tightened. The matcher requires
+the exact scheme, NO host, a root path, and **exactly one** query
+parameter with exactly the expected value. The previous contract accepted
+`hivedev://qa/corrupt-storage?x=1`, tolerating arbitrary extra parameters
+alongside a trigger that corrupts stored session state; that is now
+refused, along with a foreign scheme, any host, a trailing path, and a
+longer value. Red-checked before the change.
+
+### Find 35 — two flows asserted copy the app does not render
+
+With the hook firing, `quarantine-recovery.yaml` reached its last
+assertion and failed on
+`'Secure sign-in data was reset. Sign in again to continue.'`. The screen
+shows **"Note: Secure sign-in data was reset. Sign in again to continue."**
+— the `Notice` primitive prefixes an info notice with "Note", deliberately,
+because status is never conveyed by colour alone. A full-match text
+assertion has to include what the screen renders. Both that flow and
+`expired-session.yaml` carried the un-prefixed form; both now assert the
+prefix, with the sentence periods escaped because Maestro matches text as
+a regex.
+
+### quarantine-recovery.yaml PASSES
+
+End to end on the emulator: signed in, the QA link fires, the
+acknowledgment appears, the app is stopped and relaunched, **no protected
+UI**, the quarantine screen with "Secure sign-in data needs a reset",
+**"Retry" correctly absent** — a generic retry must not reuse a retained
+session — the scrub action taps, and the signed-out screen shows the
+scrubbed notice. The one device flow that proves storage quarantine is
+reachable and escapable now runs.
+
+### The tally: 12 of 18
+
+Unchanged from the previous entry except `quarantine-recovery.yaml`, which
+moves from HOLD to **PASS**. Twelve pass, `mfa-enroll` fails on find 33,
+`staff-sign-out` / `mfa-login` / `confinement-probe` are unreached behind
+it, and `expired-session` (find 20) and `read-surfaces-denied` (find 21)
+remain HOLD on missing harness pieces.
+
+### Gates
+
+typecheck exit 0 · eslint `--max-warnings 0` clean · prettier clean · jest
+**396 passed / 30 suites** · node:test **325 tests, 291 passed, 0 failed,
+34 platform-skipped** · maestro:validate OK across 18 flows · config:check
+OK.
+
+### Not pushed
+
+Five commits sit local: `git push` was refused by the Claude Code auto-mode
+permission classifier, not by any repository rule. It needs Kody to run the
+push or to allow the action. Recorded because a day of device evidence
+living on one desktop's disk is the risk it sounds like.
