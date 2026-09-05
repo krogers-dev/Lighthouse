@@ -1774,3 +1774,96 @@ it, which is worth knowing before anyone kills it again.
 2. **Find 21 / find 20** — the mid-flow revoke helper and the stored-token
    pre-step.
 3. **TalkBack**, and measured contrast on hardware.
+
+## 2026-09-05 — the mfa-submit question answered, and it was never the button
+
+### The probe, and why it had to be built rather than improvised
+
+Diagnosing this needed the enrollment screen's view hierarchy, and that
+screen shows the QR and the setup key — so it could not go to
+`~/.maestro/tests`, and `uiautomator dump` would have written the setup key
+to `/sdcard`. The probe therefore mirrors what
+`scripts/maestro-enroll-runner.mjs` does: a private mode-0700 run root,
+BOTH Maestro output flags pointed inside it, a deliberate failure on a
+selector that cannot exist to force a hierarchy capture, extraction of only
+the handful of fields under question, then removal and verification. No
+value from that screen was printed — only presence, bounds, and enabled or
+clickable state.
+
+### The answer
+
+| node            | bounds                 | enabled  | clickable                  |
+| --------------- | ---------------------- | -------- | -------------------------- |
+| `mfa-enroll-qr` | `[257,505][824,1072]`  | true     | false                      |
+| `mfa-code`      | `[42,1673][1038,1801]` | true     | true (focused, holds text) |
+| `mfa-submit`    | `[42,1863][1038,1989]` | **true** | **true**                   |
+
+**Total nodes in the hierarchy: 63.** Before the QR flattening that same
+screen was thousands.
+
+So `mfa-submit` is present, enabled, clickable, and sits comfortably inside
+a 2400px-tall screen with the keyboard dismissed and the code already in
+the field. **The button was never the problem, and neither was
+`hideKeyboard`, and neither was layout.** Three sessions of flow edits —
+scroll steps, visibility percentages, bounded waits — were aimed at a
+defect that did not exist.
+
+What was actually wrong: the emulator. Before this probe would run at all,
+Maestro failed with `MaestroDriverStartupException: Android driver did not
+start up in time`, then with `device 'emulator-5554' not found` mid-flow.
+The emulator had been up about eighteen hours under continuous device-lane
+load. Uninstalling the two `dev.mobile.maestro` driver packages (which this
+time reported `Success`, meaning stale copies really were installed),
+restarting adb, and cold-booting the AVD cleared all of it — and the probe
+then ran clean end to end on the first attempt.
+
+**The correction that matters for anyone reading the earlier entries:** the
+`mfa-submit` failures recorded on 2026-09-04 were environmental, not a UI
+defect. The flow edits made in pursuit of them were aimed at the wrong
+target. `hideKeyboard` is retained because dismissing the keyboard before
+tapping is what a person does and it costs nothing; the scroll steps and
+visibility tuning are gone.
+
+### Find 36 (OPEN) — the enrollment runner hangs on Windows, and fails OPEN when it does
+
+Twice now, `npm run maestro:enroll` has stopped making progress with the
+runner process alive, no Maestro child running, and no further output. The
+second time it sat on a run root whose last write was minutes earlier.
+
+The consequence is the serious part. This runner's entire purpose is
+fail-closed cleanup, and a hang defeats it: killing the stuck process left
+the loopback `totp-helper` **still listening with a setup secret in
+memory**, a run root on disk, and the clipboard unscrubbed. Every one of
+those had to be finished by hand — helper killed, `reset-totp` confirming
+`0 deleted, readback verified zero`, `clipboard-scrub.yaml` re-run, run
+root removed and verified gone.
+
+A cleanup guarantee that holds only when the process exits normally is not
+a guarantee. The runner needs to survive its own hang — a watchdog around
+each flow invocation, and cleanup that runs on that path too. Recorded as
+open; it is now the highest-priority item in this area, above the flows it
+is supposed to run, because it is a fail-open in a control rather than a
+missing test.
+
+Suspicion worth checking first: the Windows change from find 25 routes
+Maestro through `cmd.exe /c` under `spawnSync` with inherited stdio, which
+is exactly the shape that can block on a handle after the child exits. It
+may be self-inflicted.
+
+### Runbook additions
+
+- **An emulator up ~18 hours under device-lane load degrades**, and it
+  presents as Maestro problems rather than emulator problems: driver
+  startup timeouts and mid-flow `device not found`. Cold-boot the AVD and
+  uninstall `dev.mobile.maestro` / `.maestro.test` before concluding
+  anything about a flow.
+- **The confined-probe pattern above is reusable** for any question about a
+  secret-bearing screen. Use it instead of `uiautomator dump`.
+
+### State
+
+Unchanged at **12 of 18 flows**; `mfa-enroll` and the three behind it are
+now blocked on find 36 rather than on anything in the app. Gates as at the
+previous entry: jest 403, node:test 325 with 291 passed and 34
+platform-skipped, typecheck 0, eslint and prettier clean,
+maestro:validate OK across 18 flows.
