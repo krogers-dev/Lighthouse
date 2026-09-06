@@ -65,7 +65,12 @@ be able to point at material the implementer controls. A surviving
 
 ## Current state
 
-**Nothing is ratified.** Every waiver (2) and history exception (4) is
-`proposed`; `audit:gate` and `secrets:scan` both exit 3 (HOLD). No signing key
-and no approval is invented here — clearing HOLD requires Kody's decision
+**Nothing is ratified.** The four history exceptions in
+`security/secret-scan-allowlist.json` are `proposed`, so `secrets:scan` exits 3
+(HOLD). The two audit waivers were retired on 2026-09-06 by their own recorded
+removal condition — the SDK 57 patch refresh dropped `image-size` from the
+dependency tree, so neither advisory exists to waive (history preserved in
+`security/waivers.json` `$history`); with no waiver on file and only
+below-gate moderates in the audit, `audit:gate` exits 0. No signing key and no
+approval is invented here — clearing the remaining HOLD requires Kody's decision
 record, supplied out-of-band after the child commit exists.
