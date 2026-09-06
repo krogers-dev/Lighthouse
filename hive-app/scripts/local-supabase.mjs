@@ -243,17 +243,20 @@ export function chooseServiceBearer(data, nowSeconds) {
   };
 }
 
-async function runHarness(scriptName, extraEnv = {}) {
+/** The privileged service credential for the LOCAL stack, resolved from
+ * `supabase status` and PROVED against PostgREST before anything relies on
+ * it — a wrong secret would otherwise surface as a confusing 401/403 deep
+ * inside a harness. Exits with the reason on failure. The apikey header
+ * only has to get past Kong; the bearer carries the role. Prefer the
+ * issued secret key, else the legacy JWT, else the public client key.
+ * Memory only: callers hand it to child processes through their
+ * environment and never write, print, or log it. */
+export async function resolveServiceCredentials() {
   const { parsed, raw } = readStatus();
   const data = JSON.parse(raw);
-  // The apikey header only has to get past Kong; the bearer carries the
-  // role. Prefer the issued secret key, else the legacy JWT, else the
-  // public client key (role still comes from the bearer).
   const gatewayKey =
     data.SECRET_KEY ?? data.secret_key ?? data.SERVICE_ROLE_KEY ?? parsed.clientKey;
   const { bearer, source } = chooseServiceBearer(data, Math.floor(Date.now() / 1000));
-  // Prove the credential BEFORE any harness runs: a wrong secret would
-  // otherwise surface as a confusing 401/403 deep inside a harness.
   const probe = await fetch(`${parsed.url}/rest/v1/memberships?select=user_id&limit=1`, {
     headers: { apikey: gatewayKey, Authorization: `Bearer ${bearer}` },
   });
@@ -263,6 +266,11 @@ async function runHarness(scriptName, extraEnv = {}) {
         'If this stack uses a custom JWT secret, supabase status must expose it.',
     );
   }
+  return { url: parsed.url, clientKey: parsed.clientKey, bearer, gatewayKey };
+}
+
+async function runHarness(scriptName, extraEnv = {}) {
+  const creds = await resolveServiceCredentials();
   // In memory only, to the child process; never written or printed.
   const child = spawnSync('node', [path.join(appRoot, 'scripts', scriptName)], {
     cwd: appRoot,
@@ -270,10 +278,10 @@ async function runHarness(scriptName, extraEnv = {}) {
     stdio: ['ignore', 'inherit', 'pipe'],
     env: {
       ...process.env,
-      HIVE_LOCAL_SUPABASE_URL: parsed.url,
-      HIVE_LOCAL_SERVICE_KEY: bearer,
-      HIVE_LOCAL_GATEWAY_KEY: gatewayKey,
-      HIVE_LOCAL_CLIENT_KEY: parsed.clientKey,
+      HIVE_LOCAL_SUPABASE_URL: creds.url,
+      HIVE_LOCAL_SERVICE_KEY: creds.bearer,
+      HIVE_LOCAL_GATEWAY_KEY: creds.gatewayKey,
+      HIVE_LOCAL_CLIENT_KEY: creds.clientKey,
       ...extraEnv,
     },
   });
@@ -299,6 +307,19 @@ async function resetTotp(email) {
     fail('usage: local-supabase.mjs reset-totp <synthetic-email>');
   }
   await runHarness('reset-totp.mjs', { HIVE_RESET_TOTP_EMAIL: email });
+}
+
+/** Checked, idempotent restore of one synthetic account's seeded membership
+ * rows on one entity — the recovery after a maestro:denied run that was
+ * killed from outside (find 21). */
+async function restoreMembership(email, entityKey) {
+  if (!email || !entityKey) {
+    fail('usage: local-supabase.mjs restore-membership <synthetic-email> <entityKey>');
+  }
+  await runHarness('membership-restore.mjs', {
+    HIVE_RESTORE_EMAIL: email,
+    HIVE_RESTORE_ENTITY: entityKey,
+  });
 }
 
 function stop() {
@@ -330,10 +351,15 @@ if (isMain) {
     case 'reset-totp':
       await resetTotp(process.argv[3]);
       break;
+    case 'restore-membership':
+      await restoreMembership(process.argv[3], process.argv[4]);
+      break;
     case 'stop':
       stop();
       break;
     default:
-      fail('usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|reset-totp|stop>');
+      fail(
+        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|reset-totp|restore-membership <email> <entityKey>|stop>',
+      );
   }
 }

@@ -47,7 +47,8 @@
     "export:candidate": "node scripts/candidate-export.mjs",
     "export:candidate:qa-control": "node scripts/candidate-export.mjs --qa-control",
     "maestro:enroll": "node scripts/maestro-enroll-runner.mjs",
-    "maestro:confinement": "node scripts/maestro-enroll-runner.mjs --prove-confinement"
+    "maestro:confinement": "node scripts/maestro-enroll-runner.mjs --prove-confinement",
+    "maestro:denied": "node scripts/maestro-denied-runner.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.3",

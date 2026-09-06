@@ -2,13 +2,16 @@ appId: com.myhbcfo.hive.development
 name: Revoked membership denies the read surfaces without showing stale rows
 tags:
   - milestone1
-# Pre-steps:
-#   1. Seeded stack up; signed in as client.owner@example.invalid with the
-#      Harbor Light Bakery workspace selected (sign-in.yaml).
-#   2. WHILE THE APP IS OPEN on Requests, revoke that membership
-#      server-side, from the operator machine:
-#        node scripts/local-supabase.mjs seed --revoke client.owner@example.invalid entityA1
-#      (any server-side membership delete for the selected scope does it).
+# Run through the runner, never by hand:
+#   npm run maestro:denied
+# It signs in (sign-in.yaml, as client.owner@example.invalid), serves a
+# loopback single-use revoke endpoint in-process, runs this flow, and
+# RESTORES the membership on every exit path. The revoke lands MID-FLOW at
+# the runScript step below — the synchronization point find 21 recorded
+# this flow could not express: driven from outside, the delete landed
+# after the refresh request went out and the stale state never appeared.
+# Manual recovery after a run killed from outside:
+#   node scripts/local-supabase.mjs restore-membership client.owner@example.invalid entityA1
 #
 # The point: authorization is enforced by RLS, never by the UI. Once the
 # membership is gone the rows are gone, and the screen must say the access
@@ -26,7 +29,15 @@ tags:
     id: 'nav-requests'
 - assertVisible:
     id: 'requests-list'
-# Membership revoked out-of-band at this point; reload.
+# Membership revoked HERE, mid-flow, through the runner's loopback endpoint.
+# The script THROWS if the revoke did not happen, so the flow fails at this
+# step with the reason rather than asserting a state never produced.
+- runScript:
+    file: revoke-membership.js
+    env:
+      REVOKE_USER: 'client.owner@example.invalid'
+      REVOKE_ENTITY: 'entityA1'
+# Reload: the rows must be gone and the screen must say the access changed.
 - tapOn:
     id: 'requests-refresh'
 - extendedWaitUntil:

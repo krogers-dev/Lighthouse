@@ -2136,3 +2136,90 @@ design (a loopback membership-revoke helper holding the service bearer in
 memory, like `totp-helper`, hit by a mid-flow `runScript` at the sync
 point between the requests list and the refresh tap, with the membership
 restored on cleanup) is traced and ready to build.
+
+## 2026-09-06, evening — find 21 built: the last flow is executable
+
+Kody delegated the twelve open decisions; find 21 was "build". This is
+the final cloud-authorable piece of the Maestro set: with it, all 18
+flows are executable, and what remains is desktop evidence.
+
+### Why the design looks the way it does
+
+`read-surfaces-denied.yaml` needs a membership revoked MID-FLOW, between
+"the requests list is on screen" and the refresh tap. Driven from outside
+(find 21, 2026-09-03), the delete landed after the refresh request went
+out and the stale state never appeared. Maestro's only mid-flow hook is a
+GraalJS `runScript` with `http`, so something must serve HTTP, and the
+privileged credential must never reach the flow. Four decisions follow:
+
+1. **The endpoint lives IN the runner process.** The TOTP secret needed
+   its own process so its death was the secret's erasure; a membership row
+   is not a secret. One process means the credential never crosses a
+   process boundary, and there is no helper-death fail-open — exactly the
+   class of failure find 36 had just closed.
+2. **The target comes from the canonical identity matrix, never from an
+   argument.** `resolveRevokeTarget` derives the seeded rows for
+   `client.owner@example.invalid` on `entityA1` from
+   `scripts/lib/synthetic-identities.mjs`, so restore knows what to put
+   back whether or not the revoke response was ever seen, and the endpoint
+   refuses any request naming anything else (loopback callers only,
+   single-use, exact-target).
+3. **Restore runs on every exit path and is idempotent.** Cleanup inside
+   `process.on('exit')` must be synchronous, so the restore is a harness
+   (`scripts/membership-restore.mjs`, the `reset-totp` shape) invoked with
+   `spawnSync` and bounded. It goes through the seed's own
+   `on_conflict … resolution=ignore-duplicates` upsert — never an UPDATE,
+   so the scope-immutability trigger is never in play — and readback must
+   match the seed definition exactly. The `revoked` flag is set BEFORE the
+   delete goes out, so a run that dies mid-request still restores. The
+   same harness is the manual recovery:
+   `node scripts/local-supabase.mjs restore-membership <email> <entityKey>`.
+4. **The flow learns the endpoint through Maestro `-e`.** The runner passes
+   `REVOKE_HELPER_URL` before the flow file; `revoke-membership.js` POSTs
+   the account label and entity key (no secret, no credential) and THROWS
+   when the revoke did not happen, so the flow fails at that step with the
+   reason instead of asserting a state the pre-step never produced.
+
+Two supporting changes: `scripts/lib/bounded-spawn.mjs` extracts find 36's
+bounded-spawn shape (exit+drain, never `close` alone; tree kill) for reuse
+— the enrollment runner keeps its inline copy UNTOUCHED until its desktop
+verification lands, then consolidates — and `local-supabase.mjs` now
+exports `resolveServiceCredentials()` (the status→bearer→PostgREST-probe
+resolution `runHarness` always did) and gains the `restore-membership`
+subcommand.
+
+One assumption is recorded rather than hidden: the helper script uses
+Maestro's documented GraalJS `http.post(url, { headers, body })` returning
+`{ ok, status, body }`. `maestro:validate` proves the YAML and the script
+file exist and carry no banned pattern; the desktop run is the proof of
+that call shape.
+
+### Evidence
+
+Fourteen tests added: `tests/scripts/membership-revoke.test.mjs` (the
+canonical target and its five-column restore shape, refusal of every
+non-seeded pairing, the exact-target request law, port parsing, loopback
+law, restore pinned to the seed's own upsert path by reading the seed
+source) and `tests/scripts/bounded-spawn.test.mjs`, whose two proofs run
+on real processes: a child that exits 7 leaving a grandchild on its pipe
+settles on exit+drain with its output intact in under a second, and a
+stuck tree under the watchdog is left with nothing running (zombies
+only). The runner's module loads in the container and smoke-holds at exit
+3 with its imports from the enrollment runner and local-supabase proven
+inert.
+
+Gates fresh (build container): node:test **342 passed, 0 failed**; eslint
+`--max-warnings 0` clean; prettier and format:check clean;
+maestro:validate OK (18 flows, 5 helper scripts); typecheck 0; jest
+410/31 suites.
+
+### State
+
+All 18 flows are now executable. Desktop evidence still owed, in order:
+the find-36 rerun (`maestro:enroll`, `maestro:confinement`; 4 flows), a QA
+build for `expired-session` (find 20; 1 flow), and `npm run
+maestro:denied` (this entry; 1 flow). Success on all three is **18 of
+18**. Nothing cloud-authorable remains in the Maestro set. Kody-owned
+items unchanged: the four history exceptions (ratify by written
+statement), the iOS lane (Expo account/terms, hardware; deferred), and
+Stacie's client wording (current text kept).

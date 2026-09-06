@@ -120,3 +120,29 @@ the assertion, not a retained image.
 - Screen-reader pass for `accessibility-smoke.yaml`.
 
 All identities are synthetic (`example.invalid`).
+
+## The revoked-membership flow runs through `npm run maestro:denied` (find 21)
+
+`read-surfaces-denied.yaml` proves authorization lives in RLS, never in the
+UI: with the requests list on screen, the signed-in account's membership on
+the selected entity is revoked server-side, and the refresh must show the
+access changed with no stale row. The revoke has to land MID-FLOW, and a
+GraalJS `runScript` with `http` is Maestro's only mid-flow hook, so the
+runner:
+
+1. resolves and PROVES the service credential against PostgREST before
+   anything touches the device (memory only, this process);
+2. serves a loopback, single-use revoke endpoint IN-PROCESS on
+   127.0.0.1:8478 (`HIVE_REVOKE_HELPER_PORT` overrides; a port already in
+   use is a HOLD) that only ever revokes the run's canonical target,
+   `client.owner@example.invalid` on `entityA1`, derived from the seeded
+   identity matrix — never from an argument;
+3. runs `sign-in.yaml` then the flow, each bounded by the find-36 watchdog,
+   handing the flow the endpoint through Maestro `-e REVOKE_HELPER_URL`;
+   `revoke-membership.js` POSTs to it at the synchronization point and
+   THROWS if the revoke did not happen;
+4. RESTORES the membership on every exit path (success, failure, watchdog,
+   Ctrl+C) through the seed's own idempotent upsert, readback-verified.
+
+Manual recovery after a run killed from outside:
+`node scripts/local-supabase.mjs restore-membership client.owner@example.invalid entityA1`
