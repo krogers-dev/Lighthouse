@@ -9,6 +9,8 @@ import {
   type AuthListenerEvent,
   type ClientBundle,
   type SessionInfo,
+  SessionExpiredError,
+  SessionOfflineError,
 } from '../client-lifecycle';
 import { AuthController, type SessionStorage } from '../controller';
 import { InstallMarker } from '../install-marker';
@@ -84,8 +86,17 @@ class FakeAuthGateway implements AuthGateway {
     this.log = log;
   }
 
+  sessionError: Error | null = null;
+  /** The real library removes the stored session and notifies SIGNED_OUT
+   * BEFORE getSession() returns the rejected-refresh error (auth-js
+   * _callRefreshToken -> _removeSession); model that ordering on demand. */
+  sessionErrorEmitsSignedOut = false;
   async getSession(): Promise<SessionInfo | null> {
     this.log.push('auth.getSession');
+    if (this.sessionError) {
+      if (this.sessionErrorEmitsSignedOut) this.emit('SIGNED_OUT');
+      throw this.sessionError;
+    }
     return this.session;
   }
   async requestOtp(email: string): Promise<void> {
@@ -258,6 +269,41 @@ describe('boot', () => {
     await h.controller.boot();
     expect(h.controller.getState()).toMatchObject({ name: 'signed_out', reason: 'expired' });
     expect(h.storage.deleted).toBe(1);
+  });
+
+  // 2026-09-06 review: through the real gateway a stored session is never
+  // returned already-expired — it is refreshed, or the refresh is rejected.
+  // A REJECTED refresh is a dead session and must take the expiry branch,
+  // not the fatal screen; an unreachable server is an offline launch.
+  it('treats a dead stored session (refresh rejected) as expiry, never fatal', async () => {
+    const h = makeHarness();
+    h.gateway.sessionError = new SessionExpiredError();
+    await h.controller.boot();
+    expect(h.controller.getState()).toMatchObject({ name: 'signed_out', reason: 'expired' });
+    expect(h.storage.deleted).toBe(1);
+    expect(h.log).toContain('auth.signOutRemote');
+  });
+
+  it('treats an unreachable auth server at boot as an offline launch, keeping the session', async () => {
+    const h = makeHarness();
+    h.gateway.sessionError = new SessionOfflineError();
+    await h.controller.boot();
+    expect(h.controller.getState()).toMatchObject({ name: 'signed_out', reason: 'offline' });
+    expect(h.storage.deleted).toBe(0);
+  });
+
+  it('absorbs the SIGNED_OUT the library emits while rejecting the boot refresh: one cleanup, not two', async () => {
+    const h = makeHarness();
+    h.gateway.sessionError = new SessionExpiredError();
+    h.gateway.sessionErrorEmitsSignedOut = true;
+    await h.controller.boot();
+    await h.controller.settle();
+    expect(h.controller.getState()).toMatchObject({ name: 'signed_out', reason: 'expired' });
+    // The listener's queued sign-out sequence finds signed_out and returns:
+    // exactly one deletion and one remote revocation, no second sequence.
+    expect(h.storage.deleted).toBe(1);
+    expect(h.log.filter((e) => e === 'auth.signOutRemote')).toHaveLength(1);
+    expect(h.diagnosticsLog.some((d) => d.name === 'auth_epoch_stale_event')).toBe(false);
   });
 
   it('cleans up locally and reports no_access for zero memberships', async () => {

@@ -247,7 +247,10 @@ test('find 36: the flow watchdog is bounded, overridable, and fail-closed on gar
 test('find 36: stale run roots from a hand-killed run are recognized for the startup sweep', () => {
   // The sweep and mkdtemp share one prefix constant; this pins the
   // on-disk contract between them.
-  assert.equal(RUN_ROOT_PREFIX, 'hive-maestro-');
+  assert.equal(RUN_ROOT_PREFIX, 'hive-maestro-enroll-');
+  // Each runner sweeps only its own prefix (2026-09-06 review, P2-D): the
+  // denied runner's roots must never match the enrollment sweep.
+  assert.ok(!isStaleRunRoot('hive-maestro-denied-Ab12Cd'));
   assert.ok(isStaleRunRoot(`${RUN_ROOT_PREFIX}Ab12Cd`));
   assert.ok(!isStaleRunRoot('maestro-tests'));
   assert.ok(!isStaleRunRoot('hive-app'));

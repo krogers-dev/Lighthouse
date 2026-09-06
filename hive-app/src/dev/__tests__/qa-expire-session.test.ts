@@ -1,5 +1,6 @@
 import { SessionStorageAdapter, type SecureStoreBackend } from '@/auth/secure-store-adapter';
 import {
+  QA_EXPIRED_REFRESH_TOKEN,
   QA_EXPIRE_HOOK_MARKER,
   expireSessionEnvelope,
   expireStoredSessionForQa,
@@ -67,9 +68,12 @@ describe('dev-only QA session-expiry hook', () => {
     const parsed = JSON.parse(readBack as string);
     expect(parsed.expires_at * 1000).toBeLessThan(Date.now());
     expect(parsed.expires_in).toBe(0);
-    // Every other field is preserved: this is the same session, just expired.
+    // The refresh token is replaced by an inert value so the boot refresh is
+    // definitively REJECTED (a valid one would silently resurrect the
+    // session — 2026-09-06 review); everything else is preserved.
+    expect(parsed.refresh_token).toBe(QA_EXPIRED_REFRESH_TOKEN);
+    expect(parsed.refresh_token).not.toBe('refresh-token');
     expect(parsed.access_token).toBe('header.body.sig');
-    expect(parsed.refresh_token).toBe('refresh-token');
     expect(parsed.user.id).toBe('00000000-0000-0000-0000-000000000001');
   });
 

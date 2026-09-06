@@ -78,9 +78,21 @@ export function revokePath(target) {
   return `/memberships?user_id=eq.${target.userId}&entity_id=eq.${target.entityId}&select=${MEMBERSHIP_COLUMNS.join(',')}`;
 }
 
-/** PostgREST readback for the target's rows. */
+/** PostgREST readback for the target's rows: the same filter the DELETE
+ * used, by construction, so the two can never drift. */
 export function readbackPath(target) {
-  return `/memberships?user_id=eq.${target.userId}&entity_id=eq.${target.entityId}&select=${MEMBERSHIP_COLUMNS.join(',')}`;
+  return revokePath(target);
+}
+
+/** A zero-row delete proves nothing: if the membership was already absent
+ * (a prior failed restore), the flow would proceed having tested nothing
+ * (2026-09-06 review, P2-F). Exactly the seeded rows must have gone. */
+export function verifyDeletedCount(count, expected) {
+  return count === expected.length
+    ? []
+    : [
+        `expected to delete ${expected.length} seeded membership row(s), deleted ${count} — nothing proven`,
+      ];
 }
 
 /** Restore goes through the seed's own idempotent upsert on the natural

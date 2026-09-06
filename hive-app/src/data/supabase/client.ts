@@ -7,17 +7,21 @@
  */
 import {
   createClient,
+  isAuthApiError,
+  isAuthRetryableFetchError,
   processLock,
   type Session,
   type SupabaseClient,
 } from '@supabase/supabase-js';
 
-import type {
-  AuthGateway,
-  AuthListenerEvent,
-  ClientBundle,
-  MembershipGateway,
-  SessionInfo,
+import {
+  type AuthGateway,
+  type AuthListenerEvent,
+  type ClientBundle,
+  type MembershipGateway,
+  SessionExpiredError,
+  type SessionInfo,
+  SessionOfflineError,
 } from '@/auth/client-lifecycle';
 import type { SessionStorage } from '@/auth/controller';
 import { decodeSupabaseTotpQr, flattenQrSvg, splitTotpFactors } from '@/auth/mfa-contract';
@@ -74,6 +78,17 @@ export function bridgeStorage(storage: SessionStorage, gate: SessionWriteGate) {
   };
 }
 
+/** What a failed getSession() means (2026-09-06 review). The only server
+ * call inside getSession() is the refresh of a lapsed stored session, so:
+ * a 4xx from the auth API is the server REJECTING the refresh token
+ * (revoked, rotated, expired) — a dead session; a retryable fetch error is
+ * an unreachable server — an offline launch; anything else stays fatal. */
+export function classifyGetSessionError(error: unknown): 'expired' | 'offline' | 'other' {
+  if (isAuthRetryableFetchError(error)) return 'offline';
+  if (isAuthApiError(error) && error.status >= 400 && error.status < 500) return 'expired';
+  return 'other';
+}
+
 async function currentAal(client: HiveSupabaseClient): Promise<'aal1' | 'aal2'> {
   const { data, error } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
   if (error) return 'aal1';
@@ -101,7 +116,12 @@ function makeAuthGateway(client: HiveSupabaseClient): AuthGateway {
   return {
     async getSession(): Promise<SessionInfo | null> {
       const { data, error } = await client.auth.getSession();
-      if (error) throw error;
+      if (error) {
+        const kind = classifyGetSessionError(error);
+        if (kind === 'expired') throw new SessionExpiredError();
+        if (kind === 'offline') throw new SessionOfflineError();
+        throw error;
+      }
       return toSessionInfo(client, data.session);
     },
     async requestOtp(email: string): Promise<void> {

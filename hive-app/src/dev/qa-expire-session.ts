@@ -2,15 +2,18 @@
  *
  * The expired-session device flow needs an executable way to make the
  * STORED session expired — not corrupt. A server-side session revoke
- * cannot produce that state: the app reads its session locally with
- * `autoRefreshToken: false`, so the stored access token is a JWT that
- * PostgREST validates statelessly until its own `exp`, and the app's
- * boot check keys off the session's `expires_at`, never off server
- * session rows (find 20, 2026-09-04). This hook rewrites the persisted
- * session's `expires_at` into the past THROUGH the versioned storage
- * adapter, so the digest is recomputed and the session still VERIFIES —
- * it is simply expired. The next boot takes the expiry branch and lands
- * on signed_out with the "session ended" reason, never quarantine.
+ * cannot produce that state on its own: the stored access token is a JWT
+ * that stays usable until its own `exp`, an hour out (find 20,
+ * 2026-09-04). And expiring the stored token alone is not enough either:
+ * the auth library refreshes a lapsed stored session at boot regardless
+ * of `autoRefreshToken` (2026-09-06 review), so a valid refresh token
+ * would silently resurrect it. This hook therefore rewrites the persisted
+ * session THROUGH the versioned storage adapter — digest recomputed, so it
+ * still VERIFIES — with `expires_at` in the past AND an inert refresh
+ * token. The next boot attempts the refresh, the auth server definitively
+ * rejects it, the gateway maps that rejection to SessionExpiredError, and
+ * the controller takes the expiry branch: local cleanup, then signed_out
+ * with the "session ended" reason. Never quarantine, never fatal.
  *
  * This is the deliberate counterpart to qa-corrupt-storage: corruption
  * makes the session UNVERIFIABLE (-> storage_quarantined); expiry makes
@@ -32,6 +35,14 @@
 import { SessionStorageAdapter, type SecureStoreBackend } from '@/auth/secure-store-adapter';
 
 export const QA_EXPIRE_HOOK_MARKER = 'HIVE_QA_EXPIRE_HOOK';
+
+/** An obviously synthetic, inert refresh token. The auth library refreshes
+ * a lapsed stored session at boot regardless of autoRefreshToken (2026-09-06
+ * review), so expiring the access token alone would be silently undone by
+ * a valid refresh token. With this value in its place the refresh is
+ * definitively REJECTED (invalid_grant), which the gateway maps to the
+ * expiry branch — exactly the real "revoked session" shape. */
+export const QA_EXPIRED_REFRESH_TOKEN = 'HIVE_QA_EXPIRED_REFRESH_TOKEN';
 
 /** The one exact QA deep link: hivedev:///?qa=expire-session
  *
@@ -90,6 +101,7 @@ export function expireSessionEnvelope(raw: string): string | null {
     ...session,
     expires_at: EXPIRED_AT_SECONDS,
     expires_in: 0,
+    refresh_token: QA_EXPIRED_REFRESH_TOKEN,
   });
 }
 

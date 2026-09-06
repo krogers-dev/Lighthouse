@@ -9,15 +9,17 @@ name: Expired/revoked session fails closed into a fresh sign-in
 #      non-development exports (bundle:inspect:candidate).
 #   2. The app is signed in with a workspace selectable (sign-in.yaml).
 #
-# Why a QA hook and not a server-side revoke (find 20): the app reads its
-# session locally with autoRefreshToken off, so the stored access token is
-# a JWT that PostgREST validates statelessly until its own exp, and the
-# boot check keys off the session's expires_at — never off server session
-# rows. Deleting auth.sessions therefore leaves the app reading until the
-# token expires an hour later. This hook rewrites the STORED session's
-# expires_at into the past THROUGH the versioned storage adapter, so the
-# session still verifies (no quarantine) but is expired: the next boot
-# takes the expiry branch and signs out with the "session ended" reason.
+# Why a QA hook and not a server-side revoke (find 20, corrected by the
+# 2026-09-06 review): the stored access token stays usable until its own
+# exp, an hour out, so deleting auth.sessions changes nothing for that
+# hour; and the auth library refreshes a lapsed stored session at boot, so
+# merely expiring the token would be undone by a valid refresh token. The
+# hook rewrites the STORED session through the versioned storage adapter
+# (still verifies, no quarantine) with expires_at in the past AND an inert
+# refresh token: the boot refresh is definitively rejected, the gateway
+# maps that to SessionExpiredError, and the app takes the expiry branch —
+# local cleanup, then the "session ended" notice. This is the real
+# revoked-session shape, reproduced deterministically.
 # The hook renders a QA-only acknowledgment; the flow WAITS for it before
 # stopping the app, so the expiry write cannot be cut short.
 ---

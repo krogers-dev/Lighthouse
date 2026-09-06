@@ -13,7 +13,13 @@ import type { MembershipId } from '@/core/ids';
 import type { ClearReason, ScopedRegistry } from '@/tenancy/clearing';
 import { membershipsRequireAal2, type Membership } from '@/tenancy/types';
 
-import { ClientLifecycle, type ClientBundle, type SessionInfo } from './client-lifecycle';
+import {
+  ClientLifecycle,
+  type ClientBundle,
+  type SessionInfo,
+  SessionExpiredError,
+  SessionOfflineError,
+} from './client-lifecycle';
 import type { InstallMarker } from './install-marker';
 import {
   createAuthReducer,
@@ -214,6 +220,18 @@ export class AuthController {
         try {
           session = await bundle.auth.getSession();
         } catch (error) {
+          if (error instanceof SessionExpiredError) {
+            // A dead session (refresh rejected) is the expiry branch, never
+            // fatal: local cleanup, then a fresh sign-in with the reason.
+            const cleaned = await this.cleanupLocalSession('expiry');
+            if (cleaned) this.dispatch({ type: 'BOOTED_EXPIRED' });
+            return;
+          }
+          if (error instanceof SessionOfflineError) {
+            // Offline launch: never cached protected content, safe recovery only.
+            this.dispatch({ type: 'BOOTED_OFFLINE' });
+            return;
+          }
           this.handleStorageOrFatal(error);
           return;
         }

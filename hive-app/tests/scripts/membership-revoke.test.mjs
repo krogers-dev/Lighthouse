@@ -18,6 +18,7 @@ import {
   resolveRevokeTarget,
   revokePath,
   rowKey,
+  verifyDeletedCount,
   verifyRestored,
   verifyRevoked,
 } from '../../scripts/lib/membership-revoke.mjs';
@@ -100,6 +101,14 @@ test('revoke verification demands an empty readback', () => {
   assert.equal(verifyRevoked('not a list').length, 1);
 });
 
+test('NEGATIVE: a zero-row delete is not a revoke (review P2-F), and readback mirrors the delete', () => {
+  const target = resolveRevokeTarget('client.owner@example.invalid', 'entityA1');
+  assert.deepEqual(verifyDeletedCount(target.expected.length, target.expected), []);
+  assert.match(verifyDeletedCount(0, target.expected).join(''), /deleted 0 — nothing proven/);
+  assert.match(verifyDeletedCount(2, target.expected).join(''), /deleted 2/);
+  assert.equal(readbackPath(target), revokePath(target));
+});
+
 test('restore verification demands every expected row back and nothing else on the pair', () => {
   const target = resolveRevokeTarget('client.owner@example.invalid', 'entityA1');
   const row = target.expected[0];
@@ -175,8 +184,13 @@ test("NEGATIVE: a revoke request must name exactly the run's target", () => {
 });
 
 test('the runner passes the endpoint to the flow through Maestro -e, before the flow file', async () => {
-  const { flowArgsWithEnv, SEQUENCE, TARGET_EMAIL, TARGET_ENTITY } =
+  const { flowArgsWithEnv, SEQUENCE, TARGET_EMAIL, TARGET_ENTITY, DENIED_RUN_ROOT_PREFIX } =
     await import('../../scripts/maestro-denied-runner.mjs');
+  const { RUN_ROOT_PREFIX, isStaleRunRoot } =
+    await import('../../scripts/maestro-enroll-runner.mjs');
+  // Own prefix, never swept by the enrollment runner (review P2-D).
+  assert.notEqual(DENIED_RUN_ROOT_PREFIX, RUN_ROOT_PREFIX);
+  assert.ok(!isStaleRunRoot(DENIED_RUN_ROOT_PREFIX + 'x'));
   const args = flowArgsWithEnv(
     'read-surfaces-denied.yaml',
     { debugDir: '/tmp/d', testOutputDir: '/tmp/a' },

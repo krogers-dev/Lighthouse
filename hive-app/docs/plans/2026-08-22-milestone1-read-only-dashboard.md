@@ -2274,3 +2274,99 @@ What ratification now costs Kody: one written sentence, then the two
 printed commands. On his word the implementer runs `draft` and `apply`,
 commits the flip, and he keeps the record file and runs the verification
 line on his machine.
+
+## 2026-09-06, late night — independent review of the day's four commits: seven findings, all fixed
+
+Before the desktop reran anything, a separate reviewer read the day's
+range (`45999cc..1295070`: the find-36 fix, the pin refresh, find 20,
+find 21, the ratification tooling) against the installed library sources
+and the runners' process model. Three P1 findings and four P2 findings,
+every one reproduced from the code rather than argued, all fixed here.
+
+### P1-B — the find-36 fix hardened the wrong thing; the root cause was the exit
+
+The morning's watchdog and tree-kill are real hardening, but they were not
+why `maestro:enroll` sat "alive, no Maestro child, no further output"
+after its OK line. The totp-helper is a live ChildProcess with a listening
+socket; it keeps Node's event loop alive, so after the final
+`console.log` the runner simply never reached exit, the `process.on('exit')`
+cleanup never fired, and the helper stayed up with the setup secret in
+memory. That is the hang Kody saw, and it fails OPEN. The runner now calls
+`cleanup('success')` explicitly, checks its outcome, prints OK only over a
+verified cleanup, and calls `process.exit(0)`; the confinement probe does
+the same. `revokeFactor` and `scrubClipboard` return booleans and set
+`process.exitCode = 1` on failure (P2-E), so a failed cleanup step can no
+longer hide behind a successful run's exit code.
+
+### P1-A — the denied runner had the identical defect, worse
+
+Its in-process revoke endpoint is a listening server: after the OK line
+the process stayed alive, exit-time cleanup never ran, and the seeded
+membership stayed REVOKED while the OK text claimed it restored. Same
+fix: explicit cleanup returning `{ restored }`, OK only when restored,
+explicit exit; `restoreMembership` sets `exitCode = 1` on failure.
+
+### P1-C — find 20's premise was wrong, and it hid a product defect
+
+Find 20 said the app reads its session locally with `autoRefreshToken`
+off, so a server-side revoke changes nothing until the token's own `exp`.
+The second half is true; the first half is not. Read from the installed
+auth-js 2.112.3 (`__loadSession` → `_callRefreshToken`): `getSession()`
+refreshes a lapsed stored session at boot regardless of
+`autoRefreshToken`, which only governs the background timer. So the QA
+hook's expired `expires_at` alone would have been silently undone by the
+still-valid refresh token, and `expired-session.yaml` would never have
+seen the notice.
+
+The defect underneath is independent of the hook: a stored session whose
+refresh the auth server REJECTS at boot (revoked, rotated, expired refresh
+token — the real "session ended" case) surfaced as an error from
+`getSession()`, which the controller routed through `handleStorageOrFatal`
+to the FATAL screen, never the expiry branch. Fixed at the port: the
+gateway classifies a failed `getSession()` (`classifyGetSessionError`: a
+retryable fetch error is an unreachable server → `SessionOfflineError`; an
+auth API 4xx is the server rejecting the refresh → `SessionExpiredError`;
+anything else stays fatal), and boot maps the two to
+`cleanupLocalSession('expiry')` + `BOOTED_EXPIRED` and to
+`BOOTED_OFFLINE`. The hook now also replaces the stored refresh token with
+the inert `HIVE_QA_EXPIRED_REFRESH_TOKEN`, so the boot refresh is
+definitively rejected: the flow exercises exactly the real revoked-session
+path. One more thing the library does, pinned by a test: on that rejection
+it removes the stored session and notifies `SIGNED_OUT` before returning;
+the controller's listener enqueues a sign-out sequence that finds
+`signed_out` and returns, so there is exactly one deletion and one remote
+revocation, never two.
+
+### P2 — four smaller fail-open edges
+
+- **P2-D** One shared run-root prefix let either runner sweep a concurrent
+  peer's confined artifact directories mid-flow. Each runner now owns its
+  prefix (`hive-maestro-enroll-`, `hive-maestro-denied-`) and sweeps only
+  that.
+- **P2-F** A zero-row DELETE proved nothing: had a prior restore failed,
+  the flow would have proceeded having revoked nothing. `verifyDeletedCount`
+  demands exactly the seeded rows gone, alongside the empty readback.
+- **P2-G** A signal during an in-flight revoke could let the restore run
+  first and the queued delete undo it. Signal handlers now await the
+  in-flight revoke (bounded, 5 s) before cleanup.
+- **Nits** `killTree` also skips a signal-killed, reaped child (never
+  signal a pgid that may have been reused); `readbackPath` is
+  `revokePath` by construction so the two filters cannot drift; the hook
+  and flow headers state the corrected premise.
+
+### Gates fresh (build container)
+
+typecheck 0; jest **416 passed, 32 suites** (session-error classification
+3, controller boot 3 new); node:test **350 passed, 0 failed**; eslint
+`--max-warnings 0` clean; prettier and format:check clean;
+maestro:validate OK (18 flows, 5 helper scripts); both runners smoke-HOLD
+at exit 3 here (no Maestro binary).
+
+### State
+
+Desktop evidence owed is unchanged in kind but the code under it changed:
+the find-36 rerun (`maestro:enroll`, `maestro:confinement`; 4 flows), the
+QA build for `expired-session` (1 flow), and `maestro:denied` (1 flow)
+must all run on this head. A `maestro:enroll` started on the pre-fix code
+will still hang after its OK line — Ctrl+C once, then `git pull`. Nothing
+is claimed verified on a device until it is.

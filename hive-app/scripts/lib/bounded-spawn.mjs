@@ -30,7 +30,7 @@ export function killTreeCommand(pid, platform = process.platform) {
 
 /** Kill a child and everything under it. Safe on an already-exited child. */
 export function killTree(child, platform = process.platform) {
-  if (!child || child.pid == null || child.exitCode !== null) return;
+  if (!child || child.pid == null || child.exitCode !== null || child.signalCode !== null) return;
   const kill = killTreeCommand(child.pid, platform);
   if (kill) {
     spawnSync(kill.command, kill.args, { stdio: 'ignore', timeout: 15_000, killSignal: 'SIGKILL' });

@@ -54,6 +54,7 @@ import {
   readbackPath,
   resolveRevokeTarget,
   revokePath,
+  verifyDeletedCount,
   verifyRevoked,
 } from './lib/membership-revoke.mjs';
 import { resolveServiceCredentials } from './local-supabase.mjs';
@@ -61,10 +62,8 @@ import {
   CLEANUP_STEP_TIMEOUT_MS,
   DEFAULT_MAESTRO_TESTS,
   PROBE_TIMEOUT_MS,
-  RUN_ROOT_PREFIX,
   detectDefaultLocationLeak,
   flowTimeoutMs,
-  isStaleRunRoot,
   lookupMaestroCommand,
   maestroArgs,
   maestroCommand,
@@ -83,6 +82,11 @@ export const TARGET_ENTITY = 'entityA1';
 /** sign-in.yaml already signs in as TARGET_EMAIL; the flow then resumes
  * that session, so the lane is self-contained. Sequential by construction. */
 export const SEQUENCE = ['sign-in.yaml', 'read-surfaces-denied.yaml'];
+
+/** This runner's OWN run-root prefix. Each runner sweeps only its own
+ * leftovers: a shared prefix let one runner delete a concurrent peer's
+ * confined artifact directories mid-flow (2026-09-06 review, P2-D). */
+export const DENIED_RUN_ROOT_PREFIX = 'hive-maestro-denied-';
 
 /** Maestro `-e` makes a value a GraalJS global for every script in the
  * flow; the flag must precede the flow file. This is how the flow learns
@@ -241,7 +245,7 @@ if (isMain) {
   // Sweep run roots a hand-killed run left behind, loudly; then a private
   // run root, 0700 on POSIX (Windows %TEMP% is already user-ACL'd).
   for (const entry of readdirSync(tmpdir())) {
-    if (!isStaleRunRoot(entry)) continue;
+    if (!entry.startsWith(DENIED_RUN_ROOT_PREFIX)) continue;
     const stale = path.join(tmpdir(), entry);
     try {
       rmSync(stale, { recursive: true, force: true });
@@ -256,7 +260,7 @@ if (isMain) {
       console.log(`maestro:denied: removed stale run root from a previous run (${stale})`);
     }
   }
-  const runRoot = mkdtempSync(path.join(tmpdir(), RUN_ROOT_PREFIX));
+  const runRoot = mkdtempSync(path.join(tmpdir(), DENIED_RUN_ROOT_PREFIX));
   if (process.platform !== 'win32') execFileSync('chmod', ['700', runRoot]);
   const debugDir = privateDir(runRoot, 'debug');
   const testOutputDir = privateDir(runRoot, 'artifacts');
@@ -290,22 +294,29 @@ if (isMain) {
     );
     if (result.status === 0) {
       console.log(`maestro:denied: membership restored and verified (${reason})`);
-      return;
+      return true;
     }
+    // A failed restore must never hide behind a successful run's exit code
+    // (2026-09-06 review, P2-E).
+    process.exitCode = 1;
     const timedOut = result.error && result.error.code === 'ETIMEDOUT';
     console.error(
       `maestro:denied: MEMBERSHIP RESTORE FAILED (${reason})${timedOut ? ` — timed out after ${CLEANUP_STEP_TIMEOUT_MS}ms` : ''} — run \`node scripts/local-supabase.mjs restore-membership ${target.email} ${target.entityKey}\` by hand (or \`seed\`) before the next device flow`,
     );
+    return false;
   }
 
+  /** Returns { restored } so the success path can refuse to report OK over
+   * a failed restore. Runs once; later calls are no-ops. */
+  let cleanupOutcome = null;
   function cleanup(reason) {
-    if (cleanedUp) return;
+    if (cleanedUp) return cleanupOutcome ?? { restored: false };
     cleanedUp = true;
     // 0. A Maestro invocation still in flight holds the device and open
     //    handles under the run root.
     killTree(inFlight);
     // 1. Put the seeded membership back, verified, on every path.
-    restoreMembership(reason);
+    const restored = restoreMembership(reason);
     // 2. Stop answering revokes.
     server?.close();
     // 3. Scrub the artifact tree, verified.
@@ -315,12 +326,27 @@ if (isMain) {
     } else {
       console.log(`maestro:denied: artifact tree scrubbed (${runRoot} removed and verified gone)`);
     }
+    cleanupOutcome = { restored };
+    return cleanupOutcome;
   }
+
+  /** The revoke request in flight, if any: a signal must let it land (or
+   * time out) BEFORE the restore runs, or the restore could be verified
+   * and then undone by a delete that was still queued (review, P2-G). */
+  let inFlightRevoke = null;
 
   process.on('exit', () => cleanup('process exit'));
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
-    process.on(signal, () => {
+    process.on(signal, async () => {
       console.error(`maestro:denied: received ${signal} — cleaning up`);
+      if (inFlightRevoke) {
+        // Bounded wait; a rejected revoke must not turn the signal path into
+        // an unhandled rejection — cleanup below restores either way.
+        await Promise.race([
+          inFlightRevoke,
+          new Promise((resolve) => setTimeout(resolve, 5000)),
+        ]).catch(() => {});
+      }
       cleanup(signal);
       process.exit(1);
     });
@@ -356,9 +382,55 @@ if (isMain) {
     response.end(JSON.stringify(payload));
   }
 
+  async function performRevoke(response, body) {
+    const parsed = parseRevokeRequest(body, target);
+    if (parsed.problem) {
+      answer(response, 400, { error: parsed.problem });
+      return;
+    }
+    if (revoked) {
+      answer(response, 409, { error: 'already revoked in this run' });
+      return;
+    }
+    // Flagged BEFORE the delete goes out: if the run dies mid-request,
+    // cleanup still restores.
+    revoked = true;
+    try {
+      const deleted = await rest(revokePath(target), {
+        method: 'DELETE',
+        headers: { Prefer: 'return=representation' },
+      });
+      if (!deleted.ok) {
+        answer(response, 502, { error: `PostgREST delete answered ${deleted.status}` });
+        return;
+      }
+      // A zero-row delete proves nothing (review, P2-F): the membership
+      // must have been present and must now be gone.
+      const count = Array.isArray(deleted.json) ? deleted.json.length : 0;
+      const readback = await rest(readbackPath(target), { method: 'GET' });
+      const problems = [
+        ...verifyDeletedCount(count, target.expected),
+        ...(readback.ok
+          ? verifyRevoked(readback.json)
+          : [`revoke readback answered ${readback.status}`]),
+      ];
+      if (problems.length > 0) {
+        answer(response, 502, { error: problems.join('; ') });
+        return;
+      }
+      console.log(
+        `maestro:denied: membership revoked mid-flow (${count} row(s) deleted); readback verified zero`,
+      );
+      answer(response, 200, { ok: true, revoked: count });
+    } catch (error) {
+      answer(response, 502, { error: `revoke failed: ${error.message}` });
+    }
+  }
+
   // The loopback, single-use revoke endpoint. Loopback callers only; the
   // request must name exactly this run's target; the second call is
-  // refused; the revoke is readback-verified before it is reported.
+  // refused; the revoke is count- and readback-verified before it is
+  // reported.
   server = createServer((request, response) => {
     if (!isLoopbackAddress(request.socket.remoteAddress ?? '')) {
       answer(response, 403, { error: 'loopback callers only' });
@@ -373,44 +445,10 @@ if (isMain) {
       body += chunk;
       if (body.length > 4096) request.destroy();
     });
-    request.on('end', async () => {
-      const parsed = parseRevokeRequest(body, target);
-      if (parsed.problem) {
-        answer(response, 400, { error: parsed.problem });
-        return;
-      }
-      if (revoked) {
-        answer(response, 409, { error: 'already revoked in this run' });
-        return;
-      }
-      // Flagged BEFORE the delete goes out: if the run dies mid-request,
-      // cleanup still restores.
-      revoked = true;
-      try {
-        const deleted = await rest(revokePath(target), {
-          method: 'DELETE',
-          headers: { Prefer: 'return=representation' },
-        });
-        if (!deleted.ok) {
-          answer(response, 502, { error: `PostgREST delete answered ${deleted.status}` });
-          return;
-        }
-        const readback = await rest(readbackPath(target), { method: 'GET' });
-        const problems = readback.ok
-          ? verifyRevoked(readback.json)
-          : [`revoke readback answered ${readback.status}`];
-        if (problems.length > 0) {
-          answer(response, 502, { error: problems.join('; ') });
-          return;
-        }
-        const count = Array.isArray(deleted.json) ? deleted.json.length : 0;
-        console.log(
-          `maestro:denied: membership revoked mid-flow (${count} row(s) deleted); readback verified zero`,
-        );
-        answer(response, 200, { ok: true, revoked: count });
-      } catch (error) {
-        answer(response, 502, { error: `revoke failed: ${error.message}` });
-      }
+    request.on('end', () => {
+      inFlightRevoke = performRevoke(response, body).finally(() => {
+        inFlightRevoke = null;
+      });
     });
   });
   await new Promise((resolve, reject) => {
@@ -462,7 +500,18 @@ if (isMain) {
     );
   }
 
+  // Explicit, verified cleanup, then EXIT: the listening server would
+  // otherwise keep the process alive after the OK line, the exit handler
+  // would never fire, and the membership would stay revoked while the OK
+  // text claimed otherwise (2026-09-06 review, P1-A).
+  const outcome = cleanup('success');
+  if (!outcome.restored) {
+    fail(
+      `the flows passed but the membership restore FAILED — run \`node scripts/local-supabase.mjs restore-membership ${target.email} ${target.entityKey}\` now, before any other device flow`,
+    );
+  }
   console.log(
-    'maestro:denied OK — signed in, requests listed, membership revoked MID-FLOW, refresh showed the access change with no stale row; membership restored and verified by cleanup, artifacts confined and removed',
+    'maestro:denied OK — signed in, requests listed, membership revoked MID-FLOW, refresh showed the access change with no stale row; membership restored and verified, artifacts confined and removed',
   );
+  process.exit(0);
 }

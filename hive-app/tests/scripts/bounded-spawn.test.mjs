@@ -22,6 +22,9 @@ test('the tree kill is taskkill /T on Windows and a process-group signal elsewhe
   killTree(null);
   killTree({ pid: null, exitCode: null });
   killTree({ pid: 1, exitCode: 0 });
+  // A signal-killed, reaped child is gone too: never signal a pgid that may
+  // have been reused (review nit).
+  killTree({ pid: 1, exitCode: null, signalCode: 'SIGKILL' });
 });
 
 test('settles on exit + drain even when a grandchild holds the pipe open', posixOnly, async () => {

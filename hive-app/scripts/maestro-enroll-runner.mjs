@@ -231,9 +231,10 @@ export function killTreeCommand(pid, platform = process.platform) {
 
 /** Run roots are created as mkdtemp(tmpdir()/RUN_ROOT_PREFIX). A run that
  * hung and was killed by hand leaves its root behind; startup sweeps every
- * entry matching the prefix. Concurrent runs are excluded by the helper
- * port check, so a match is always a leftover, never a peer. */
-export const RUN_ROOT_PREFIX = 'hive-maestro-';
+ * entry matching THIS runner's prefix only — the denied runner has its own
+ * (2026-09-06 review, P2-D) — so a match is always a leftover, never a
+ * concurrent peer's confined artifacts. */
+export const RUN_ROOT_PREFIX = 'hive-maestro-enroll-';
 export function isStaleRunRoot(name) {
   return name.startsWith(RUN_ROOT_PREFIX);
 }
@@ -266,7 +267,7 @@ if (isMain) {
   let inFlight = null;
 
   function killTree(child) {
-    if (!child || child.pid == null || child.exitCode !== null) return;
+    if (!child || child.pid == null || child.exitCode !== null || child.signalCode !== null) return;
     const kill = killTreeCommand(child.pid);
     if (kill) {
       spawnSync(kill.command, kill.args, {
@@ -491,6 +492,9 @@ if (isMain) {
       console.log(`maestro:enroll: factor revoked and verified clean (${reason})`);
       return true;
     }
+    // A failed cleanup step must never hide behind a successful run's exit
+    // code (2026-09-06 review, P2-E).
+    process.exitCode = 1;
     const timedOut = result.error && result.error.code === 'ETIMEDOUT';
     console.error(
       `maestro:enroll: FACTOR REVOCATION FAILED (${reason})${timedOut ? ` — timed out after ${CLEANUP_STEP_TIMEOUT_MS}ms` : ''} — run \`node scripts/local-supabase.mjs reset-totp ${QA_EMAIL}\` by hand and verify zero factors`,
@@ -521,7 +525,10 @@ if (isMain) {
     });
     if (result.status === 0) {
       console.log(`maestro:enroll: device clipboard overwritten (${reason})`);
-    } else if (result.error && result.error.code === 'ETIMEDOUT') {
+      return true;
+    }
+    process.exitCode = 1;
+    if (result.error && result.error.code === 'ETIMEDOUT') {
       console.error(
         `maestro:enroll: CLIPBOARD SCRUB TIMED OUT after ${CLEANUP_STEP_TIMEOUT_MS}ms (${reason}) — overwrite the device clipboard manually before releasing the device`,
       );
@@ -530,10 +537,14 @@ if (isMain) {
         `maestro:enroll: CLIPBOARD SCRUB FAILED (${reason}) — overwrite the device clipboard manually before releasing the device`,
       );
     }
+    return false;
   }
 
+  /** Returns { scrubbed, revoked } so a success path can refuse to report OK
+   * over a failed cleanup. Runs once; later calls are no-ops. */
+  let cleanupOutcome = null;
   function cleanup(reason) {
-    if (cleanedUp) return;
+    if (cleanedUp) return cleanupOutcome ?? { scrubbed: false, revoked: false };
     cleanedUp = true;
     // 0. Kill any Maestro invocation still in flight (a SIGINT mid-flow
     //    lands here with the flow running — reachable now that the event
@@ -548,9 +559,9 @@ if (isMain) {
       console.log('maestro:enroll: totp-helper terminated (in-memory secret discarded)');
     }
     // 2. Overwrite the device clipboard on EVERY exit path.
-    scrubClipboard(reason);
+    const scrubbed = scrubClipboard(reason);
     // 3. Revoke the disposable factor if enrollment may have created one.
-    if (factorMayExist) revokeFactor(reason);
+    const revoked = factorMayExist ? revokeFactor(reason) : true;
     // 4. Scrub every artifact directory, verified.
     rmSync(runRoot, { recursive: true, force: true });
     if (existsSync(runRoot)) {
@@ -558,6 +569,8 @@ if (isMain) {
     } else {
       console.log(`maestro:enroll: artifact tree scrubbed (${runRoot} removed and verified gone)`);
     }
+    cleanupOutcome = { scrubbed, revoked };
+    return cleanupOutcome;
   }
 
   process.on('exit', () => cleanup('process exit'));
@@ -646,6 +659,12 @@ if (isMain) {
         'no screenshot was captured by the forced failure — the confinement claim would be unproven (check --test-output-dir support in the pinned Maestro CLI)',
       );
     }
+    const proofCleanup = cleanup('confinement proof');
+    if (!proofCleanup.scrubbed || !proofCleanup.revoked) {
+      fail(
+        'the probe ran but cleanup FAILED (see above) — finish it by hand before releasing the device',
+      );
+    }
     console.log(
       'maestro:enroll CONFINEMENT PROOF OK — the QR-bearing failure artifact was confined to the private run root and is now scrubbed (no such screenshot is retained)',
     );
@@ -692,7 +711,20 @@ if (isMain) {
     }
   }
 
+  // Explicit, verified cleanup, then EXIT. This is the ROOT CAUSE of find
+  // 36, found by the 2026-09-06 review: the totp-helper ChildProcess kept
+  // the event loop alive after this OK line, so the process never exited,
+  // the exit-time cleanup never ran, and the helper stayed listening with
+  // the setup secret in memory — "runner alive, no Maestro child, no
+  // further output". The watchdog above is real hardening; this is the fix.
+  const outcome = cleanup('success');
+  if (!outcome.scrubbed || !outcome.revoked) {
+    fail(
+      'the sequence passed but cleanup FAILED (see above) — finish it by hand before releasing the device',
+    );
+  }
   console.log(
-    'maestro:enroll OK — reset -> enroll -> sign-out -> login on the SAME factor -> revoke completed sequentially; helper terminated, clipboard scrubbed by the flow, artifacts confined and removed',
+    'maestro:enroll OK — reset -> enroll -> sign-out -> login on the SAME factor -> revoke completed sequentially; helper terminated, clipboard scrubbed, artifacts confined and removed',
   );
+  process.exit(0);
 }

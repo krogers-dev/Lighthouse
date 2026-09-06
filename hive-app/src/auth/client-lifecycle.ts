@@ -34,8 +34,11 @@ export interface TotpEnrollment {
 /** Narrow port over the auth surface the controller needs. Implemented for
  * supabase-js in src/data/supabase/client.ts and by fakes in tests. */
 export interface AuthGateway {
-  /** Reads the locally persisted session. Storage problems surface as
-   * QuarantineRequiredError from the storage adapter. */
+  /** Reads the locally persisted session, refreshing it when its access
+   * token has lapsed. Storage problems surface as QuarantineRequiredError
+   * from the storage adapter; a refresh the auth server definitively
+   * rejects surfaces as SessionExpiredError; an unreachable auth server
+   * surfaces as SessionOfflineError. */
   getSession(): Promise<SessionInfo | null>;
   /** Sends an email OTP with shouldCreateUser: false (invite-only). */
   requestOtp(email: string): Promise<void>;
@@ -63,6 +66,27 @@ export interface ClientBundle {
   readonly memberships: MembershipGateway;
   /** Releases underlying resources. Idempotent. */
   dispose(): void;
+}
+
+/** The stored session exists but the auth server definitively REJECTED its
+ * refresh (revoked, rotated, or expired refresh token): a dead session.
+ * Boot takes the expiry branch — local cleanup, then signed_out with the
+ * "session ended" reason — never fatal. Found by the 2026-09-06 review:
+ * before this, a dead session at boot landed on the fatal screen. */
+export class SessionExpiredError extends Error {
+  constructor() {
+    super('Stored session is dead: the auth server rejected its refresh');
+    this.name = 'SessionExpiredError';
+  }
+}
+
+/** The stored session could not be refreshed because the auth server was
+ * unreachable: an OFFLINE launch, never an expired one. */
+export class SessionOfflineError extends Error {
+  constructor() {
+    super('Stored session could not be refreshed: auth server unreachable');
+    this.name = 'SessionOfflineError';
+  }
 }
 
 export class ClientFrozenError extends Error {
