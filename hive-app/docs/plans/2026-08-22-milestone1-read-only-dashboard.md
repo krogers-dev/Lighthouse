@@ -2223,3 +2223,54 @@ maestro:denied` (this entry; 1 flow). Success on all three is **18 of
 items unchanged: the four history exceptions (ratify by written
 statement), the iOS lane (Expo account/terms, hardware; deferred), and
 Stacie's client wording (current text kept).
+
+## 2026-09-06, night — ratification tooling, dry-run proven against the real gate
+
+Kody delegated the open decisions and asked for everything that needs no
+intervention. The last red gate, `secrets:scan`, is HOLD on four proposed
+history exceptions that only his written word can ratify — but the
+mechanics around that word were a multi-step, error-prone procedure with
+no tooling. Now there is tooling, and it is proven.
+
+`scripts/ratification-record.mjs` has two subcommands. `draft --out
+<file>` writes the approver's decision record — approver, role, action
+`history-exception-ratification`, the manifest digest over the whole
+effective allowlist exactly as the gate computes it, the candidate commit,
+destination, approval time, the shared expiry, and the four bound entries
+— and REFUSES an output path inside the repository, mirroring the loader's
+rule. `apply --digest --ratified-on` flips every proposed entry to
+ratified with the provenance the verifier demands, touching no substantive
+field, so the bound manifest digest is unchanged by it. Both are pure
+decisions with an `isMain` guard; seven tests verify a drafted record
+against the real `verifyRatification` for every live entry, pin the
+digest's determinism, and cover the refusals.
+
+Nothing about the approval model moved. The record still lives outside
+the repo, is still supplied through `HIVE_APPROVAL_RECORDS` with its
+digest stated independently through `HIVE_APPROVAL_DIGESTS`, and names
+the candidate commit whose substance it approves, so verification runs
+with `HIVE_CANDIDATE_SHA` set to that commit — the entry flip is itself a
+later commit, and a record cannot name the commit that carries its own
+digest. The tooling drafts; only the approver's written ratification and
+their out-of-band custody of the file make it authority.
+
+### The proof
+
+The whole procedure was dry-run in the build container against the real
+gate, with a throwaway record: `draft` to `/tmp` (outside the repo),
+`apply` on the working tree, then
+
+    HIVE_CANDIDATE_SHA=825cd11… HIVE_APPROVAL_RECORDS=/tmp/… HIVE_APPROVAL_DIGESTS=a6a08dc0… npm run secrets:scan
+
+answered **`secrets:scan OK`, exit 0** — self-test ok, 264 tracked files,
+703 history blobs with completeness verified, 4 history-exception entries
+reconciled covering 5 historical matches, secretlint clean. The first
+clean pass of that gate in the project. The allowlist was then reverted
+with `git checkout` and the record deleted: nothing is ratified, nothing
+was committed by the proof, and the tree carried only the two new tooling
+files afterwards.
+
+What ratification now costs Kody: one written sentence, then the two
+printed commands. On his word the implementer runs `draft` and `apply`,
+commits the flip, and he keeps the record file and runs the verification
+line on his machine.
