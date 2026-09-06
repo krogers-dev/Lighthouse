@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
+import YAML from 'yaml';
+
 import {
+  FORBIDDEN_COMMANDS,
+  KNOWN_COMMANDS,
   collectTestIds,
   collectTestIdsFromText,
   validateAllFlows,
@@ -99,6 +104,16 @@ test('collectTestIds reads the three forms a real testID is written in', () => {
   ]) {
     assert.ok(ids.has(id), `${id} should be collected from a testID table`);
   }
+});
+
+test('a prop ending in TestID declares a testID (find 37: TextField labelTestID)', () => {
+  const ids = collectTestIdsFromText(
+    '<TextField testID="zzz-field" labelTestID="zzz-field-label" />\n' +
+      "const row = { labelTestID: 'zzz-row-label' };\n" +
+      // Not a testID declaration: a lowercase suffix or a different word.
+      '<View testId="zzz-not-a-testid" dataTestID2="zzz-not-either" />\n',
+  );
+  assert.deepEqual([...ids].sort(), ['zzz-field', 'zzz-field-label', 'zzz-row-label']);
 });
 
 test('the testID-table form is parsed, not merely present in some other form', () => {
@@ -390,17 +405,39 @@ test('an unknown scrollUntilVisible field is rejected', () => {
   assert.ok(problems.some((p) => p.includes('sideways')));
 });
 
-// Find 30: with the soft keyboard up (adjustResize) the verify control on
-// the tall enrollment screen could not be tapped and could not even be
-// scrolled to 100% visibility — the keyboard covered it. Dismissing the
-// keyboard first is what a person does, and it needs to be a command the
-// validator knows.
-test('hideKeyboard is a known command and takes no payload', () => {
+// Find 37: hideKeyboard entered the vocabulary for find 30 and left again —
+// on Android it is an unconditional BACK key press, and with no soft
+// keyboard showing it exits the single-entry auth stack. The validator
+// refuses it WITH the reason, so nobody re-adds it as "known".
+test('NEGATIVE: hideKeyboard is forbidden with the reason, and is not merely unknown', () => {
   const base = `appId: com.myhbcfo.hive.development\nname: fixture\n---\n`;
-  assert.deepEqual(validateFlowText(`${base}- hideKeyboard\n`, context), []);
-  const problems = validateFlowText(`${base}- hideKeyboard: 'yes'\n`, context);
-  assert.ok(
-    problems.some((p) => p.includes('takes no payload')),
-    `expected a no-payload problem, got ${JSON.stringify(problems)}`,
-  );
+  const problems = validateFlowText(`${base}- hideKeyboard\n`, context);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /forbidden/);
+  assert.match(problems[0], /BACK/);
+  assert.match(problems[0], /find 37/);
+  assert.ok(!problems[0].includes('unknown Maestro command'));
+  assert.ok(!KNOWN_COMMANDS.has('hideKeyboard'));
+  assert.ok(FORBIDDEN_COMMANDS.has('hideKeyboard'));
+});
+
+test('find 37: the MFA flows blur the code field by its label before every verify tap, never by hideKeyboard', () => {
+  for (const flow of ['mfa-enroll.yaml', 'mfa-login.yaml']) {
+    const text = readFileSync(new URL(`../../.maestro/${flow}`, import.meta.url), 'utf8');
+    const [, stepsDoc] = YAML.parseAllDocuments(text);
+    const steps = stepsDoc.toJS();
+    const name = (step) => (typeof step === 'string' ? step : Object.keys(step)[0]);
+    assert.ok(!steps.some((s) => name(s) === 'hideKeyboard'), `${flow} still uses hideKeyboard`);
+    const submits = steps
+      .map((s, i) => [s, i])
+      .filter(([s]) => name(s) === 'tapOn' && s.tapOn?.id === 'mfa-submit');
+    assert.ok(submits.length > 0, `${flow} taps mfa-submit`);
+    for (const [, i] of submits) {
+      assert.deepEqual(
+        steps[i - 1],
+        { tapOn: { id: 'mfa-code-label' } },
+        `${flow}: the step before tapping mfa-submit (step ${i + 1}) must blur the field by its label`,
+      );
+    }
+  }
 });

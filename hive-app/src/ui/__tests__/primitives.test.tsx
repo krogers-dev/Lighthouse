@@ -67,6 +67,25 @@ describe('TextField', () => {
     await fireEvent.changeText(screen.getByLabelText('Email'), 'person@example.invalid');
     expect(onChange).toHaveBeenCalledWith('person@example.invalid');
   });
+
+  // Find 37: a device flow blurs the field by tapping its label, so the
+  // label must be addressable on request and must never be a control.
+  it('exposes the label as an addressable plain text when asked', async () => {
+    await render(
+      <TextField
+        label="Code"
+        value=""
+        onChangeText={() => undefined}
+        testID="code"
+        labelTestID="code-label"
+      />,
+    );
+    const label = screen.getByTestId('code-label');
+    expect(label.props.children).toBe('Code');
+    expect(label.props.onPress).toBeUndefined();
+    expect(label.props.accessibilityRole).toBeUndefined();
+    expect(screen.queryByRole('button', { name: 'Code' })).toBeNull();
+  });
 });
 
 describe('StatusBadge', () => {

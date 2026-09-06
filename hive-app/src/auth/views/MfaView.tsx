@@ -119,6 +119,7 @@ export function MfaView({
         editable={!verifying}
         onSubmitEditing={() => trimmed.length > 0 && onSubmitCode(trimmed)}
         testID="mfa-code"
+        labelTestID="mfa-code-label"
       />
       <Button
         label={enrolling ? 'Verify and finish setup' : 'Verify'}

@@ -21,6 +21,13 @@ export interface TextFieldProps {
   editable?: boolean;
   onSubmitEditing?: () => void;
   testID?: string;
+  /** testID for the LABEL text. A device flow taps it to blur the field:
+   * the label is plain text (never a control), sits directly above the
+   * input so it is on screen whenever the input is, and a tap on it is
+   * unhandled — the ScrollView blurs the input and the soft keyboard, if
+   * one is up, goes with the focus. This replaces Maestro's hideKeyboard,
+   * which on Android is an unconditional BACK key press (find 37). */
+  labelTestID?: string;
 }
 
 const styles = StyleSheet.create({
@@ -48,13 +55,16 @@ export function TextField({
   editable = true,
   onSubmitEditing,
   testID,
+  labelTestID,
 }: TextFieldProps): React.JSX.Element {
   const colors = useThemeColors();
   const [focused, setFocused] = useState(false);
   const hasError = Boolean(errorText);
   return (
     <View style={styles.container}>
-      <AppText variant="label">{label}</AppText>
+      <AppText variant="label" testID={labelTestID}>
+        {label}
+      </AppText>
       <TextInput
         accessibilityLabel={label}
         accessibilityState={{ disabled: !editable }}

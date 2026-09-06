@@ -34,9 +34,15 @@ name: Subsequent staff login verifies against the existing factor (no second QR)
 - tapOn:
     id: 'mfa-code'
 - inputText: ${output.totpCode}
-# Dismiss the keyboard first: it covers the verify control, which then
-# cannot be tapped OR scrolled to full visibility (find 30).
-- hideKeyboard
+# Blur the field by tapping its label — plain text, never a control. The
+# soft keyboard, if one is up, goes with the focus (it covered the verify
+# control, find 30); if none is up nothing else happens. NOT hideKeyboard:
+# on Android Maestro implements that as an unconditional BACK key press,
+# which with no soft keyboard showing reaches the app and exits the
+# single-entry auth stack — every later step then fails "not found"
+# (find 37).
+- tapOn:
+    id: 'mfa-code-label'
 - tapOn:
     id: 'mfa-submit'
 # TOTP verify is a server round trip (challenge, verify, then the scoped

@@ -12,6 +12,8 @@
  *    command (bare string or single-key map);
  *  - every `id:` selector references a testID that exists in app/ or src/;
  *  - every runScript target exists in .maestro/;
+ *  - no step is a FORBIDDEN command (hideKeyboard, find 37) — refused with
+ *    the reason, not merely unknown;
  *  - banned patterns: any TOTP_SECRET channel, a secret in a URL query,
  *    and the nondeterministic constant '000000' as an input.
  * Helper .js files are checked for the URL-secret and TOTP_SECRET bans.
@@ -44,11 +46,24 @@ export const KNOWN_COMMANDS = new Set([
   // element below the fold — Help's content version — could not be asserted
   // at all. assertVisible sees the viewport, not the document.
   'scrollUntilVisible',
-  // Added 2026-09-04 (find 30): with the soft keyboard up, the verify
-  // control on the tall enrollment screen could not be tapped and could not
-  // be scrolled to full visibility — the keyboard was over it. Dismissing
-  // the keyboard is what a person does before tapping it.
-  'hideKeyboard',
+  // hideKeyboard is deliberately ABSENT: see FORBIDDEN_COMMANDS (find 37).
+]);
+
+/** Commands a flow may never use, each with the reason the validator
+ * prints. hideKeyboard entered the vocabulary for find 30 (the soft
+ * keyboard covered the verify control); it left for find 37: Maestro's
+ * Android driver implements it as an unconditional BACK key press
+ * (AndroidDriver.hideKeyboard = `input keyevent 4`, unchanged from 1.40
+ * through 2.x). With no soft keyboard showing that BACK reaches the app,
+ * and this app's auth screens REPLACE one another (expo-router Redirect),
+ * so at the single-entry stack it exits the app — every later step fails
+ * "not found". A field is blurred by tapping its label instead
+ * (TextField labelTestID). */
+export const FORBIDDEN_COMMANDS = new Map([
+  [
+    'hideKeyboard',
+    'on Android this is an unconditional BACK key press; with no soft keyboard up it exits the single-entry auth stack (find 37) — blur the field by tapping its label (tapOn id <field>-label) instead',
+  ],
 ]);
 
 const EXPECTED_APP_ID = 'com.myhbcfo.hive.development';
@@ -248,12 +263,6 @@ export function validateStepPayload(command, payload, where, scriptFiles) {
       }
       break;
     }
-    case 'hideKeyboard': {
-      if (payload !== null && typeof payload !== 'undefined') {
-        problems.push(`${where}: hideKeyboard takes no payload`);
-      }
-      break;
-    }
     case 'stopApp':
     case 'back': {
       if (payload !== null && typeof payload !== 'undefined' && typeof payload !== 'string') {
@@ -380,8 +389,11 @@ export function collectTestIdsFromText(content, ids = new Set()) {
   // form (testID: 'x') used by declarative nav/menu tables. A testID
   // declared in a table is still a testID; missing that form would make
   // the existence check silently weaker for exactly the screens that
-  // list their destinations in one place.
-  for (const match of content.matchAll(/testID\s*[=:]\s*["']([^"']+)["']/g)) {
+  // list their destinations in one place. A prop that ENDS in TestID
+  // (TextField's labelTestID, find 37) declares a testID by the same
+  // convention, so it is harvested too — otherwise the flows' blur target
+  // would be refused as unknown by the very check that protects them.
+  for (const match of content.matchAll(/(?:testID|[A-Za-z]+TestID)\s*[=:]\s*["']([^"']+)["']/g)) {
     ids.add(match[1]);
   }
   // Declared testID TABLES: `const SOMETHING_TEST_IDS = { ... } as const`.
@@ -448,6 +460,10 @@ export function validateFlowText(text, { fileName, knownTestIds, scriptFiles }) 
       payload = step[command];
     } else {
       problems.push(`${where}: a step must be a bare command or a single-command map`);
+      continue;
+    }
+    if (FORBIDDEN_COMMANDS.has(command)) {
+      problems.push(`${where}: ${command} is forbidden — ${FORBIDDEN_COMMANDS.get(command)}`);
       continue;
     }
     if (!KNOWN_COMMANDS.has(command)) {

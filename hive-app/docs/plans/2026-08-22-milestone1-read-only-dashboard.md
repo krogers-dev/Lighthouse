@@ -2370,3 +2370,68 @@ QA build for `expired-session` (1 flow), and `maestro:denied` (1 flow)
 must all run on this head. A `maestro:enroll` started on the pre-fix code
 will still hang after its OK line — Ctrl+C once, then `git pull`. Nothing
 is claimed verified on a device until it is.
+
+## 2026-09-06, late night — Find 37: `hideKeyboard` is a BACK press, and it was leaving the app
+
+Kody's first `maestro:enroll` on the reworked runner (desktop 2, API 35
+lane) got through sign-in, the email code, enrollment, the secret capture,
+the wrong-code entry and `hideKeyboard`, then failed at `tapOn mfa-submit`
+with "Element not found". The runner's failure path then did everything
+it promises — helper terminated, clipboard overwritten, the leftover
+factor revoked (1 deleted, readback zero), run root removed and verified
+gone — and exited on its own. That is the fail-closed path, seen on
+Windows; the success path (explicit cleanup, then exit) is still owed.
+
+### The diagnosis, from source
+
+- Maestro's Android driver implements `hideKeyboard` as `input keyevent 4`
+  — the BACK key — unconditionally, then sleeps 300 ms
+  (`AndroidDriver.kt`, identical at v1.40.0, v2.0.0 and main; the pinned
+  CLI is 2.10.0).
+- This app's auth screens REPLACE one another (expo-router `Redirect` is
+  `router.replace`), so the stack holds one entry. A BACK that reaches
+  the app there finishes the activity.
+- With a soft keyboard up, BACK only dismisses the keyboard — which is why
+  the 2026-09-05 probe, keyboard up on that emulator, saw `mfa-submit`
+  intact after `hideKeyboard`. With no soft keyboard showing (an AVD with
+  its hardware keyboard enabled behaves this way), the same BACK reaches
+  the app, the app leaves the screen, and every later step fails "not
+  found" — exactly today's log.
+- Established from source: the BACK press and the single-entry stack.
+  Confirmed only by the rerun: that no soft keyboard was showing on this
+  emulator. Recorded as the diagnosis, not as device evidence.
+
+### The fix
+
+- `TextField` gains `labelTestID`; the MFA code field's label is
+  `mfa-code-label`. The label is plain text, never a control, and sits
+  directly above the input, so it is on screen whenever the input is. A
+  tap on it is unhandled, the ScrollView blurs the input, and the soft
+  keyboard, if any, goes with the focus. Nothing else happens if none is
+  up.
+- `mfa-enroll.yaml` (both verify rounds) and `mfa-login.yaml` tap
+  `mfa-code-label` where they used `hideKeyboard`.
+- `maestro:validate` now REFUSES `hideKeyboard` with the reason (a
+  `FORBIDDEN_COMMANDS` map, checked before the vocabulary), so it cannot
+  return as "known"; its testID harvest recognizes props ending in
+  `TestID`, since it would otherwise refuse the very target that replaces
+  the command. Tests: the refusal carries the reason and is not merely
+  "unknown"; both MFA flows blur by label immediately before every
+  `mfa-submit` tap and contain no `hideKeyboard`; the harvest form is
+  proven on ids no screen renders.
+- Find 30 stands corrected in one respect: dismissing the keyboard before
+  the tap was right; the command chosen to do it was a BACK press in
+  disguise.
+
+### Gates fresh (build container)
+
+maestro:validate OK (18 flows, 5 helper scripts); node:test **352 passed,
+0 failed**; jest 416 across 32 suites; typecheck 0; eslint
+`--max-warnings 0`, prettier and format:check clean.
+
+### State
+
+Desktop evidence owed is unchanged in kind: the enrollment sequence on
+this head (`maestro:enroll`, then `maestro:confinement`), the QA build for
+`expired-session`, and `maestro:denied`. The next `maestro:enroll` run is
+the proof of both this finding and the runner's success-path exit.
