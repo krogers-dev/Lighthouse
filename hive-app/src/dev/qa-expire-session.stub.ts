@@ -12,6 +12,7 @@ export const QA_EXPIRE_HOOK_MARKER = '';
 export const QA_EXPIRE_SCHEME = '';
 export const QA_EXPIRE_PARAM = '';
 export const QA_EXPIRE_VALUE = '';
+export const QA_EXPIRE_QUIESCE_MS = 0;
 
 export function isQaExpireUrl(_url: string): boolean {
   return false;
@@ -21,7 +22,10 @@ export function expireSessionEnvelope(_raw: string): string | null {
   return null;
 }
 
-export async function expireStoredSessionForQa(_backend: SecureStoreBackend): Promise<boolean> {
+export async function expireStoredSessionForQa(
+  _backend: SecureStoreBackend,
+  _quiesce?: () => Promise<void>,
+): Promise<boolean> {
   // Intentionally inert: QA hooks are not compiled into this build.
   return false;
 }

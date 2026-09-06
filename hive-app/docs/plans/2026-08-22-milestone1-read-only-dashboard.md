@@ -2480,3 +2480,103 @@ the confinement probe (`npm run maestro:confinement`, the fourth flow
 find 36 blocked), `read-surfaces-denied` (`npm run maestro:denied`), and
 `expired-session` on the QA build (find 20). Success on all three is 18
 of 18.
+
+## 2026-09-06, late night — desktop 2, second run: the confinement probe passes; two product findings from the last two lanes
+
+A session on Kody's desktop (started through the remote-control bridge
+he set up tonight) ran the remaining lanes at head bb33ccb and wrote a
+report; the emulator was healthy on every check, so the earlier
+`Can't find service: package` condition was not reproduced and no cold
+boot was needed.
+
+- `npm run maestro:confinement`: **PASS**, exit 0. The forced failure on
+  the enrollment screen captured 7 artifacts and 1 screenshot, ALL inside
+  the private run root, none in `~/.maestro/tests`; the factor was
+  revoked, the clipboard overwritten, the run root removed and verified
+  gone; `maestro:enroll CONFINEMENT PROOF OK`. That is the fourth flow
+  find 36 blocked: **16 of 18**.
+- `npm run maestro:denied`: FAIL, exit 1. Everything up to and including
+  the mid-flow revoke worked (`membership revoked mid-flow (1 row(s)
+deleted); readback verified zero`), the refresh tap landed, and then
+  `requests-stale` never appeared within 20 s. Cleanup restored the
+  membership and verified it. Find 38 below.
+- `sign-in.yaml` failed on its first attempt because the app was still
+  signed in from the denied lane (it launched with `clearState: false` and
+  met the workspace chooser); after `pm clear` it passed every step.
+- `expired-session.yaml`: FAIL at `signed-out-reason`. The hook fired
+  (`qa-expired-ack` visible), the relaunch showed no protected content
+  (`dashboard-workspace` not visible), and the sign-in screen came up
+  WITHOUT the "session ended" notice. Find 39 below.
+
+### Find 38 — a revoked membership is invisible to a running session
+
+Membership is server-controlled, but the app only read the actor's
+memberships at sign-in (`loadAndRoute`). `useScopedLoad` already had the
+right rule — a bound scope whose membership is missing from the list
+renders `stale_scope`, never old rows — and nothing ever changed the
+list. After the revoke, the refresh re-ran the requests query; RLS
+quietly filtered the revoked workspace's rows; the screen showed
+"nothing here". Truthful about the rows, false about the reason, and the
+chooser would have offered the revoked workspace again.
+
+Fixed at the controller: `refreshMemberships()` re-reads the actor's
+memberships from the server, and the reducer takes a new
+`MEMBERSHIPS_REFRESHED` event in `authorized` and `select_scope` that
+replaces the list while KEEPING the bound scope (so the screens render
+stale scope with the chooser action). An actor left with no membership at
+all runs the full sign-out sequence with the new `no_access` reason —
+never left authorized. A read that fails keeps the current list: a failed
+re-read grants nothing, and the data surfaces show their own offline or
+error state. Every screen's refresh (`useScopedLoad.retry`) now
+re-validates as well as re-reads, and `switchScope()` re-reads before the
+chooser renders so a revoked workspace is never offered again. Red-green:
+four reducer cases, seven controller cases (revoke one → scope kept and
+list shrunk; revoke all → `signed_out(no_access)` with storage deleted
+and remote sign-out; server unreachable → state object unchanged;
+unchanged list → no transition; chooser re-reads first; chooser with
+nothing left signs out; no-op outside a scope state), and a hook-level
+test that a retry calls the re-validation and that a bound membership
+missing from the refreshed list renders `stale_scope`. Not handled, and
+noted: a refreshed set that newly requires AAL2 for an aal1 actor is left
+to the server's restrictive staff policies, which deny those reads
+regardless.
+
+### Find 39 — the expiry hook raced the running app's own refresh
+
+The relaunch showed the plain sign-in screen because, by the time the
+flow force-stopped the app, the stored session was already GONE: opening
+the QA link resumes the activity, the controller restarts the auth
+library's foreground refresh on every resume, and that restart runs a
+tick at once. The tick reads the stored session; with the expired
+envelope already written it refreshed, was rejected, removed the session
+and signed the running app out with the reason — which the flow never
+looked at — and the relaunch under test then found no session at all and
+took the `initial` branch. (The periodic 30 s tick could do the same in
+the seconds before the force-stop.) The product behaviour is right in
+both branches; the hook broke the flow's premise that the session dies
+while the app is away.
+
+Fixed in the hook, not the product: `expireStoredSessionForQa` takes a
+`quiesce` callback the layout wires to "wait 750 ms for the resume cycle
+to finish on the still-valid session, then tell the controller the app is
+not in the foreground (which stops the foreground refresh exactly as a
+backgrounded app does), then settle" — and only then writes. The flow
+force-stops the app right after the acknowledgment, so nothing else
+observes the expired envelope before the relaunch. Test: the quiesce
+runs once, before the first storage read.
+
+### Hygiene from the same report
+
+`sign-in.yaml` now launches from a CLEARED app state with the bounded
+wait a cleared install needs (find 31), so the lanes run in any order.
+
+Gates fresh (build container): typecheck 0; jest **431 across 33
+suites**; node:test 352 passed, 0 failed; eslint `--max-warnings 0`,
+prettier, format:check clean; maestro:validate OK (18 flows, 5 helper
+scripts).
+
+### State
+
+**16 of 18.** Owed on this head: `maestro:denied` and `expired-session`
+(on the QA build), both reworked above; a desktop rerun of exactly those
+two is the next step.

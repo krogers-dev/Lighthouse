@@ -1,8 +1,17 @@
 appId: com.myhbcfo.hive.development
 name: Invite-only OTP sign-in reaches the scoped dashboard
 ---
+# From a CLEARED app state, always: lanes run in any order, and the lane
+# before may have left the app signed in — on the 2026-09-06 desktop run
+# this flow met the workspace chooser instead of the sign-in screen. A
+# cleared install boots slowly in a dev build (find 31): bounded wait, not
+# a race.
 - launchApp:
-    clearState: false
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'sign-in-email'
+    timeout: 30000
 - assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
 - tapOn:
     id: 'sign-in-email'

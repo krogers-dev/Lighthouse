@@ -51,7 +51,22 @@ function useDevQaHooks(): QaHookState {
           .corruptStoredSessionForQa(backend)
           .then(() => setState((s) => ({ ...s, corrupted: true })));
       } else if (expire.isQaExpireUrl(url)) {
-        void expire.expireStoredSessionForQa(backend).then((ok) => {
+        // Find 39: let the open-link resume cycle (and the refresh tick it
+        // restarts) finish on the still-valid session, then take the app
+        // out of foreground refresh exactly as a backgrounded app is, and
+        // only then expire the stored session. The flow force-stops the
+        // app right after the acknowledgment, so nothing else observes the
+        // expired envelope before the relaunch under test.
+        const quiesce = async (): Promise<void> => {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, expire.QA_EXPIRE_QUIESCE_MS);
+          });
+          const runtime = getRuntime();
+          if (!runtime.ok) return;
+          runtime.services.controller.handleAppStateChange('background');
+          await runtime.services.controller.settle();
+        };
+        void expire.expireStoredSessionForQa(backend, quiesce).then((ok) => {
           if (ok) setState((s) => ({ ...s, expired: true }));
         });
       }

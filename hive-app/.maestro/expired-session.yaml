@@ -22,6 +22,16 @@ name: Expired/revoked session fails closed into a fresh sign-in
 # revoked-session shape, reproduced deterministically.
 # The hook renders a QA-only acknowledgment; the flow WAITS for it before
 # stopping the app, so the expiry write cannot be cut short.
+# Find 39: opening the link resumes the activity, and the controller
+# restarts the auth library's foreground refresh on every resume; its
+# first tick reads the stored session, and had the expired envelope
+# already been written, the RUNNING app would have consumed it (refresh
+# rejected, session removed, signed out with the reason) — so the relaunch
+# this flow tests would find no session and show no notice, exactly what
+# the 2026-09-06 desktop run saw. The hook therefore lets the resume cycle
+# finish, stops the foreground refresh, and only then writes; the
+# force-stop below follows the acknowledgment before anything else can
+# read the expired envelope.
 ---
 - launchApp
 # ScopeKey is memory-only by design (docs/data-classification.md), so a

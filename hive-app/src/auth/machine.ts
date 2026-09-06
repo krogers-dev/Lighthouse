@@ -16,7 +16,7 @@ import type { TotpEnrollment } from './client-lifecycle';
 export type SignedOutReason =
   'initial' | 'signed_out' | 'expired' | 'scrubbed' | 'no_access' | 'offline';
 
-export type SignOutReason = 'user' | 'expired' | 'identity_switch';
+export type SignOutReason = 'user' | 'expired' | 'identity_switch' | 'no_access';
 
 export type AuthState =
   | { name: 'booting' }
@@ -66,6 +66,7 @@ export type AuthEvent =
   | { type: 'MFA_FAILED'; code: SafeErrorCode }
   | { type: 'SCOPE_SELECTED'; membershipId: MembershipId }
   | { type: 'SCOPE_SWITCH_REQUESTED' }
+  | { type: 'MEMBERSHIPS_REFRESHED'; memberships: readonly Membership[] }
   | { type: 'SIGN_OUT_REQUESTED'; reason: SignOutReason }
   | { type: 'RETURN_TO_SIGNED_OUT' }
   | { type: 'SIGN_OUT_SUCCEEDED' }
@@ -99,6 +100,8 @@ const SIGNED_OUT_REASON_FOR: Record<SignOutReason, SignedOutReason> = {
   user: 'signed_out',
   identity_switch: 'signed_out',
   expired: 'expired',
+  // Find 38: every membership revoked underneath a live session.
+  no_access: 'no_access',
 };
 
 function scopesLoaded(actor: Actor, memberships: readonly Membership[]): AuthState | null {
@@ -220,6 +223,12 @@ function transition(state: AuthState, event: AuthEvent): AuthState | null {
       }
     case 'select_scope':
       switch (event.type) {
+        case 'MEMBERSHIPS_REFRESHED':
+          // Server truth replaces the sign-in snapshot (find 38). An empty
+          // set never arrives here: the controller signs out first.
+          return event.memberships.length === 0
+            ? null
+            : { ...state, memberships: event.memberships };
         case 'SCOPE_SELECTED': {
           const membership = state.memberships.find((m) => m.membershipId === event.membershipId);
           if (!membership) {
@@ -240,6 +249,15 @@ function transition(state: AuthState, event: AuthEvent): AuthState | null {
       }
     case 'authorized':
       switch (event.type) {
+        case 'MEMBERSHIPS_REFRESHED':
+          // Server truth replaces the sign-in snapshot (find 38). The bound
+          // scope is KEPT even when its membership is gone: the read
+          // surfaces then render stale scope — never old rows — and offer
+          // the chooser. An empty set never arrives here: the controller
+          // signs out first.
+          return event.memberships.length === 0
+            ? null
+            : { ...state, memberships: event.memberships };
         case 'SCOPE_SWITCH_REQUESTED':
           return { name: 'select_scope', actor: state.actor, memberships: state.memberships };
         case 'SIGN_OUT_REQUESTED':

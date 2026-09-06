@@ -44,6 +44,19 @@ export const QA_EXPIRE_HOOK_MARKER = 'HIVE_QA_EXPIRE_HOOK';
  * expiry branch — exactly the real "revoked session" shape. */
 export const QA_EXPIRED_REFRESH_TOKEN = 'HIVE_QA_EXPIRED_REFRESH_TOKEN';
 
+/** How long the hook waits before quiescing the running app (find 39).
+ *
+ * Opening the QA link resumes the activity, and the controller restarts
+ * the auth library's foreground refresh on every resume; that restart
+ * runs a tick at once, and the tick reads the stored session. Had the
+ * expired envelope already been written, the RUNNING app would consume
+ * it — refresh rejected, session removed, signed out with the reason —
+ * and the relaunch the flow is really testing would then find no session
+ * at all and show no notice (the 2026-09-06 desktop run). So the hook
+ * lets the resume cycle finish on the still-valid session, has the
+ * caller stop the foreground refresh, and only then writes. */
+export const QA_EXPIRE_QUIESCE_MS = 750;
+
 /** The one exact QA deep link: hivedev:///?qa=expire-session
  *
  * Same shape law as the corruption link (find 24): it addresses the ROOT
@@ -110,7 +123,14 @@ export function expireSessionEnvelope(raw: string): string | null {
  * no readable session to expire, so the flow's completion acknowledgment
  * — which only renders on a true return — times out and fails loudly
  * instead of asserting against a state the pre-step never produced. */
-export async function expireStoredSessionForQa(backend: SecureStoreBackend): Promise<boolean> {
+export async function expireStoredSessionForQa(
+  backend: SecureStoreBackend,
+  quiesce?: () => Promise<void>,
+): Promise<boolean> {
+  // Find 39: the running app must not act on the expired envelope before
+  // the flow restarts it. The caller stops the foreground refresh here;
+  // the write happens only after that has settled.
+  if (quiesce) await quiesce();
   const adapter = new SessionStorageAdapter(backend);
   let stored: string | null;
   try {

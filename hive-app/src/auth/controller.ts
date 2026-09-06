@@ -454,11 +454,55 @@ export class AuthController {
   switchScope(): Promise<void> {
     return this.enqueue(async () => {
       if (this.state.name !== 'authorized') return;
+      // The chooser lists server truth, never the sign-in snapshot (find
+      // 38): a membership revoked since then must not be offered again.
+      await this.refreshMembershipsInternal();
+      if (this.state.name !== 'authorized') return;
       // Clear every actor-bound repository before the chooser renders.
       this.deps.registry.clearAll('scope_switch');
       this.deps.diagnostics.record('scope_cleared', { reason: 'scope_switch' });
       this.dispatch({ type: 'SCOPE_SWITCH_REQUESTED' });
     });
+  }
+
+  /** Re-read the actor's memberships from the server (find 38).
+   *
+   * Membership is server-controlled, so a session must not keep trusting
+   * the list it loaded at sign-in: RLS quietly filters a revoked
+   * workspace's rows, and without this the read surfaces would show
+   * "nothing here" instead of the truth. After a refresh, a workspace
+   * revoked underneath the bound scope renders as stale scope, and an
+   * actor left with no membership at all is signed out (no_access), never
+   * left authorized. A read that fails keeps the current list: the data
+   * surfaces show their own offline/error state, and a failure to re-read
+   * grants nothing. */
+  refreshMemberships(): Promise<void> {
+    return this.enqueue(() => this.refreshMembershipsInternal());
+  }
+
+  private async refreshMembershipsInternal(): Promise<void> {
+    const state = this.state;
+    if (state.name !== 'authorized' && state.name !== 'select_scope') return;
+    const bundle = this.heldBundle;
+    if (!bundle) return;
+    let memberships: Membership[];
+    try {
+      memberships = await bundle.memberships.listMemberships(state.actor.userId);
+    } catch {
+      return;
+    }
+    if (this.state !== state) return;
+    if (memberships.length === 0) {
+      await this.runSignOutSequence('no_access');
+      return;
+    }
+    const key = (list: readonly Membership[]): string =>
+      list
+        .map((m) => `${m.membershipId}:${m.role}`)
+        .sort()
+        .join('|');
+    if (key(memberships) === key(state.memberships)) return;
+    this.dispatch({ type: 'MEMBERSHIPS_REFRESHED', memberships });
   }
 
   signOut(): Promise<void> {

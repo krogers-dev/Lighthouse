@@ -172,6 +172,9 @@ interface Harness {
   diagnosticsLog: { name: DiagnosticEventName; fields: Record<string, unknown> }[];
   log: string[];
   factoryCalls: () => number;
+  /** Server-side membership changes after sign-in (find 38). */
+  setMemberships: (list: Membership[]) => void;
+  setMembershipError: (error: Error | null) => void;
 }
 
 function makeHarness(options?: {
@@ -192,6 +195,7 @@ function makeHarness(options?: {
   const membershipsByUser = new Map<UserId, Membership[]>();
   membershipsByUser.set(USER_CLIENT, options?.memberships ?? [membershipA1]);
   membershipsByUser.set(USER_STAFF, [membershipB1Staff]);
+  let membershipError: Error | null = options?.membershipError ?? null;
   const controller = new AuthController({
     createBundle: (): ClientBundle => {
       factoryCalls += 1;
@@ -201,7 +205,7 @@ function makeHarness(options?: {
         memberships: {
           listMemberships: async (userId) => {
             log.push('memberships.list');
-            if (options?.membershipError) throw options.membershipError;
+            if (membershipError) throw membershipError;
             return membershipsByUser.get(userId) ?? [];
           },
         },
@@ -228,6 +232,12 @@ function makeHarness(options?: {
     diagnosticsLog,
     log,
     factoryCalls: () => factoryCalls,
+    setMemberships: (list) => {
+      membershipsByUser.set(USER_CLIENT, list);
+    },
+    setMembershipError: (error) => {
+      membershipError = error;
+    },
   };
 }
 
@@ -839,5 +849,87 @@ describe('refresh starts without an AppState event (PM directive P1 item 5)', ()
     h.controller.handleAppStateChange('active');
     await h.controller.settle();
     expect(h.log.filter((e) => e === 'auth.startAutoRefresh').length).toBe(startsAtQuarantine);
+  });
+});
+
+// Find 38: membership is server-controlled, so a live session must be
+// able to learn that a workspace was revoked underneath it — on the
+// desktop, a revoked membership refreshed into "empty", never "stale".
+describe('memberships refreshed from the server (find 38)', () => {
+  async function authorizedOnA1() {
+    const h = makeHarness({ memberships: [membershipA1, membershipA2] });
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    await h.controller.selectScope(membershipA1.membershipId);
+    expect(h.controller.getState().name).toBe('authorized');
+    return h;
+  }
+
+  it('keeps the bound scope but drops a revoked membership from the list', async () => {
+    const h = await authorizedOnA1();
+    h.setMemberships([membershipA2]);
+    await h.controller.refreshMemberships();
+    expect(h.controller.getState()).toMatchObject({
+      name: 'authorized',
+      scope: { membershipId: membershipA1.membershipId },
+      memberships: [membershipA2],
+    });
+    expect(h.storage.deleted).toBe(0);
+  });
+
+  it('signs out with no_access when the last membership is revoked', async () => {
+    const h = makeHarness();
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    expect(h.controller.getState().name).toBe('authorized');
+    h.setMemberships([]);
+    await h.controller.refreshMemberships();
+    expect(h.controller.getState()).toMatchObject({ name: 'signed_out', reason: 'no_access' });
+    expect(h.storage.deleted).toBe(1);
+    expect(h.log).toContain('auth.signOutRemote');
+  });
+
+  it('keeps the current list when the server cannot be read — a failed re-read grants nothing', async () => {
+    const h = await authorizedOnA1();
+    const before = h.controller.getState();
+    h.setMembershipError(new Error('network down'));
+    await h.controller.refreshMemberships();
+    expect(h.controller.getState()).toBe(before);
+  });
+
+  it('an unchanged list is not a transition', async () => {
+    const h = await authorizedOnA1();
+    const before = h.controller.getState();
+    await h.controller.refreshMemberships();
+    expect(h.controller.getState()).toBe(before);
+  });
+
+  it('switchScope re-reads first, so the chooser never offers a revoked workspace', async () => {
+    const h = await authorizedOnA1();
+    h.setMemberships([membershipA2]);
+    await h.controller.switchScope();
+    expect(h.controller.getState()).toMatchObject({
+      name: 'select_scope',
+      memberships: [membershipA2],
+    });
+    expect(h.clearLog).toContain('scope_switch');
+  });
+
+  it('switchScope with every membership revoked signs out instead of showing an empty chooser', async () => {
+    const h = makeHarness();
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    h.setMemberships([]);
+    await h.controller.switchScope();
+    expect(h.controller.getState()).toMatchObject({ name: 'signed_out', reason: 'no_access' });
+  });
+
+  it('is a no-op outside a scope-holding state', async () => {
+    const h = makeHarness();
+    await h.controller.boot();
+    expect(h.controller.getState().name).toBe('signed_out');
+    h.log.length = 0;
+    await h.controller.refreshMemberships();
+    expect(h.log).not.toContain('memberships.list');
   });
 });

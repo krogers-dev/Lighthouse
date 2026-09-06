@@ -392,3 +392,39 @@ describe('cancel during verification (review P2-7)', () => {
     );
   });
 });
+
+describe('memberships refreshed from the server (find 38)', () => {
+  it('replaces the sign-in snapshot while authorized and keeps the bound scope, even one now gone', () => {
+    const next = devReduce(authorized, {
+      type: 'MEMBERSHIPS_REFRESHED',
+      memberships: [membershipA2],
+    });
+    expect(next).toMatchObject({
+      name: 'authorized',
+      scope: { membershipId: membershipA1.membershipId },
+      memberships: [membershipA2],
+    });
+  });
+
+  it('replaces the list in the chooser', () => {
+    const chooser = drive(booting, {
+      type: 'SCOPES_LOADED',
+      actor: actorAal1,
+      memberships: [membershipA1, membershipA2],
+    });
+    const next = devReduce(chooser, { type: 'MEMBERSHIPS_REFRESHED', memberships: [membershipA2] });
+    expect(next).toMatchObject({ name: 'select_scope', memberships: [membershipA2] });
+  });
+
+  it('NEGATIVE: an empty set is illegal here — the controller signs out instead', () => {
+    expect(() => devReduce(authorized, { type: 'MEMBERSHIPS_REFRESHED', memberships: [] })).toThrow(
+      IllegalTransitionError,
+    );
+  });
+
+  it('NEGATIVE: is illegal outside a scope-holding state', () => {
+    expect(() =>
+      devReduce(signedOut, { type: 'MEMBERSHIPS_REFRESHED', memberships: [membershipA1] }),
+    ).toThrow(IllegalTransitionError);
+  });
+});

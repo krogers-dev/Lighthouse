@@ -2,6 +2,7 @@ import { SessionStorageAdapter, type SecureStoreBackend } from '@/auth/secure-st
 import {
   QA_EXPIRED_REFRESH_TOKEN,
   QA_EXPIRE_HOOK_MARKER,
+  QA_EXPIRE_QUIESCE_MS,
   expireSessionEnvelope,
   expireStoredSessionForQa,
   isQaExpireUrl,
@@ -47,6 +48,30 @@ describe('dev-only QA session-expiry hook', () => {
     expect(isQaExpireUrl('hivedev:///')).toBe(false);
     expect(isQaExpireUrl('not a url at all')).toBe(false);
     expect(isQaExpireUrl('')).toBe(false);
+  });
+
+  it('quiesces the running app BEFORE touching storage (find 39)', async () => {
+    const backend = new MemoryBackend();
+    await new SessionStorageAdapter(backend).write(futureSession());
+    const order: string[] = [];
+    const spy: SecureStoreBackend = {
+      getItem: async (key) => {
+        order.push('read');
+        return backend.getItem(key);
+      },
+      setItem: async (key, value) => {
+        order.push('write');
+        return backend.setItem(key, value);
+      },
+      deleteItem: (key) => backend.deleteItem(key),
+    };
+    const ok = await expireStoredSessionForQa(spy, async () => {
+      order.push('quiesce');
+    });
+    expect(ok).toBe(true);
+    expect(order[0]).toBe('quiesce');
+    expect(order.filter((step) => step === 'quiesce')).toHaveLength(1);
+    expect(QA_EXPIRE_QUIESCE_MS).toBeGreaterThan(0);
   });
 
   it('does NOT collide with the corruption hook link', () => {

@@ -95,7 +95,14 @@ export function useScopedLoad<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load, controller, scope, requestKey]);
 
-  const retry = useCallback(() => setReloadNonce((n) => n + 1), []);
+  // A refresh re-asks the server who the actor is (find 38): a membership
+  // revoked since sign-in must surface as stale scope, never as an empty
+  // list that RLS quietly filtered. The read and the re-validation run
+  // together; whichever answers first, the screen ends up truthful.
+  const retry = useCallback(() => {
+    void controller.refreshMemberships();
+    setReloadNonce((n) => n + 1);
+  }, [controller]);
   const switchScope = useCallback(() => void controller.switchScope(), [controller]);
 
   const workspaceName =
