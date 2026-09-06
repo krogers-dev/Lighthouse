@@ -12,6 +12,10 @@ Production data, integrations, signing, submission, and release are HOLD.
 
 ## Where the work stands
 
+The optional [client data integration](docs/integrations/client-data-v1.md) defines
+the shared backend read contract and Claude/Codex handoff. It is tested with
+synthetic sources; live activation and the existing app runtime are unchanged.
+
 | Milestone                      | State                                                                       |
 | ------------------------------ | --------------------------------------------------------------------------- |
 | 0 — Identity and isolation     | Implemented; **RETURN** — corrective work reviewed, device evidence pending |
