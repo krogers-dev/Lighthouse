@@ -16,6 +16,12 @@
  *    --test-output-dir, under a private run root;
  *  - snapshots ~/.maestro/tests before and after every flow and FAILS on
  *    any new entry there (default-location leak detection);
+ *  - bounds EVERY Maestro invocation with a watchdog and, on expiry,
+ *    kills the whole process tree (cmd.exe -> maestro.bat -> java on
+ *    Windows), so a wedged CLI can no longer suspend cleanup (find 36);
+ *  - fails CLOSED at startup on the residue of a previous hand-killed
+ *    run: a totp-helper still bound to the loopback port is a HOLD, and
+ *    stale run roots are swept;
  *  - runs the deterministic sequence
  *        reset factors -> enroll -> sign out -> login (same factor,
  *        same helper session) -> revoke -> helper shutdown,
@@ -51,6 +57,7 @@ import {
   rmSync,
   statSync,
 } from 'node:fs';
+import { connect } from 'node:net';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -181,6 +188,56 @@ export function outputFlagProblems(helpText) {
   return problems;
 }
 
+/** Find 36: twice on the Windows desktop, `maestro:enroll` stopped making
+ * progress with the runner alive, no Maestro child visible, and no further
+ * output — and killing the stuck runner SKIPPED cleanup, leaving the
+ * totp-helper listening with a setup secret in memory, the run root on
+ * disk, and the clipboard unscrubbed. A cleanup guarantee that holds only
+ * on a normal exit is not a guarantee.
+ *
+ * The vulnerable shape was `spawnSync` through `cmd.exe /c` with inherited
+ * stdio: it blocks the event loop, so the SIGINT/SIGTERM handlers that
+ * guarantee cleanup cannot run while it is stuck, and it has no bound of
+ * its own, so anything wedged below it (a straggler java or adb child, a
+ * blocked inherited handle) suspends the runner forever. The fix removes
+ * the shape: every Maestro invocation is async `spawn` awaited on its
+ * `exit` event, bounded by these watchdogs, and on expiry the whole
+ * process TREE is killed — on Windows killing only cmd.exe would orphan
+ * the java process that owns the device, hence `taskkill /T`. */
+export const FLOW_TIMEOUT_DEFAULT_MS = 600_000;
+export const PROBE_TIMEOUT_MS = 60_000;
+export const CLEANUP_STEP_TIMEOUT_MS = 120_000;
+
+/** Per-flow watchdog: 10 minutes by default (a flow includes a cold app
+ * start and Metro bundle), overridable for a legitimately slower lane.
+ * Garbage in the override returns NaN so the caller can refuse to run —
+ * a misread watchdog must never silently become a default or infinity. */
+export function flowTimeoutMs(env = process.env) {
+  const raw = env.HIVE_MAESTRO_FLOW_TIMEOUT_MS;
+  if (raw === undefined || raw === '') return FLOW_TIMEOUT_DEFAULT_MS;
+  if (!/^\d+$/.test(raw) || Number(raw) <= 0) return NaN;
+  return Number(raw);
+}
+
+/** The tree kill for a wedged invocation. Windows: `taskkill /T /F` on the
+ * spawned cmd.exe takes maestro.bat and java down with it (taskkill is a
+ * native exe, so it spawns directly — no ComSpec wrapper needed). POSIX
+ * returns null: there the child is spawned detached into its own process
+ * group and the group is signalled instead. */
+export function killTreeCommand(pid, platform = process.platform) {
+  if (platform !== 'win32') return null;
+  return { command: 'taskkill', args: ['/pid', String(pid), '/T', '/F'] };
+}
+
+/** Run roots are created as mkdtemp(tmpdir()/RUN_ROOT_PREFIX). A run that
+ * hung and was killed by hand leaves its root behind; startup sweeps every
+ * entry matching the prefix. Concurrent runs are excluded by the helper
+ * port check, so a match is always a leftover, never a peer. */
+export const RUN_ROOT_PREFIX = 'hive-maestro-';
+export function isStaleRunRoot(name) {
+  return name.startsWith(RUN_ROOT_PREFIX);
+}
+
 function privateDir(parent, name) {
   const dir = path.join(parent, name);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -195,8 +252,122 @@ if (isMain) {
     console.error('maestro:enroll ENGINE FAILURE: .maestro/ is missing');
     process.exit(2);
   }
+
+  const flowTimeout = flowTimeoutMs(process.env);
+  if (!Number.isFinite(flowTimeout)) {
+    console.error(
+      'maestro:enroll ENGINE FAILURE: HIVE_MAESTRO_FLOW_TIMEOUT_MS must be a positive integer of milliseconds — refusing to run with an unreadable watchdog',
+    );
+    process.exit(2);
+  }
+
+  /** The Maestro invocation currently in flight, so cleanup and the signal
+   * handlers can kill its whole tree (find 36). */
+  let inFlight = null;
+
+  function killTree(child) {
+    if (!child || child.pid == null || child.exitCode !== null) return;
+    const kill = killTreeCommand(child.pid);
+    if (kill) {
+      spawnSync(kill.command, kill.args, {
+        stdio: 'ignore',
+        timeout: 15_000,
+        killSignal: 'SIGKILL',
+      });
+      return;
+    }
+    // POSIX: the child was spawned detached into its own process group, so
+    // the negative pid signals the whole group — killing only the wrapper
+    // script would orphan the java process that owns the device.
+    try {
+      process.kill(-child.pid, 'SIGKILL');
+    } catch {
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        // already gone
+      }
+    }
+  }
+
+  /** One Maestro invocation, bounded (find 36). Resolves — never rejects,
+   * never hangs — with { status, stdout, stderr, timedOut }; status is
+   * null when the process was killed or failed to spawn. Settles on
+   * `exit` plus a short stdio drain, with `close` as the normal
+   * fully-drained path — never on `close` ALONE, because `close`
+   * additionally waits for the stdio streams, and a straggler grandchild
+   * holding an inherited pipe handle keeps them open forever. */
+  function runMaestro(args, { timeoutMs, label, inheritOutput = false }) {
+    const cmd = maestroCommand(args);
+    return new Promise((resolve) => {
+      const child = spawn(cmd.command, cmd.args, {
+        cwd: appRoot,
+        stdio: inheritOutput ? ['ignore', 'inherit', 'inherit'] : ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, MAESTRO_CLI_NO_ANALYTICS: 'true' },
+        // POSIX: own process group, so the watchdog can kill the whole
+        // tree. Not on Windows, where taskkill /T does that job.
+        detached: process.platform !== 'win32',
+      });
+      inFlight = child;
+      let stdout = '';
+      let stderr = '';
+      child.stdout?.on('data', (chunk) => {
+        stdout += chunk;
+      });
+      child.stderr?.on('data', (chunk) => {
+        stderr += chunk;
+      });
+      let settled = false;
+      let drainTimer = null;
+      const settle = (status, timedOut) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(watchdog);
+        clearTimeout(drainTimer);
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        inFlight = null;
+        resolve({ status, stdout, stderr, timedOut });
+      };
+      const watchdog = setTimeout(() => {
+        console.error(
+          `maestro:enroll: WATCHDOG — ${label} still had no exit after ${timeoutMs}ms; killing its process tree (find 36)`,
+        );
+        killTree(child);
+        settle(null, true);
+      }, timeoutMs);
+      child.on('error', () => settle(null, false));
+      child.on('close', (code) => settle(code, false));
+      child.on('exit', (code) => {
+        drainTimer = setTimeout(() => settle(code, false), 1000);
+      });
+    });
+  }
+
+  /** True when something already listens on 127.0.0.1:port. Inconclusive
+   * (no answer within 2s) counts as in use: fail closed. */
+  function portInUse(port) {
+    return new Promise((resolve) => {
+      const socket = connect({ host: '127.0.0.1', port });
+      let done = false;
+      const finish = (busy) => {
+        if (done) return;
+        done = true;
+        socket.destroy();
+        resolve(busy);
+      };
+      socket.once('connect', () => finish(true));
+      socket.once('error', () => finish(false));
+      socket.setTimeout(2000, () => finish(true));
+    });
+  }
+
   const lookup = lookupMaestroCommand();
-  const maestroBin = spawnSync(lookup.command, lookup.args, { encoding: 'utf8' });
+  const maestroBin = spawnSync(lookup.command, lookup.args, {
+    encoding: 'utf8',
+    timeout: PROBE_TIMEOUT_MS,
+    killSignal: 'SIGKILL',
+  });
   if (maestroBin.status !== 0) {
     console.error(
       'maestro:enroll HOLD — the Maestro CLI is not installed here. This runner executes on the QA machine with the device lane; the build container has no device, simulator, or Maestro binary (exit 3)',
@@ -216,9 +387,17 @@ if (isMain) {
     );
     process.exit(2);
   }
-  const versionCmd = maestroCommand(['--version']);
-  const installedVersion =
-    spawnSync(versionCmd.command, versionCmd.args, { encoding: 'utf8' }).stdout ?? '';
+  const version = await runMaestro(['--version'], {
+    timeoutMs: PROBE_TIMEOUT_MS,
+    label: 'maestro --version',
+  });
+  if (version.timedOut) {
+    console.error(
+      `maestro:enroll HOLD — \`maestro --version\` gave no answer within ${PROBE_TIMEOUT_MS}ms and its process tree was killed; the CLI on this machine wedges before any flow could run (find 36) (exit 3)`,
+    );
+    process.exit(3);
+  }
+  const installedVersion = version.stdout;
   const pinProblems = pinnedMaestroProblems(toolchainRecord, installedVersion);
   if (pinProblems.length > 0) {
     for (const problem of pinProblems) console.error(`HOLD ${problem}`);
@@ -228,9 +407,17 @@ if (isMain) {
     process.exit(3);
   }
   // Confinement must be provable before anything shows a QR.
-  const helpCmd = maestroCommand(['test', '--help']);
-  const help = spawnSync(helpCmd.command, helpCmd.args, { encoding: 'utf8' });
-  const helpText = `${help.stdout ?? ''}${help.stderr ?? ''}`;
+  const help = await runMaestro(['test', '--help'], {
+    timeoutMs: PROBE_TIMEOUT_MS,
+    label: 'maestro test --help',
+  });
+  if (help.timedOut) {
+    console.error(
+      `maestro:enroll HOLD — \`maestro test --help\` gave no answer within ${PROBE_TIMEOUT_MS}ms and its process tree was killed; the CLI on this machine wedges before any flow could run (find 36) (exit 3)`,
+    );
+    process.exit(3);
+  }
+  const helpText = `${help.stdout}${help.stderr}`;
   const flagProblems = outputFlagProblems(helpText);
   if (flagProblems.length > 0) {
     for (const problem of flagProblems) console.error(`FAIL ${problem}`);
@@ -240,9 +427,45 @@ if (isMain) {
     process.exit(1);
   }
 
-  // Private run root: 0700 all the way down.
-  const runRoot = mkdtempSync(path.join(tmpdir(), 'hive-maestro-'));
-  execFileSync('chmod', ['700', runRoot]);
+  // Fail CLOSED on a survivor of a previous hung run (find 36): a stale
+  // totp-helper still listening means a setup secret may still be in
+  // memory on this machine — and this run's helper would crash on bind
+  // (totp-helper has no listen-error recovery), after which the flows
+  // would silently talk to the WRONG helper. Nothing has been created
+  // yet, so holding here leaves nothing to clean.
+  const helperPort = Number(process.env.HIVE_TOTP_HELPER_PORT ?? 8477);
+  if (await portInUse(helperPort)) {
+    console.error(
+      `maestro:enroll HOLD — 127.0.0.1:${helperPort} is already in use, most likely a totp-helper left listening by a previous hung run (find 36). End the stray Node.js process (Task Manager -> Details -> node.exe on Windows; lsof -i :${helperPort} elsewhere), run \`node scripts/local-supabase.mjs reset-totp ${QA_EMAIL}\` to confirm no factor survived, then rerun (exit 3)`,
+    );
+    process.exit(3);
+  }
+
+  // Sweep run roots a hand-killed run left behind, loudly. The helper
+  // port check above excludes a concurrent run, so a match is always a
+  // leftover, never a peer.
+  for (const entry of readdirSync(tmpdir())) {
+    if (!isStaleRunRoot(entry)) continue;
+    const stale = path.join(tmpdir(), entry);
+    try {
+      rmSync(stale, { recursive: true, force: true });
+    } catch {
+      // fall through to the existence check
+    }
+    if (existsSync(stale)) {
+      console.error(
+        `maestro:enroll: stale run root ${stale} could not be removed — remove it manually before trusting artifact confinement`,
+      );
+    } else {
+      console.log(`maestro:enroll: removed stale run root from a previous run (${stale})`);
+    }
+  }
+
+  // Private run root: 0700 all the way down. chmod is a POSIX concept and
+  // binary; on Windows %TEMP% lives inside the user profile and is
+  // already ACL'd to that user, and there is no chmod to call.
+  const runRoot = mkdtempSync(path.join(tmpdir(), RUN_ROOT_PREFIX));
+  if (process.platform !== 'win32') execFileSync('chmod', ['700', runRoot]);
   const debugDir = privateDir(runRoot, 'debug');
   const testOutputDir = privateDir(runRoot, 'artifacts');
 
@@ -251,17 +474,26 @@ if (isMain) {
   let cleanedUp = false;
 
   function revokeFactor(reason) {
+    // Sync on purpose: this also runs from cleanup inside
+    // process.on('exit'), where only synchronous work executes. Bounded
+    // so a wedged stack cannot suspend cleanup (find 36).
     const result = spawnSync(
       process.execPath,
       [path.join(appRoot, 'scripts', 'local-supabase.mjs'), 'reset-totp', QA_EMAIL],
-      { cwd: appRoot, encoding: 'utf8' },
+      {
+        cwd: appRoot,
+        stdio: ['ignore', 'inherit', 'inherit'],
+        timeout: CLEANUP_STEP_TIMEOUT_MS,
+        killSignal: 'SIGKILL',
+      },
     );
     if (result.status === 0) {
       console.log(`maestro:enroll: factor revoked and verified clean (${reason})`);
       return true;
     }
+    const timedOut = result.error && result.error.code === 'ETIMEDOUT';
     console.error(
-      `maestro:enroll: FACTOR REVOCATION FAILED (${reason}) — ${(result.stderr ?? '').trim()}`,
+      `maestro:enroll: FACTOR REVOCATION FAILED (${reason})${timedOut ? ` — timed out after ${CLEANUP_STEP_TIMEOUT_MS}ms` : ''} — run \`node scripts/local-supabase.mjs reset-totp ${QA_EMAIL}\` by hand and verify zero factors`,
     );
     return false;
   }
@@ -277,12 +509,22 @@ if (isMain) {
       testOutputDir,
       path.join('.maestro', 'clipboard-scrub.yaml'),
     ]);
+    // Sync on purpose (cleanup can run inside process.on('exit')), but
+    // bounded: `timeout` kills the direct child only, and a straggler
+    // grandchild is accepted there over an unbounded hang holding the
+    // secret (find 36).
     const result = spawnSync(scrubCmd.command, scrubCmd.args, {
       cwd: appRoot,
-      encoding: 'utf8',
+      stdio: ['ignore', 'inherit', 'inherit'],
+      timeout: CLEANUP_STEP_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
     });
     if (result.status === 0) {
       console.log(`maestro:enroll: device clipboard overwritten (${reason})`);
+    } else if (result.error && result.error.code === 'ETIMEDOUT') {
+      console.error(
+        `maestro:enroll: CLIPBOARD SCRUB TIMED OUT after ${CLEANUP_STEP_TIMEOUT_MS}ms (${reason}) — overwrite the device clipboard manually before releasing the device`,
+      );
     } else {
       console.error(
         `maestro:enroll: CLIPBOARD SCRUB FAILED (${reason}) — overwrite the device clipboard manually before releasing the device`,
@@ -293,6 +535,12 @@ if (isMain) {
   function cleanup(reason) {
     if (cleanedUp) return;
     cleanedUp = true;
+    // 0. Kill any Maestro invocation still in flight (a SIGINT mid-flow
+    //    lands here with the flow running — reachable now that the event
+    //    loop is no longer blocked by spawnSync): it holds the device and
+    //    open handles under the run root, and the scrub flow plus the
+    //    rmSync below need both released.
+    killTree(inFlight);
     // 1. Terminate the loopback helper: the setup secret lives only in
     //    that process's memory, so its death is the secret's erasure.
     if (helper && helper.exitCode === null) {
@@ -326,23 +574,22 @@ if (isMain) {
     process.exit(1);
   }
 
-  /** Run one flow, sequentially, with leak detection around it. */
-  function runFlow(flowFile) {
+  /** Run one flow, sequentially, with leak detection around it and the
+   * find-36 watchdog bounding it. */
+  async function runFlow(flowFile) {
     const before = snapshotDefaultLocation();
     const args = maestroArgs(flowFile, { debugDir, testOutputDir });
     console.log(
-      `maestro:enroll: running ${flowFile} (sequential; artifacts confined to ${runRoot})`,
+      `maestro:enroll: running ${flowFile} (sequential; artifacts confined to ${runRoot}; watchdog ${flowTimeout}ms)`,
     );
-    const flowCmd = maestroCommand(args);
-    const result = spawnSync(flowCmd.command, flowCmd.args, {
-      cwd: appRoot,
-      encoding: 'utf8',
-      stdio: ['ignore', 'inherit', 'inherit'],
-      env: { ...process.env, MAESTRO_CLI_NO_ANALYTICS: 'true' },
+    const result = await runMaestro(args, {
+      timeoutMs: flowTimeout,
+      label: flowFile,
+      inheritOutput: true,
     });
     const after = snapshotDefaultLocation();
     const leaks = detectDefaultLocationLeak(before, after);
-    return { status: result.status, leaks };
+    return { status: result.status, timedOut: result.timedOut, leaks };
   }
 
   // Start the loopback TOTP helper for the WHOLE sequence: enrollment and
@@ -364,10 +611,17 @@ if (isMain) {
     );
     if (!revokeFactor('pre-probe reset')) fail('pre-probe factor reset failed');
     factorMayExist = true;
-    const probe = runFlow('confinement-probe.yaml');
+    const probe = await runFlow('confinement-probe.yaml');
     if (probe.leaks.length > 0) {
       for (const leak of probe.leaks) console.error(`FAIL ${leak}`);
       fail('artifacts leaked into the default Maestro location');
+    }
+    if (probe.timedOut) {
+      // Before the status check: a killed probe must never pass for the
+      // designed failure.
+      fail(
+        `the confinement probe hit the ${flowTimeout}ms watchdog; its process tree was killed and cleanup ran (find 36)`,
+      );
     }
     if (probe.status === 0) {
       fail('the confinement probe PASSED — it is designed to fail while the secret is on screen');
@@ -411,10 +665,22 @@ if (isMain) {
         continue;
       }
     }
-    const outcome = runFlow(entry.step);
+    if (helper.exitCode !== null || helper.signalCode !== null) {
+      // Fail CLOSED instead of running flows against whatever else might
+      // answer on the helper port (find 36's fail-open sibling).
+      fail(
+        `the totp-helper exited (${helper.exitCode ?? helper.signalCode}) before ${entry.step} — without it the flows cannot fetch codes; check 127.0.0.1:${helperPort} for a conflict`,
+      );
+    }
+    const outcome = await runFlow(entry.step);
     if (outcome.leaks.length > 0) {
       for (const leak of outcome.leaks) console.error(`FAIL ${leak}`);
       fail(`${entry.step} leaked artifacts into the default Maestro location`);
+    }
+    if (outcome.timedOut) {
+      fail(
+        `${entry.step} hit the ${flowTimeout}ms watchdog; its process tree was killed and cleanup ran (find 36) — if the flow legitimately needs longer, set HIVE_MAESTRO_FLOW_TIMEOUT_MS`,
+      );
     }
     if (outcome.status !== 0) {
       fail(`${entry.step} exited ${outcome.status}`);

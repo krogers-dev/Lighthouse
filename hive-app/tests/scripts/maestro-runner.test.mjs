@@ -7,9 +7,16 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import {
+  CLEANUP_STEP_TIMEOUT_MS,
   DEFAULT_MAESTRO_TESTS,
+  FLOW_TIMEOUT_DEFAULT_MS,
+  PROBE_TIMEOUT_MS,
+  RUN_ROOT_PREFIX,
   SEQUENCE,
   detectDefaultLocationLeak,
+  flowTimeoutMs,
+  isStaleRunRoot,
+  killTreeCommand,
   lookupMaestroCommand,
   maestroArgs,
   maestroCommand,
@@ -193,4 +200,56 @@ test('the CLI lookup also goes through the command processor on Windows', () => 
   assert.match(lookupMaestroCommand('win32').command, /cmd\.exe$/i);
   assert.deepEqual(lookupMaestroCommand('win32').args, ['/c', 'where', 'maestro']);
   assert.equal(lookupMaestroCommand('darwin').command, 'which');
+});
+
+// Find 36: the runner hung on Windows with cleanup unreachable — the
+// spawnSync + cmd.exe /c + inherited-stdio shape blocks the event loop
+// (so signal handlers cannot run) and has no bound of its own. Every
+// Maestro invocation is now async under a watchdog that kills the whole
+// process TREE on expiry; the pieces below are the pure decisions.
+test('find 36: the watchdog kill takes the whole process tree', () => {
+  // Windows: killing only the spawned cmd.exe would orphan the java
+  // process that owns the device — /T is the point. taskkill is a native
+  // exe, so no ComSpec wrapper, and the pid must arrive as one argv entry.
+  const win = killTreeCommand(4242, 'win32');
+  assert.equal(win.command, 'taskkill');
+  assert.deepEqual(win.args, ['/pid', '4242', '/T', '/F']);
+  // POSIX: no command at all — the child is spawned detached into its own
+  // process group and the group is signalled, which a single argv cannot
+  // express.
+  assert.equal(killTreeCommand(4242, 'linux'), null);
+  assert.equal(killTreeCommand(4242, 'darwin'), null);
+});
+
+test('find 36: the flow watchdog is bounded, overridable, and fail-closed on garbage', () => {
+  assert.equal(flowTimeoutMs({}), FLOW_TIMEOUT_DEFAULT_MS);
+  assert.equal(flowTimeoutMs({ HIVE_MAESTRO_FLOW_TIMEOUT_MS: '' }), FLOW_TIMEOUT_DEFAULT_MS);
+  assert.equal(flowTimeoutMs({ HIVE_MAESTRO_FLOW_TIMEOUT_MS: '120000' }), 120000);
+  // Garbage must come back non-finite so the runner refuses to start — a
+  // misread watchdog silently becoming the default (or no watchdog) would
+  // recreate the fail-open this closes.
+  for (const bad of ['soon', '0', '-5', '1.5', '10s', '1e6']) {
+    assert.ok(
+      Number.isNaN(flowTimeoutMs({ HIVE_MAESTRO_FLOW_TIMEOUT_MS: bad })),
+      `${JSON.stringify(bad)} must be refused, not defaulted`,
+    );
+  }
+  // Sanity on the tiers: everything positive and finite, and the flow
+  // default the largest — a flow contains a cold app start and a Metro
+  // bundle, while the probes are --version/--help.
+  for (const ms of [FLOW_TIMEOUT_DEFAULT_MS, PROBE_TIMEOUT_MS, CLEANUP_STEP_TIMEOUT_MS]) {
+    assert.ok(Number.isFinite(ms) && ms > 0);
+  }
+  assert.ok(FLOW_TIMEOUT_DEFAULT_MS > CLEANUP_STEP_TIMEOUT_MS);
+  assert.ok(FLOW_TIMEOUT_DEFAULT_MS > PROBE_TIMEOUT_MS);
+});
+
+test('find 36: stale run roots from a hand-killed run are recognized for the startup sweep', () => {
+  // The sweep and mkdtemp share one prefix constant; this pins the
+  // on-disk contract between them.
+  assert.equal(RUN_ROOT_PREFIX, 'hive-maestro-');
+  assert.ok(isStaleRunRoot(`${RUN_ROOT_PREFIX}Ab12Cd`));
+  assert.ok(!isStaleRunRoot('maestro-tests'));
+  assert.ok(!isStaleRunRoot('hive-app'));
+  assert.ok(!isStaleRunRoot(''));
 });

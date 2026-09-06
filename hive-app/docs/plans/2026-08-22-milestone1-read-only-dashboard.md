@@ -1824,7 +1824,7 @@ target. `hideKeyboard` is retained because dismissing the keyboard before
 tapping is what a person does and it costs nothing; the scroll steps and
 visibility tuning are gone.
 
-### Find 36 (OPEN) — the enrollment runner hangs on Windows, and fails OPEN when it does
+### Find 36 (fixed 2026-09-06 — see that day's entry below) — the enrollment runner hangs on Windows, and fails OPEN when it does
 
 Twice now, `npm run maestro:enroll` has stopped making progress with the
 runner process alive, no Maestro child running, and no further output. The
@@ -1867,3 +1867,88 @@ now blocked on find 36 rather than on anything in the app. Gates as at the
 previous entry: jest 403, node:test 325 with 291 passed and 34
 platform-skipped, typecheck 0, eslint and prettier clean,
 maestro:validate OK across 18 flows.
+
+## 2026-09-06 — find 36 fixed: the enrollment runner survives its own hang
+
+Authored and gated in the build container (the device lane is HOLD here);
+the desktop rerun is the verification step and closes this entry.
+
+The hang itself was never reproduced here — there is no device lane to
+reproduce it on — so the fix removes the vulnerable SHAPE rather than
+claiming one exact wedge is proven. Every variant of the suspicion lands
+in the same place: `runFlow` executed Maestro with `spawnSync` through
+`cmd.exe /c` with inherited stdio, which (a) blocks the event loop, so the
+SIGINT/SIGTERM handlers that guarantee cleanup cannot run while it is
+stuck — killing the runner from outside was the only way out, and that
+skips cleanup, which is exactly the residue the find recorded — and (b)
+has no bound of its own, so anything wedged below it (`cmd.exe` waiting on
+a straggler java or adb child, a blocked inherited handle) suspends the
+runner forever.
+
+What changed in `scripts/maestro-enroll-runner.mjs`:
+
+1. **Every Maestro invocation is async `spawn`, settled on `exit` plus a
+   1s stdio drain — never on `close` alone.** `close` additionally waits
+   for the stdio streams, and a straggler grandchild holding an inherited
+   pipe handle keeps them open forever. This is not just reasoning:
+   reproduced in this container with a child that exits 7 leaving a
+   backgrounded `sleep 600` holding the pipe — `exit` fired at +1ms,
+   `close` never fired, and the drain path settled at +1002ms with the
+   complete output. The event loop also stays free now, so Ctrl+C reaches
+   the cleanup handlers mid-flow.
+2. **A watchdog bounds every invocation** — flows default to 10 minutes
+   (`HIVE_MAESTRO_FLOW_TIMEOUT_MS` overrides; garbage in that variable is
+   an ENGINE FAILURE at startup, never a silent default), the
+   `--version`/`--help` probes to 60s — and on expiry kills the whole
+   process TREE: `taskkill /pid <pid> /T /F` on Windows (killing only
+   `cmd.exe` would orphan the java process that owns the device), a
+   `SIGKILL` to the detached process group on POSIX (verified here: the
+   group kill left only a zombie awaiting the reaper, nothing running).
+   The run then FAILS through the normal path, so cleanup runs on the
+   watchdog path too.
+3. **Cleanup itself is bounded.** The clipboard scrub and factor
+   revocation keep `spawnSync` on purpose — cleanup can run inside
+   `process.on('exit')`, where only synchronous work executes — but now
+   carry `timeout` + `SIGKILL` (a straggler grandchild is accepted there
+   over an unbounded hang holding the secret), and cleanup's first act is
+   to tree-kill any Maestro invocation still in flight, so the scrub flow
+   and the run-root removal are not blocked by the thing that just
+   wedged.
+4. **Startup fails CLOSED on the residue of a hand-killed run.** The
+   helper port (127.0.0.1:8477) already in use is a HOLD naming the
+   likely stale totp-helper — previously the new helper crashed on bind
+   (totp-helper has no listen-error recovery), the runner logged that and
+   CONTINUED, and the flows would then have talked to the stale helper:
+   find 36's fail-open sibling. A helper that dies mid-run now fails the
+   sequence before the next flow instead of being narrated past. Stale
+   `hive-maestro-*` run roots in the tmpdir are swept loudly at startup.
+5. Two corrections in passing: `chmod 700` on the run root is POSIX-only
+   now (there is no chmod binary to call on Windows — the call can only
+   ever have worked on the desktop because something shipped one on PATH —
+   and `%TEMP%` is already ACL'd to the user), and the `where`/`which`
+   lookup probe is bounded like everything else.
+
+Tests: three added to `tests/scripts/maestro-runner.test.mjs` — the
+tree-kill argv on both platforms (`/T` present, pid as one argv entry,
+null on POSIX where the process group is signalled), the watchdog
+default/override/fail-closed-on-garbage parsing, and the
+`hive-maestro-` prefix contract shared by mkdtemp and the sweep.
+
+Gates fresh this cycle (build container, Linux — the 34 win32 skips all
+execute here): node:test 328 passed / 0 failed, jest 403 passed across 30
+suites, typecheck 0, eslint and prettier clean, maestro:validate OK (18
+flows, 4 helper scripts), and `maestro:enroll` itself smoke-run to its
+designed container HOLD (exit 3, no Maestro binary).
+
+### State
+
+Still **12 of 18 flows**, but nothing is open in this area ahead of the
+desktop rerun: `npm run maestro:enroll` on the API 35 lane is the
+verification. Expected shape of that run: a port-8477 HOLD or a
+stale-run-root sweep first if the hung run's residue is still on the
+machine, then reset -> enroll -> sign-out -> login on the same factor ->
+revoke, each flow under the watchdog. Success there and on
+`npm run maestro:confinement` clears all four flows behind find 36
+(`mfa-enroll`, `staff-sign-out`, `mfa-login`, `confinement-probe`) —
+**16 of 18**, leaving only `expired-session` and `read-surfaces-denied`
+on the finds-20/21 harness helpers.
