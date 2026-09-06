@@ -19,7 +19,9 @@ const require = createRequire(import.meta.url);
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const plugin = require(path.join(appRoot, 'plugins/with-android-imageless-splash.js'));
 
-/** Theme.App.SplashScreen exactly as expo-splash-screen 57.0.7 writes it
+/** Theme.App.SplashScreen exactly as expo-splash-screen 57.0.8 writes it
+ * (its config plugin is byte-identical to 57.0.7's, verified by tarball
+ * diff at the 2026-09-06 patch refresh)
  * (withAndroidSplashStyles.js, addSplashScreenStyle) for an imageless
  * configuration, alongside a sibling group that must not be touched. */
 function templateStyles() {

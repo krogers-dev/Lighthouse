@@ -1952,3 +1952,112 @@ revoke, each flow under the watchdog. Success there and on
 (`mfa-enroll`, `staff-sign-out`, `mfa-login`, `confinement-probe`) —
 **16 of 18**, leaving only `expired-session` and `read-surfaces-denied`
 on the finds-20/21 harness helpers.
+
+## 2026-09-06, later — the deliberate SDK 57 patch refresh (cloud, task filed 2026-09-02)
+
+Kody authorized autonomous forward motion and stepped out; this is the
+filed patch-refresh, done from the build container with the full gate
+sweep. The Expo API is egress-blocked here, so the authoritative target
+set came from the npm registry itself: the latest SDK 57 patch of `expo`
+is now **57.0.20** (it had already moved past the 57.0.18 the desktop saw
+on 2026-09-02), and its own `bundledNativeModules.json` — fetched by
+tarball, no Expo service involved — supplies the allowed range for every
+governed package. Resolving each range to its newest satisfying version
+produced exactly **twelve changes**, matching the desktop's count:
+
+| package | from | to |
+| --- | --- | --- |
+| expo | 57.0.11 | **57.0.20** |
+| expo-build-properties | 57.0.13 | 57.0.17 |
+| expo-constants | 57.0.13 | 57.0.17 |
+| expo-file-system | 57.0.5 | 57.0.6 |
+| expo-linking | 57.0.7 | 57.0.9 |
+| expo-router | 57.0.15 | 57.0.19 |
+| expo-secure-store | 57.0.1 | 57.0.3 |
+| expo-splash-screen | 57.0.7 | 57.0.8 |
+| expo-system-ui | 57.0.2 | 57.0.3 |
+| react-native | 0.86.2 | **0.86.3** |
+| eslint-config-expo | 57.0.1 | 57.0.2 (dev) |
+| jest-expo | 57.0.4 | 57.0.5 (dev) |
+
+react, react-dom, reanimated, worklets, svg, gesture-handler,
+safe-area-context, screens, and react-native-web already sat at their
+newest allowed versions and keep their pins. `expo-crypto` and
+`expo-status-bar` were already current.
+
+An incremental `npm install` ERESOLVEd (jest-expo 57.0.5 peer-wants
+`@react-native/jest-preset@^0.86.3` while the lock held 0.86.2's), so the
+lockfile was **regenerated from the new exact pins** and then proven with
+a clean `npm ci` (1204 packages). One lockfile, exact direct pins, as the
+brief requires.
+
+### The imageless-splash plugin against 57.0.8 — checked two ways
+
+The plugin's throw-guard existed for exactly this moment. First by
+inspection: expo-splash-screen 57.0.8's config plugin build is
+**byte-identical** to 57.0.7's (`diff -r` across the extracted tarballs:
+zero differences), so the contract could not have moved. Then live: a
+real `npx expo prebuild --platform android` on the refreshed tree
+completed, the guard did not throw, and the generated
+`values/styles.xml` carries **zero** `windowSplashScreenAnimatedIcon`
+references — the dangling `@drawable/splashscreen_logo` item that broke
+the first desktop build is stripped exactly as designed. The generated
+`android/` directory was removed afterwards (CNG: never committed).
+
+### The audit story: both HIGH advisories left the tree, and the gate ran clean for the first time
+
+The regenerated lock **no longer contains `image-size` at all**
+(`npm ls image-size`: empty) — the Metro/Expo chain dropped it in the
+newer patches. Both high-severity waivers
+(GHSA-w3rx-r6r6-pgpr, GHSA-5p2g-fcmc-qvqq, proposed 2026-08-21, never
+ratified) therefore hit their own recorded retest instruction — "remove
+this waiver as soon as a fixed image-size release ships" — and were
+removed from `security/waivers.json`, with the removal reason recorded in
+that file's `$history` and their full text preserved in git history.
+Nothing was ratified; the waiver list is now empty, which also removes
+both audit-waiver decisions from Kody's pending list. The evidence pair
+(`security/evidence/npm-audit-current.json` + `.meta.json`) was
+regenerated together per its own binding rule. The fresh audit shows two
+distinct **moderate** advisories (decode-uri-component
+GHSA-vcc3-ghjq-m6fr, uuid GHSA-w5hq-g745-h8pq), both in the Expo build
+chain, both below the gate's high threshold: **audit:gate exit 0** — its
+first clean pass in this project (it has been HOLD exit 3 on the
+proposed waivers since 2026-08-21).
+
+One test moved with the truth it pins:
+`tests/scripts/audit-gate.test.mjs`'s flip-to-ratified negative read the
+LIVE waiver file and went vacuous once that list emptied. It now accepts
+the empty list as a valid state (asserting it validates clean) and runs
+the flip-without-provenance rejection against a representative proposed
+fixture as well as the live entries whenever any exist, so the negative
+can never again silently pass on an empty file.
+
+### Gates fresh on the refreshed tree (build container)
+
+| gate | result |
+| --- | --- |
+| npm ci (dependency integrity) | clean, 1204 packages |
+| verify:toolchain | exit 0 on the new pins (it reads package.json, nothing hardcoded) |
+| typecheck | 0 errors |
+| jest (jest-expo 57.0.5) | **403 passed / 30 suites** |
+| node:test | **328 passed, 0 failed** |
+| eslint `--max-warnings 0` (eslint-config-expo 57.0.2) | clean |
+| prettier | clean |
+| maestro:validate | OK, 18 flows |
+| config:check | OK (development profile) |
+| expo prebuild (android) | completed; imageless-splash guard quiet; 0 icon refs |
+| export:candidate + bundle:inspect | OK — bundles under expo 57.0.20 / RN 0.86.3, zero QA-hook markers |
+| audit:gate | **exit 0** (see above) |
+| secrets:scan | ran on FULL history for the first time in-container (`git fetch --unshallow`); designed HOLD exit 3 — the two history exceptions on c666a92 stay PROPOSED awaiting Kody's written ratification, and the scan surfaced nothing new |
+| expo-doctor | 19/21 — the same two egress-blocked checks as every in-container run (config schema fetch, RN Directory); the dependency-version check that failed 20/21 on the desktop now passes. The definitive 21/21 is desktop evidence |
+
+### What this means on the desktops
+
+react-native moved 0.86.2 -> 0.86.3, so the next `git pull` needs
+`npm ci` and a **native rebuild** (`npx expo run:android`, ~7 min) before
+any Maestro work — the installed dev build no longer matches the JS tree.
+The find-36 verification sequence is unchanged, just preceded by that
+rebuild. Remaining Kody-owned decisions after this cycle: the history
+exceptions (ratify or decline; the audit waivers are gone), the Maestro
+pin attestation, Expo account/terms for the iOS compile lane, and
+Stacie's client wording swap.

@@ -613,14 +613,40 @@ test('whitespace cannot satisfy reason or retest', () => {
   assert.ok(blankReason.some((p) => p.includes('reason')));
 });
 
-test('NEGATIVE: flipping the CURRENT proposed waivers to ratified without new provenance fails', async () => {
+test('NEGATIVE: flipping proposed waivers to ratified without new provenance fails', async () => {
+  // The live file's waivers, when any exist, must reject the flip. Since
+  // 2026-09-06 the live list is legitimately EMPTY (the two image-size
+  // waivers were removed by their own retest instruction when the SDK 57
+  // patch refresh dropped image-size from the tree — see the file's
+  // $history), so the property is also pinned on a representative
+  // proposed fixture, which keeps this negative from going vacuous.
   const { readFileSync } = await import('node:fs');
   const real = JSON.parse(readFileSync(new URL('../../security/waivers.json', import.meta.url)));
-  const flipped = {
-    waivers: real.waivers.map((w) => ({ ...w, approvalStatus: 'ratified' })),
+  const flip = (file) => ({
+    waivers: file.waivers.map((w) => ({ ...w, approvalStatus: 'ratified' })),
+  });
+  if (real.waivers.length > 0) {
+    const problems = validateWaivers(flip(real), '2026-08-21');
+    assert.ok(problems.length > 0, 'flipping the live waivers without provenance must fail');
+    assert.ok(problems.some((p) => p.includes('ratifiedBy') || p.includes('ratifiedOn')));
+  } else {
+    // Empty is a valid state and must validate clean — an empty list is
+    // how a retired waiver leaves the gate, never via silent ratification.
+    assert.deepEqual(validateWaivers(real, '2026-09-06'), []);
+  }
+  const fixture = {
+    waivers: [
+      makeWaiver({
+        approvalStatus: 'proposed',
+        ratifiedOn: undefined,
+        ratifiedBy: undefined,
+        decisionRecordDigest: undefined,
+        lockfileSha256: undefined,
+      }),
+    ],
   };
-  const problems = validateWaivers(flipped, '2026-08-21');
-  assert.ok(problems.length > 0, 'flipping without provenance must fail');
+  const problems = validateWaivers(flip(fixture), '2026-08-21');
+  assert.ok(problems.length > 0, 'flipping a proposed waiver without provenance must fail');
   assert.ok(problems.some((p) => p.includes('ratifiedBy') || p.includes('ratifiedOn')));
 });
 
