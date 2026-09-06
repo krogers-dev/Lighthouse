@@ -2435,3 +2435,48 @@ Desktop evidence owed is unchanged in kind: the enrollment sequence on
 this head (`maestro:enroll`, then `maestro:confinement`), the QA build for
 `expired-session`, and `maestro:denied`. The next `maestro:enroll` run is
 the proof of both this finding and the runner's success-path exit.
+
+## 2026-09-06, late night — desktop 2: the enrollment sequence passes end to end; finds 36 and 37 confirmed on the device
+
+Kody reran `npm run maestro:enroll` on desktop 2 (the Pixel_8 API 35
+lane, Maestro 2.10.0) at head eaa31f1, output captured to a log file.
+Every step of every flow completed:
+
+- `mfa-enroll.yaml`, 30 steps: sign-in, OTP read mid-flow from Mailpit,
+  the enrollment screen, the setup key captured into the loopback
+  helper's memory and the clipboard overwritten, the guaranteed-wrong
+  code, a tap on `mfa-code-label`, then `mfa-submit` on the first try,
+  `mfa-notice` with the QR still on screen, a fresh code, the label tap
+  again, submit, `dashboard-workspace`.
+- `staff-sign-out.yaml`, 10 steps.
+- `mfa-login.yaml`, 18 steps: no second QR, verify against the existing
+  factor through the same label tap, dashboard.
+- Then the post-run revocation (`1 deleted, readback verified zero`), the
+  helper terminated, the clipboard overwritten with reason `success`, the
+  run root removed and verified gone, `maestro:enroll OK`, and **the
+  prompt returned on its own**.
+
+### What that proves
+
+- **Find 37, confirmed on the device.** Earlier the same evening, the
+  same flow on the same emulator died right after `hideKeyboard`; with
+  the label tap in its place the verify control was found and tapped on
+  the first attempt in both enrollment rounds and in verify mode. The
+  BACK-press diagnosis was made from Maestro's source; this run is the
+  device evidence the find 37 record said was still owed.
+- **Find 36's true fix, confirmed on Windows.** After the OK line the
+  process exited by itself: explicit, verified cleanup, then exit. The
+  runner's failure path had already been seen on this desktop earlier in
+  the evening (fail, exit-time cleanup, prompt back); now the success path
+  is seen too. The hang is gone.
+- The factor-reset, loopback-helper, and clipboard-scrub controls ran as
+  designed on the success path, each printing its reason.
+
+### The tally: 15 of 18
+
+The 12 flows recorded green on 2026-09-03 plus `mfa-enroll`,
+`staff-sign-out`, and `mfa-login`. Remaining, in the order to run them:
+the confinement probe (`npm run maestro:confinement`, the fourth flow
+find 36 blocked), `read-surfaces-denied` (`npm run maestro:denied`), and
+`expired-session` on the QA build (find 20). Success on all three is 18
+of 18.
