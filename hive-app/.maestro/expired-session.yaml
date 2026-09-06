@@ -1,15 +1,42 @@
 appId: com.myhbcfo.hive.development
 name: Expired/revoked session fails closed into a fresh sign-in
 # Pre-steps on the runner:
-#   1. The app is signed in (sign-in.yaml) and then backgrounded/closed.
-#   2. Revoke the account's sessions server-side so the stored token can no
-#      longer refresh (synthetic local stack only):
-#        curl -s -X POST "$HIVE_LOCAL_SUPABASE_URL/auth/v1/admin/users/<seeded-uuid>/logout" \
-#          -H "apikey: $SERVICE_KEY" -H "Authorization: Bearer $SERVICE_KEY"
-#      (service key stays in the runner's memory/env, never in this file).
-# The relaunch must show no protected content and the expired notice.
+#   1. The installed development build was exported with
+#      EXPO_PUBLIC_QA_HOOKS=1 (QA build). This enables the dev-only
+#      session-expiry deep link (hivedev:///?qa=expire-session, parsed by
+#      exact scheme/host/path), which release configuration forbids
+#      (config:check) and bundle inspection proves absent from
+#      non-development exports (bundle:inspect:candidate).
+#   2. The app is signed in with a workspace selectable (sign-in.yaml).
+#
+# Why a QA hook and not a server-side revoke (find 20): the app reads its
+# session locally with autoRefreshToken off, so the stored access token is
+# a JWT that PostgREST validates statelessly until its own exp, and the
+# boot check keys off the session's expires_at — never off server session
+# rows. Deleting auth.sessions therefore leaves the app reading until the
+# token expires an hour later. This hook rewrites the STORED session's
+# expires_at into the past THROUGH the versioned storage adapter, so the
+# session still verifies (no quarantine) but is expired: the next boot
+# takes the expiry branch and signs out with the "session ended" reason.
+# The hook renders a QA-only acknowledgment; the flow WAITS for it before
+# stopping the app, so the expiry write cannot be cut short.
 ---
 - launchApp
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session lands on the chooser rather than the last workspace.
+- assertVisible: 'Choose a workspace'
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- openLink: hivedev:///?qa=expire-session
+# Wait for the completion acknowledgment before killing the app.
+- extendedWaitUntil:
+    visible:
+      id: 'qa-expired-ack'
+    timeout: 10000
+- stopApp
+- launchApp
+# The relaunch must show no protected content and the expired notice.
 - assertNotVisible:
     id: 'dashboard-workspace'
 - assertVisible:

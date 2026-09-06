@@ -8,22 +8,35 @@ import { getRuntime } from '@/app-runtime';
 import { AuthProvider } from '@/auth/provider';
 import { AppText, Notice, Screen } from '@/ui';
 
-/** Development-only QA hook (RETURN-2 area 7; RETURN-3 area 8): a QA
- * build (dev build with EXPO_PUBLIC_QA_HOOKS=1) corrupts the stored
- * session on the exact deep link hivedev:///?qa=corrupt-storage so the
- * quarantine device flow is executable, and returns true once the
- * corruption write has COMPLETED so Maestro can wait for the on-screen
- * acknowledgment before stopping the app. The `__DEV__` guard means
- * release bundles drop the entire block (Metro dead-code elimination);
- * bundle:inspect proves the marker string is absent from non-development
- * exports and config:check rejects the env flag for candidate/release
- * profiles. */
-function useDevQaHooks(): boolean {
-  const [corrupted, setCorrupted] = React.useState(false);
+interface QaHookState {
+  /** The corruption write completed (-> storage_quarantined next boot). */
+  corrupted: boolean;
+  /** The expiry write completed (-> signed_out, reason 'expired', find 20). */
+  expired: boolean;
+}
+
+/** Development-only QA hooks (RETURN-2 area 7; RETURN-3 area 8; find 20): a
+ * QA build (dev build with EXPO_PUBLIC_QA_HOOKS=1) acts on two exact deep
+ * links so two otherwise unreachable device states become executable —
+ *   hivedev:///?qa=corrupt-storage  -> corrupt the stored session so the
+ *                                      next boot quarantines;
+ *   hivedev:///?qa=expire-session   -> expire the stored session so the
+ *                                      next boot signs out with the
+ *                                      "session ended" reason.
+ * Each returns its flag once the write has COMPLETED, so Maestro can wait
+ * for the on-screen acknowledgment before stopping the app. The `__DEV__`
+ * guard drops the entire block from release bundles (Metro dead-code
+ * elimination); bundle:inspect proves the marker strings absent from
+ * non-development exports and config:check rejects the env flag for
+ * candidate/release profiles. */
+function useDevQaHooks(): QaHookState {
+  const [state, setState] = React.useState<QaHookState>({ corrupted: false, expired: false });
   React.useEffect(() => {
     if (!(__DEV__ && process.env.EXPO_PUBLIC_QA_HOOKS === '1')) return undefined;
     /* eslint-disable @typescript-eslint/no-require-imports */
-    const qa = require('@/dev/qa-corrupt-storage') as typeof import('@/dev/qa-corrupt-storage');
+    const corrupt =
+      require('@/dev/qa-corrupt-storage') as typeof import('@/dev/qa-corrupt-storage');
+    const expire = require('@/dev/qa-expire-session') as typeof import('@/dev/qa-expire-session');
     const secureStore = require('expo-secure-store') as typeof import('expo-secure-store');
     /* eslint-enable @typescript-eslint/no-require-imports */
     const backend = {
@@ -32,15 +45,22 @@ function useDevQaHooks(): boolean {
       deleteItem: (key: string) => secureStore.deleteItemAsync(key),
     };
     const handle = (url: string | null): void => {
-      if (url && qa.isQaCorruptUrl(url)) {
-        void qa.corruptStoredSessionForQa(backend).then(() => setCorrupted(true));
+      if (!url) return;
+      if (corrupt.isQaCorruptUrl(url)) {
+        void corrupt
+          .corruptStoredSessionForQa(backend)
+          .then(() => setState((s) => ({ ...s, corrupted: true })));
+      } else if (expire.isQaExpireUrl(url)) {
+        void expire.expireStoredSessionForQa(backend).then((ok) => {
+          if (ok) setState((s) => ({ ...s, expired: true }));
+        });
       }
     };
     void Linking.getInitialURL().then(handle);
     const subscription = Linking.addEventListener('url', (event) => handle(event.url));
     return () => subscription.remove();
   }, []);
-  return corrupted;
+  return state;
 }
 
 /** Sanitized application error boundary. Unexpected failures map to a
@@ -108,25 +128,32 @@ function useQaLogBoxSuppression(): void {
 }
 
 export default function RootLayout(): React.JSX.Element {
-  const qaCorrupted = useDevQaHooks();
+  const qa = useDevQaHooks();
   useQaLogBoxSuppression();
   const runtime = getRuntime();
   if (!runtime.ok) {
     return <ConfigurationFatal problems={runtime.problems} />;
   }
+  const qaBuild = __DEV__ && process.env.EXPO_PUBLIC_QA_HOOKS === '1';
   return (
     <SafeAreaProvider>
       <AuthProvider controller={runtime.services.controller}>
         <StatusBar style="auto" />
         {/* Frequent navigation is not animated (motion contract). */}
         <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
-        {/* QA-only completion acknowledgment (RETURN-3 area 8): rendered
-            only in QA dev builds after the corruption write completes, so
-            the Maestro flow waits for it before stopping the app. The
-            whole expression is dead code in release bundles (__DEV__). */}
-        {__DEV__ && process.env.EXPO_PUBLIC_QA_HOOKS === '1' && qaCorrupted ? (
+        {/* QA-only completion acknowledgments (RETURN-3 area 8; find 20):
+            rendered only in QA dev builds after the respective write
+            completes, so the Maestro flow waits for the ack before
+            stopping the app. Both expressions are dead code in release
+            bundles (__DEV__). */}
+        {qaBuild && qa.corrupted ? (
           <AppText variant="caption" testID="qa-corrupt-ack" accessibilityLabel="QA acknowledgment">
             QA: stored session corrupted
+          </AppText>
+        ) : null}
+        {qaBuild && qa.expired ? (
+          <AppText variant="caption" testID="qa-expired-ack" accessibilityLabel="QA acknowledgment">
+            QA: stored session expired
           </AppText>
         ) : null}
       </AuthProvider>

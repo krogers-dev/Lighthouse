@@ -58,10 +58,12 @@ export const RELEASE_ONLY_PATTERNS = [
     regex: /com\.myhbcfo\.hive\.development/g,
   },
   {
-    // The dev-only storage-corruption QA hook embeds this marker exactly
-    // so its absence from any non-development export is provable.
+    // The dev-only QA hooks embed these markers exactly so their absence
+    // from any non-development export is provable: HIVE_QA_CORRUPT_HOOK
+    // (session corruption -> quarantine) and HIVE_QA_EXPIRE_HOOK (session
+    // expiry -> signed_out, find 20).
     name: 'qa-hook-marker',
-    regex: /HIVE_QA_CORRUPT_HOOK/g,
+    regex: /HIVE_QA_(?:CORRUPT|EXPIRE)_HOOK/g,
   },
 ];
 

@@ -1965,20 +1965,20 @@ tarball, no Expo service involved — supplies the allowed range for every
 governed package. Resolving each range to its newest satisfying version
 produced exactly **twelve changes**, matching the desktop's count:
 
-| package | from | to |
-| --- | --- | --- |
-| expo | 57.0.11 | **57.0.20** |
-| expo-build-properties | 57.0.13 | 57.0.17 |
-| expo-constants | 57.0.13 | 57.0.17 |
-| expo-file-system | 57.0.5 | 57.0.6 |
-| expo-linking | 57.0.7 | 57.0.9 |
-| expo-router | 57.0.15 | 57.0.19 |
-| expo-secure-store | 57.0.1 | 57.0.3 |
-| expo-splash-screen | 57.0.7 | 57.0.8 |
-| expo-system-ui | 57.0.2 | 57.0.3 |
-| react-native | 0.86.2 | **0.86.3** |
-| eslint-config-expo | 57.0.1 | 57.0.2 (dev) |
-| jest-expo | 57.0.4 | 57.0.5 (dev) |
+| package               | from    | to           |
+| --------------------- | ------- | ------------ |
+| expo                  | 57.0.11 | **57.0.20**  |
+| expo-build-properties | 57.0.13 | 57.0.17      |
+| expo-constants        | 57.0.13 | 57.0.17      |
+| expo-file-system      | 57.0.5  | 57.0.6       |
+| expo-linking          | 57.0.7  | 57.0.9       |
+| expo-router           | 57.0.15 | 57.0.19      |
+| expo-secure-store     | 57.0.1  | 57.0.3       |
+| expo-splash-screen    | 57.0.7  | 57.0.8       |
+| expo-system-ui        | 57.0.2  | 57.0.3       |
+| react-native          | 0.86.2  | **0.86.3**   |
+| eslint-config-expo    | 57.0.1  | 57.0.2 (dev) |
+| jest-expo             | 57.0.4  | 57.0.5 (dev) |
 
 react, react-dom, reanimated, worklets, svg, gesture-handler,
 safe-area-context, screens, and react-native-web already sat at their
@@ -2034,22 +2034,22 @@ can never again silently pass on an empty file.
 
 ### Gates fresh on the refreshed tree (build container)
 
-| gate | result |
-| --- | --- |
-| npm ci (dependency integrity) | clean, 1204 packages |
-| verify:toolchain | exit 0 on the new pins (it reads package.json, nothing hardcoded) |
-| typecheck | 0 errors |
-| jest (jest-expo 57.0.5) | **403 passed / 30 suites** |
-| node:test | **328 passed, 0 failed** |
-| eslint `--max-warnings 0` (eslint-config-expo 57.0.2) | clean |
-| prettier | clean |
-| maestro:validate | OK, 18 flows |
-| config:check | OK (development profile) |
-| expo prebuild (android) | completed; imageless-splash guard quiet; 0 icon refs |
-| export:candidate + bundle:inspect | OK — bundles under expo 57.0.20 / RN 0.86.3, zero QA-hook markers |
-| audit:gate | **exit 0** (see above) |
-| secrets:scan | ran on FULL history for the first time in-container (`git fetch --unshallow`); designed HOLD exit 3 — the two history exceptions on c666a92 stay PROPOSED awaiting Kody's written ratification, and the scan surfaced nothing new |
-| expo-doctor | 19/21 — the same two egress-blocked checks as every in-container run (config schema fetch, RN Directory); the dependency-version check that failed 20/21 on the desktop now passes. The definitive 21/21 is desktop evidence |
+| gate                                                  | result                                                                                                                                                                                                                            |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| npm ci (dependency integrity)                         | clean, 1204 packages                                                                                                                                                                                                              |
+| verify:toolchain                                      | exit 0 on the new pins (it reads package.json, nothing hardcoded)                                                                                                                                                                 |
+| typecheck                                             | 0 errors                                                                                                                                                                                                                          |
+| jest (jest-expo 57.0.5)                               | **403 passed / 30 suites**                                                                                                                                                                                                        |
+| node:test                                             | **328 passed, 0 failed**                                                                                                                                                                                                          |
+| eslint `--max-warnings 0` (eslint-config-expo 57.0.2) | clean                                                                                                                                                                                                                             |
+| prettier                                              | clean                                                                                                                                                                                                                             |
+| maestro:validate                                      | OK, 18 flows                                                                                                                                                                                                                      |
+| config:check                                          | OK (development profile)                                                                                                                                                                                                          |
+| expo prebuild (android)                               | completed; imageless-splash guard quiet; 0 icon refs                                                                                                                                                                              |
+| export:candidate + bundle:inspect                     | OK — bundles under expo 57.0.20 / RN 0.86.3, zero QA-hook markers                                                                                                                                                                 |
+| audit:gate                                            | **exit 0** (see above)                                                                                                                                                                                                            |
+| secrets:scan                                          | ran on FULL history for the first time in-container (`git fetch --unshallow`); designed HOLD exit 3 — the two history exceptions on c666a92 stay PROPOSED awaiting Kody's written ratification, and the scan surfaced nothing new |
+| expo-doctor                                           | 19/21 — the same two egress-blocked checks as every in-container run (config schema fetch, RN Directory); the dependency-version check that failed 20/21 on the desktop now passes. The definitive 21/21 is desktop evidence      |
 
 ### What this means on the desktops
 
@@ -2061,3 +2061,78 @@ rebuild. Remaining Kody-owned decisions after this cycle: the history
 exceptions (ratify or decline; the audit waivers are gone), the Maestro
 pin attestation, Expo account/terms for the iOS compile lane, and
 Stacie's client wording swap.
+
+## 2026-09-06, later still — find 20 fixed: a QA hook that EXPIRES the stored session
+
+Autonomous forward motion (Kody away). Find 20 recorded that
+`expired-session.yaml` could not be produced by its documented pre-step: a
+server-side session revoke cannot make the app show the expired notice,
+because the app reads its session locally with `autoRefreshToken: false`
+(confirmed at `src/data/supabase/client.ts:225`), so `getSession()`
+returns the stored session verbatim and the boot check keys off its
+`expires_at` (`src/auth/controller.ts:224` -> `BOOTED_EXPIRED` ->
+signed_out, reason `expired`), never off server session rows. A revoked
+session keeps reading until the stored JWT's own `exp`, an hour out.
+
+The fix is the executable counterpart to the corruption hook, and the
+distinction between the two is the whole point:
+
+| QA deep link                          | writes                                                         | next boot                      |
+| ------------------------------------- | -------------------------------------------------------------- | ------------------------------ |
+| `hivedev:///?qa=corrupt-storage`      | a non-JSON manifest marker                                     | `storage_quarantined`          |
+| `hivedev:///?qa=expire-session` (new) | the session with `expires_at` in the past, THROUGH the adapter | `signed_out`, reason `expired` |
+
+`src/dev/qa-expire-session.ts` reads the persisted session via the same
+`SessionStorageAdapter` the app uses, rewrites `expires_at`/`expires_in`
+into the past preserving every other field, and writes it back — so the
+manifest digest is RECOMPUTED and the session still verifies. It is
+expired, not corrupt. It refuses to fabricate a session over
+missing/corrupt storage (returns false, so the flow's ack never renders
+and the assertion fails loudly rather than passing against a state the
+pre-step never produced).
+
+Ship-safety is the corruption hook's proven scaffold, reused wholesale:
+`__DEV__ && EXPO_PUBLIC_QA_HOOKS === '1'` gate in `app/_layout.tsx`; a
+marker-free `.stub.ts` that `metro.config.js` swaps in unless QA hooks are
+enabled at build time (the resolver now carries a two-hook list);
+`config:check` rejects the env flag outside development; and the
+`qa-hook-marker` bundle-inspect pattern now covers BOTH markers
+(`HIVE_QA_CORRUPT_HOOK`, `HIVE_QA_EXPIRE_HOOK`).
+
+The absence proof was made non-vacuous, on real exports rather than by
+inspection:
+
+- `EXPO_PUBLIC_QA_HOOKS=1 expo export` — both markers PRESENT (the real
+  modules bundle).
+- `export:candidate` (QA off) — `bundle:inspect` passes with ZERO QA-hook
+  markers (stubs resolved).
+
+`expired-session.yaml` is rewritten self-contained on the corruption
+flow's model: launch (signed in) -> select workspace -> fire the expire
+deep link -> wait for the `qa-expired-ack` -> stopApp -> relaunch ->
+assert no `dashboard-workspace`, the `signed-out-reason`, and the exact
+"Note: Your session ended. Sign in again to continue." notice.
+
+### Gates fresh (build container)
+
+typecheck 0; jest **410 passed / 31 suites** (7 new expire-hook tests);
+node:test **328 passed, 0 failed** (bundle-inspect marker test now pins
+both markers); eslint `--max-warnings 0` clean; prettier clean;
+maestro:validate OK 18; config:check OK; audit:gate OK; verify:toolchain
+OK; export:candidate + bundle:inspect OK; QA-on export carries both
+markers.
+
+### State
+
+Execution stays HOLD on the device lane (no device/simulator in the build
+container), so the flow is authored, unit-proven, and export-proven here,
+and RUNS on the desktop QA build — the same posture as every other device
+flow. When the desktop runs it (QA build, `EXPO_PUBLIC_QA_HOOKS=1`),
+`expired-session` should move from HOLD to PASS. That would leave, of the
+18 flows, only `read-surfaces-denied` (find 21, the mid-flow revoke
+helper) still HOLD once find 36's four flows are verified — i.e. a path to
+**17 of 18**. Find 21 remains the last cloud-authorable harness piece; its
+design (a loopback membership-revoke helper holding the service bearer in
+memory, like `totp-helper`, hit by a mid-flow `runScript` at the sync
+point between the requests list and the refresh tap, with the membership
+restored on cleanup) is traced and ready to build.
