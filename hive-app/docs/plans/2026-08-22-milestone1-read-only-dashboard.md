@@ -2426,7 +2426,7 @@ Windows; the success path (explicit cleanup, then exit) is still owed.
 ### Gates fresh (build container)
 
 maestro:validate OK (18 flows, 5 helper scripts); node:test **352 passed,
-0 failed**; jest 416 across 32 suites; typecheck 0; eslint
+0 failed**; jest 417 across 32 suites; typecheck 0; eslint
 `--max-warnings 0`, prettier and format:check clean.
 
 ### State
