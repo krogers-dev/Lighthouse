@@ -2715,3 +2715,15 @@ No gate is HOLD at this head. Every runnable gate is green from a clean
 clone, the device lane is 18 of 18, and `secrets:scan` exits 0 with the
 approver's record supplied out-of-band. Kody-owned next: Stacie's
 client-facing wording, the iOS lane, and where `main` lives.
+
+### Custody confirmed on Kody's machine (2026-09-07)
+
+The record was written byte-exactly on Kody's desktop (base64 to bytes, no
+text encoding in the path) at
+`C:\Users\kodyr\HIVE-approvals\history-exceptions-2026-09-07.json` —
+outside any checkout — and he ran the verification line there at
+`1371b66`: **`secrets:scan OK`** — self-test ok, 268 tracked files, 771
+history blobs with completeness verified (his clone carries more history
+than the build container's), 4 history-exception entries reconciled
+covering 5 historical matches, secretlint clean. The approver holds the
+only copy; the repository holds the digest.
