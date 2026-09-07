@@ -1,8 +1,12 @@
 /** Requests list: what Honeybee Accounting is waiting on from this
  * workspace, and what is already answered. Read-only by construction —
  * there is no respond, upload, or edit control anywhere in this binary
- * (WO-002 R2, rollout control C3: absent, not disabled or hidden). */
-import React from 'react';
+ * (WO-002 R2, rollout control C3: absent, not disabled or hidden).
+ *
+ * Presentation (HIVE 2026 design, 2026-09-07): tappable rows separated by
+ * thin rules, each with the title, the exact status, owner, requested and
+ * due dates, and a chevron that says the row opens. */
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { SafeError } from '@/core/errors';
@@ -16,7 +20,7 @@ import {
 import { ScopedStates } from '@/features/shared/ScopedStates';
 import type { ScopedLoadStateName } from '@/features/shared/useScopedLoad';
 import { AppText, Button, EmptyState, StatusBadge, useThemeColors } from '@/ui';
-import { radii, spacing } from '@/ui/tokens';
+import { layout, spacing, touchTarget } from '@/ui/tokens';
 
 export interface RequestsViewProps {
   state: ScopedLoadStateName;
@@ -30,21 +34,33 @@ export interface RequestsViewProps {
 
 const styles = StyleSheet.create({
   container: { gap: spacing.lg },
-  list: { gap: spacing.sm },
-  card: {
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    padding: spacing.md,
-    gap: spacing.sm,
-    // 48dp Android / 44pt iOS minimum target, met by padding plus content.
-    minHeight: 48,
-    justifyContent: 'center',
+  heading: { gap: spacing.xs },
+  list: {},
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    borderTopWidth: layout.hairline,
+    // 48 minimum target, met by padding plus content.
+    minHeight: touchTarget.minHeight,
   },
+  rowBody: { flex: 1, gap: spacing.sm },
+  chevron: { paddingTop: spacing.xs },
   meta: { gap: spacing.xs },
-  refresh: { gap: spacing.xs },
+  footer: {
+    gap: spacing.sm,
+    paddingTop: spacing.md,
+    borderTopWidth: layout.hairline,
+  },
+  focused: {
+    outlineStyle: 'solid',
+    outlineWidth: layout.focusRingWidth,
+    outlineOffset: layout.focusRingOffset,
+  },
 });
 
-function RequestCard({
+function RequestRow({
   request,
   onPress,
 }: {
@@ -52,39 +68,50 @@ function RequestCard({
   onPress: () => void;
 }): React.JSX.Element {
   const colors = useThemeColors();
+  const [focused, setFocused] = useState(false);
   const presentation = REQUEST_STATUS_PRESENTATION[request.status];
   return (
     <Pressable
       onPress={onPress}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       accessibilityRole="button"
       accessibilityLabel={`${request.title}. ${presentation.label}. Owner: ${OWNER_LABEL[request.ownerRole]}.`}
       accessibilityHint="Opens the request details"
       testID={`request-card-${request.id}`}
       style={({ pressed }) => [
-        styles.card,
+        styles.row,
         {
-          backgroundColor: colors.surface,
-          borderColor: colors.divider,
+          borderTopColor: colors.divider,
           // Matches the Button primitive's press feedback (no layout animation).
           opacity: pressed ? 0.85 : 1,
         },
+        focused && [styles.focused, { outlineColor: colors.focusRing }],
       ]}
     >
-      <AppText variant="heading">{request.title}</AppText>
-      <StatusBadge kind={presentation.kind} label={presentation.label} />
-      <View style={styles.meta}>
-        <AppText variant="caption" tone="secondary">
-          {`Owner: ${OWNER_LABEL[request.ownerRole]}`}
-        </AppText>
-        <AppText variant="caption" tone="secondary">
-          {`Requested ${formatServerDate(request.requestedOn)}`}
-        </AppText>
-        {request.dueOn ? (
+      <View style={styles.rowBody}>
+        <AppText variant="heading">{request.title}</AppText>
+        <StatusBadge kind={presentation.kind} label={presentation.label} />
+        <View style={styles.meta}>
           <AppText variant="caption" tone="secondary">
-            {`Due ${formatServerDate(request.dueOn)}`}
+            {`Owner: ${OWNER_LABEL[request.ownerRole]}`}
           </AppText>
-        ) : null}
+          <AppText variant="caption" tone="secondary">
+            {`Requested ${formatServerDate(request.requestedOn)}`}
+          </AppText>
+          {request.dueOn ? (
+            <AppText variant="captionStrong">{`Due ${formatServerDate(request.dueOn)}`}</AppText>
+          ) : null}
+        </View>
       </View>
+      <AppText
+        variant="heading"
+        tone="secondary"
+        style={styles.chevron}
+        importantForAccessibility="no"
+      >
+        ›
+      </AppText>
     </Pressable>
   );
 }
@@ -98,15 +125,18 @@ export function RequestsView({
   onSwitchScope,
   onOpenRequest,
 }: RequestsViewProps): React.JSX.Element {
+  const colors = useThemeColors();
   const recordedThrough = recordedThroughLabel(data?.recordedThrough ?? null);
   return (
     <View style={styles.container} testID="requests">
-      <AppText variant="title" accessibilityRole="header">
-        Requests
-      </AppText>
-      <AppText variant="body" tone="secondary" testID="requests-workspace">
-        {workspaceName}
-      </AppText>
+      <View style={styles.heading}>
+        <AppText variant="title" accessibilityRole="header">
+          Requests
+        </AppText>
+        <AppText variant="caption" tone="secondary" testID="requests-workspace">
+          {workspaceName}
+        </AppText>
+      </View>
 
       <ScopedStates
         state={state}
@@ -128,7 +158,7 @@ export function RequestsView({
       {state === 'ready' && data ? (
         <View style={styles.list} testID="requests-list">
           {data.items.map((request) => (
-            <RequestCard
+            <RequestRow
               key={request.id}
               request={request}
               onPress={() => onOpenRequest(request.id)}
@@ -140,7 +170,7 @@ export function RequestsView({
       {/* R7: a reload affordance on the screen itself, not only inside an
           error state. There is no background polling. */}
       {state === 'ready' || state === 'empty' ? (
-        <View style={styles.refresh}>
+        <View style={[styles.footer, { borderTopColor: colors.divider }]}>
           {recordedThrough ? (
             <AppText variant="caption" tone="secondary" testID="requests-recorded-through">
               {recordedThrough}

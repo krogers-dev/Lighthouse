@@ -1,7 +1,12 @@
 /** The authorized Home view: the scope's cases, newest first, each with
  * one status, one attention item, and one owned next action (WO-002 R1).
  * Pure and props-driven; every screen state is explicit. No financial
- * values, no live claims, no external side effects. */
+ * values, no live claims, no external side effects.
+ *
+ * Presentation (HIVE 2026 design, 2026-09-07): case rows separated by
+ * thin rules rather than boxed cards, the title first, then the exact
+ * status, the attention item, the named next action, the owner, and the
+ * source dates. Rows are read-only; nothing here is pressable. */
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -16,7 +21,7 @@ import {
 import { ScopedStates } from '@/features/shared/ScopedStates';
 import type { ScopedLoadStateName } from '@/features/shared/useScopedLoad';
 import { AppText, Button, EmptyState, StatusBadge, useThemeColors } from '@/ui';
-import { radii, spacing } from '@/ui/tokens';
+import { layout, spacing } from '@/ui/tokens';
 
 /** The dashboard shows exactly the shared scoped-load states. */
 export type DashboardStateName = ScopedLoadStateName;
@@ -32,22 +37,27 @@ export interface DashboardViewProps {
 
 const styles = StyleSheet.create({
   container: { gap: spacing.lg },
-  list: { gap: spacing.sm },
-  card: {
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    padding: spacing.md,
+  heading: { gap: spacing.xs },
+  list: {},
+  row: {
+    paddingVertical: spacing.md,
     gap: spacing.sm,
+    borderTopWidth: layout.hairline,
   },
   block: { gap: spacing.xs },
+  footer: {
+    gap: spacing.sm,
+    paddingTop: spacing.md,
+    borderTopWidth: layout.hairline,
+  },
 });
 
-function CaseCard({ item }: { item: CaseSummary }): React.JSX.Element {
+function CaseRow({ item }: { item: CaseSummary }): React.JSX.Element {
   const colors = useThemeColors();
   const presentation = CASE_STATUS_PRESENTATION[item.status];
   return (
     <View
-      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.divider }]}
+      style={[styles.row, { borderTopColor: colors.divider }]}
       testID={`dashboard-case-${item.id}`}
     >
       <AppText variant="heading">{item.title}</AppText>
@@ -57,17 +67,17 @@ function CaseCard({ item }: { item: CaseSummary }): React.JSX.Element {
       </AppText>
       {item.attentionSummary ? (
         <View style={styles.block}>
-          <AppText variant="label">Needs attention</AppText>
+          <AppText variant="labelSmall">Needs attention</AppText>
           <AppText variant="body">{item.attentionSummary}</AppText>
         </View>
       ) : (
-        <AppText variant="body" tone="secondary">
+        <AppText variant="caption" tone="secondary">
           Nothing is waiting on you right now.
         </AppText>
       )}
       {item.nextActionSummary ? (
         <View style={styles.block}>
-          <AppText variant="label">Next action</AppText>
+          <AppText variant="labelSmall">Next action</AppText>
           <AppText variant="body">{item.nextActionSummary}</AppText>
           {item.nextActionOwnerRole ? (
             <AppText variant="caption" tone="secondary">
@@ -88,15 +98,18 @@ export function DashboardView({
   onRetry,
   onSwitchScope,
 }: DashboardViewProps): React.JSX.Element {
+  const colors = useThemeColors();
   const recordedThrough = recordedThroughLabel(data?.recordedThrough ?? null);
   return (
     <View style={styles.container} testID="dashboard">
-      <AppText variant="title" accessibilityRole="header">
-        Home
-      </AppText>
-      <AppText variant="body" tone="secondary" testID="dashboard-workspace">
-        {workspaceName}
-      </AppText>
+      <View style={styles.heading}>
+        <AppText variant="title" accessibilityRole="header">
+          Home
+        </AppText>
+        <AppText variant="caption" tone="secondary" testID="dashboard-workspace">
+          {workspaceName}
+        </AppText>
+      </View>
 
       <ScopedStates
         state={state}
@@ -118,7 +131,7 @@ export function DashboardView({
       {state === 'ready' && data ? (
         <View style={styles.list} testID="dashboard-list">
           {data.items.map((item) => (
-            <CaseCard key={item.id} item={item} />
+            <CaseRow key={item.id} item={item} />
           ))}
         </View>
       ) : null}
@@ -127,7 +140,7 @@ export function DashboardView({
           error state. There is no background polling, so this is the only
           way content refreshes. */}
       {state === 'ready' || state === 'empty' ? (
-        <View style={styles.block}>
+        <View style={[styles.footer, { borderTopColor: colors.divider }]}>
           {recordedThrough ? (
             <AppText variant="caption" tone="secondary" testID="dashboard-recorded-through">
               {recordedThrough}
