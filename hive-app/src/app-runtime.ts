@@ -28,14 +28,17 @@ import {
   ActivityRepository,
   DashboardRepository,
   RequestsRepository,
+  type ActivityLoader,
+  type DashboardLoader,
+  type RequestsLoader,
 } from '@/data/supabase/repositories';
 import { ScopedRegistry } from '@/tenancy/clearing';
 
 export interface AppServices {
   controller: AuthController;
-  dashboardRepository: DashboardRepository;
-  requestsRepository: RequestsRepository;
-  activityRepository: ActivityRepository;
+  dashboardRepository: DashboardLoader;
+  requestsRepository: RequestsLoader;
+  activityRepository: ActivityLoader;
   env: EnvironmentConfig;
 }
 

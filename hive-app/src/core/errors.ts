@@ -19,6 +19,7 @@ export type SafeErrorCode =
   | 'quarantine'
   | 'config'
   | 'conflict'
+  | 'unavailable'
   | 'unknown';
 
 const USER_MESSAGES: Record<SafeErrorCode, string> = {
@@ -40,6 +41,7 @@ const USER_MESSAGES: Record<SafeErrorCode, string> = {
     'Sign-in on this device could not be verified. Reset sign-in on this device to continue.',
   config: 'The app is not configured correctly for this build.',
   conflict: 'This record changed while you were viewing it. Refresh to continue.',
+  unavailable: 'This information is not available yet. Try again later.',
   unknown: 'Something went wrong. Try again in a moment.',
 };
 
