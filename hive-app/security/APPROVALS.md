@@ -78,8 +78,9 @@ committed; `secrets:scan` exits 0 only when it is supplied out-of-band:
 
     HIVE_CANDIDATE_SHA=986d5a35c2190fc580b9b92d0e77a9d5055f9c02 HIVE_APPROVAL_RECORDS=<path to the record> HIVE_APPROVAL_DIGESTS=b374a22273b651d1378e14ab2a8b7b47baeb3c706ac0a1b723ac1764db7f66f9 npm run secrets:scan
 
-Without it the gate still exits 3 — a stale ratification cannot be replayed
-from repository contents alone. The exceptions expire on 2026-11-21; after that
+Without it the gate FAILS (exit 1, "an entry claiming ratification proves nothing on
+its own") — a ratification cannot be replayed from repository contents alone. The
+exceptions expire on 2026-11-21; after that
 date the gate returns to HOLD until the history is rewritten or a new record is
 ratified. The two audit waivers were retired on 2026-09-06 by their own recorded
 removal condition — the SDK 57 patch refresh dropped `image-size` from the

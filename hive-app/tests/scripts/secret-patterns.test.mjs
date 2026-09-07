@@ -242,11 +242,24 @@ test('ratified exceptions require approver, clean reference, and decision digest
   }
 });
 
-test('NEGATIVE: flipping the CURRENT proposed exceptions to ratified without new provenance fails', async () => {
+test('NEGATIVE: flipping proposed exceptions (the live substance) to ratified without new provenance fails', async () => {
   const { readFileSync } = await import('node:fs');
-  const real = JSON.parse(
+  const live = JSON.parse(
     readFileSync(new URL('../../security/secret-scan-allowlist.json', import.meta.url)),
   );
+  // The live entries were ratified on 2026-09-07; this negative exercises
+  // their substance as it stood while proposed, so it does not depend on
+  // the allowlist's current approval state.
+  const real = {
+    entries: live.entries.map(
+      ({ ratifiedOn: _on, ratifiedBy: _by, decisionRecordDigest: _digest, ...e }) => ({
+        ...e,
+        approvalStatus: 'proposed',
+        approvalReference:
+          "Second RETURN directive 2026-08-21: ratification requires Kody's explicit written wording; not yet given",
+      }),
+    ),
+  };
   const flipped = real.entries.map((e) => ({ ...e, approvalStatus: 'ratified' }));
   const problems = validateAllowlist(flipped, TODAY);
   assert.ok(problems.length > 0, 'flip without provenance must fail');

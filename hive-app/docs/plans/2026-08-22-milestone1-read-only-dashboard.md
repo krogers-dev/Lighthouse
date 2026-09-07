@@ -2701,7 +2701,8 @@ tooling prescribe.
   **`secrets:scan OK`, exit 0** — self-test ok, 268 tracked files, 750
   history blobs with completeness verified, 4 history-exception entries
   reconciled covering 5 historical matches, secretlint clean. Without the
-  record the gate still exits 3, which is the point.
+  record the gate FAILS with exit 1 ("an entry claiming ratification
+  proves nothing on its own"), which is the point.
 
 Custody: the build container is ephemeral, so the record is handed to
 Kody's own machine byte-exactly (base64 through the desktop session,
