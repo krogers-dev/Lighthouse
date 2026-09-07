@@ -2988,3 +2988,64 @@ a code submit) stay bare: the app is already running there.
 Owed on the device: `accessibility-smoke`, `quarantine-recovery`, and
 `maestro:denied` at a head carrying finds 40 and 41, alongside the design
 screenshots.
+
+## 2026-09-07 — desktop 2, design lane at `3898ea5`: screenshots captured; finds 42 and 43
+
+The follow-on desktop session pulled `3898ea5`, confirmed `expo-font`
+57.0.3 resolved, and proved the restyled app on the Pixel 8 emulator over
+Metro with no native rebuild: `sign-in.yaml` exit 0, 15 of 15 steps, in
+light, in dark, and at 200 % text. It then captured **27 screenshots**
+(540 × 1200, halved from the device) into
+`security/evidence/2026-09-07-desktop2/screenshots/`: light 01–08 (Home,
+Requests, request detail, Activity, Help, Account, Home offline, sign-in
+with the session-ended notice), dark 01–07, dark at 200 % 01–06, light at
+200 % 01–06 — synthetic data only, no authenticator screen. The lanes
+report for run 4 sits beside them. All of it is committed on the desktop
+as `77f9e2a` on top of `3898ea5`; the push was refused because origin had
+moved to `b3a58b7`, and that session's rules forbade a rebase, so landing
+it is a follow-on desktop task (rebase its own single commit, push, never
+force). The clean-checkout copy of that evidence therefore lags this
+record by one desktop round.
+
+Also proven on the rebuilt binary (see find 43): boot, reaching the local
+stack, and sign-in, 15 of 15.
+
+### Find 42 — flows are not scale-independent
+
+At 200 % text the request detail's "Back to requests" control sits below
+the fold, and Maestro's tap-by-id does not scroll, so the ad-hoc tour
+failed there (twice, dark and light) while everything above the fold
+captured fine. The repo's own `requests.yaml` would hit the same wall, and
+so would the Account screen's controls and the quarantine button. Every
+flow that taps a control which can sit below the fold now brings it into
+view first with `scrollUntilVisible` (completes at once when the control
+is already visible): request-detail-back, settings-switch-scope,
+settings-sign-out, settings-back, and the quarantine reset button.
+`maestro:validate` OK. Re-proof on the device is owed with the next run.
+
+### Find 43 — a stale generated project silently ignores `app.json`
+
+`npx expo run:android` reused the gitignored `android/` directory from
+2026-09-03 rather than regenerating it: `BUILD SUCCESSFUL in 26s`, the app
+installed and signed in, and the launcher still showed the old pale
+placeholder icon. `colors.xml` in that directory carried the v2.0
+`#F4E4CD` and the launcher foreground was the 803-byte placeholder, while
+`app.json` and `assets/images` carried the new values. So that rebuild
+proved build, install, boot and sign-in only — not the icon, splash, or
+colors. Runbook (README): after any change to `app.json`, `assets/images`
+or `plugins/`, run `npx expo prebuild --platform android --clean` before
+`expo run:android`. Owed on the device: the clean regeneration, the
+launcher capture, and the three flows at the head carrying finds 40 and
+41 (`maestro:denied`, `accessibility-smoke`, `quarantine-recovery`).
+
+### Two observations that are not defects
+
+- An ad-hoc offline check that returns to Home by the nav shows the
+  already-loaded dashboard; only a fresh read shows the offline state,
+  which is exactly the fail-closed policy (no background polling, no
+  stale content presented as current). The repo's own offline flows
+  trigger a fresh read, and the offline screenshot was taken that way.
+- One `expired-session` run died mid-flow with Maestro's adb transport
+  (`grpc UNAVAILABLE`), the device healthy immediately after; a fresh
+  sign-in and rerun passed 12 of 12. Transient tooling, like the driver
+  start-up timeout in run 4.

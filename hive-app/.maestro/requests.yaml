@@ -41,6 +41,17 @@ tags:
     id: 'request-detail-ready'
 - assertVisible: 'The final month statement is needed to complete the records \(Synthetic\).'
 - assertNotVisible: 'Respond'
+# At 200% text this control can sit below the fold, and tap-by-id does not
+# scroll (find 42, 2026-09-06 desktop run): bring it into view first. This
+# completes at once when the control is already visible.
+- scrollUntilVisible:
+    element:
+      id: 'request-detail-back'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
 - tapOn:
     id: 'request-detail-back'
 - assertVisible:

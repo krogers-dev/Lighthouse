@@ -85,6 +85,12 @@ is what has never been done.
 
 ### The Android lane, end to end
 
+> After any change to `app.json`, `assets/images`, or `plugins/`, regenerate
+> the native project before building: `npx expo prebuild --platform android
+--clean`, then `npx expo run:android`. A plain `expo run:android` reuses the
+> existing gitignored `android/` directory, so icon, splash, and color changes
+> are silently NOT applied (desktop 2, 2026-09-06).
+
 Everything below runs on Windows, macOS, or Linux. This is the lane that
 closes A3 (black-box e2e) and the Android half of A5 (Maestro flows).
 
