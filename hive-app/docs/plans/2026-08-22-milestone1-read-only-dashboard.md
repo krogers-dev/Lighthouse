@@ -2580,3 +2580,47 @@ scripts).
 **16 of 18.** Owed on this head: `maestro:denied` and `expired-session`
 (on the QA build), both reworked above; a desktop rerun of exactly those
 two is the next step.
+
+## 2026-09-07 — desktop 2, third run: 18 of 18 on the device lane
+
+The same desktop session mechanism, at head 09ca083 (pulled
+`--ff-only` from bb33ccb during its state check; emulator healthy, Metro
+untouched), ran the two reworked lanes and wrote its report:
+
+- `npm run maestro:denied`: **PASS**, exit 0. After
+  `membership revoked mid-flow (1 row(s) deleted); readback verified
+zero` and the refresh tap: `requests-stale` visible, `requests-list`
+  not visible, the row text not visible, the "Choose a workspace" action
+  visible; then `membership-restore: client.owner@example.invalid on
+entityA1 restored (1 seeded row(s) present, readback verified)`, run
+  root removed and verified gone, `maestro:denied OK`, prompt returned.
+  Find 38 confirmed on the device: the refresh re-read memberships from
+  the server and the screen told the truth.
+- `sign-in.yaml`: **PASS**, exit 0, 15 of 15 steps COMPLETED — now from
+  a cleared app state with the bounded wait, so it no longer depends on
+  what the previous lane left behind.
+- `expired-session.yaml`: **PASS**, exit 0, 12 of 12 steps COMPLETED:
+  `qa-expired-ack` (hook fired), stop, relaunch, `dashboard-workspace`
+  not visible, `signed-out-reason` visible, and the text "Note: Your
+  session ended. Sign in again to continue." visible. Find 39 confirmed
+  on the device: with the running app's refresh quiesced before the
+  write, the relaunch took the expiry branch — which is also the device
+  proof of the 2026-09-06 review's boot-time dead-session fix.
+- Tidiness: no `hive-maestro-*` run roots left in TEMP; nothing
+  listening on 8477 or 8478; Metro and the emulator left running.
+
+### The tally: 18 of 18
+
+Every Maestro flow in `.maestro/` has now passed on the API 35 emulator
+lane, all of them at heads on or after eaa31f1, the last six on
+09ca083. Nothing in the Maestro set is HOLD.
+
+### State
+
+Cloud-side next: the clean-checkout drill at this head. Kody-owned, in
+his own words: the ratification of the four proposed history exceptions
+(`secrets:scan` is the one remaining HOLD gate, by design), Stacie's
+client-facing wording, and the iOS lane when the Expo account and
+hardware exist. The `main` branch question stands: this branch's pull
+request still targets another session's branch, and a release-candidate
+conversation needs a real integration branch first.
