@@ -3090,3 +3090,63 @@ splash) and `quarantine-recovery` failed the same way. Transport evidence,
 not app evidence: finds 40 to 42 remain unverified on the device. Runbook
 (README): restart Metro after any clean prebuild. A desktop session with
 explicit authority to stop and restart Metro reruns the four flows next.
+
+## 2026-09-07 — after the Metro restart: finds 40 to 42 device-confirmed; finds 45 and 46
+
+A desktop session with explicit authority to restart Metro identified the
+stalled process by its command line (the `expo run:android` of 14:52),
+measured `/status` at 15.80 s, stopped it, and started a fresh Metro
+(`CI=1`, `EXPO_PUBLIC_QA_HOOKS=1`, port 8081): `/status` 0.0065 s, first
+bundle `839ms (1688 modules)`. Find 44 confirmed. The four flows at
+`f44a200`, on the clean-prebuild binary (evidence `1e12681`, `07b1372`:
+`security/evidence/2026-09-07-desktop2/flows-after-metro-restart.md`):
+
+| Flow                  | Result                                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------------------ |
+| `sign-in` (twice)     | **PASS**, exit 0, 15 of 15 steps, both runs                                                      |
+| `maestro:denied`      | **PASS**, `maestro:denied OK`: chooser wait, mid-flow revoke, stale scope shown, no stale row    |
+| `quarantine-recovery` | **PASS**, exit 0, 16 of 16: scroll-into-view, then `Tap on "Reset sign-in on this device"`       |
+| `accessibility-smoke` | FAIL at `"Email" is visible`: launched onto the signed-in chooser the denied lane left (find 45) |
+
+Finds 40 (the renamed label), 41 (the bounded chooser wait, inside the
+denied runner where it first failed) and 42 (the scroll before a
+below-the-fold tap) are confirmed on the device.
+
+### Find 45 — accessibility-smoke launched into whatever the lane before left
+
+The flow used a bare `launchApp` and asserted the sign-in screen; after the
+denied runner, which restores the membership and leaves the app signed in,
+it met the workspace chooser instead (the dump showed `select-scope-screen`
+and `brand-wordmark`, so "HIVE" passed and "Email" failed). Same class as
+find 31's fix for `sign-in.yaml`: the flow now launches with
+`clearState: true` and waits up to 30 s for `sign-in-email`.
+`maestro:validate` OK. This flow has now failed three times on the desktop
+at v3.0 heads for three unrelated reasons (driver start-up timeout, the
+stalled Metro, this) and has never passed there; it is first in line on
+the next run.
+
+### Find 46 — unhandled rejections during the quarantine transition (low)
+
+While `quarantine-recovery` ran, Metro logged `Auto refresh tick failed …
+QuarantineRequiredError: Secure storage requires quarantine: corrupt` and
+three `Uncaught (in promise) QuarantineRequiredError` rejections raised
+from `SessionStorageAdapter#readInternal`, one later reported handled. The
+UI did exactly what it must (quarantine screen, no protected UI, scrub the
+only exit), so this is log hygiene rather than a control gap: the refresh
+tick and any reader racing the quarantine transition should catch
+`QuarantineRequiredError` explicitly. Owed as a red-green change in the
+auth path (test the race first, then the minimal catch), not done here.
+No secret or identity content was in the log — only the error class and
+the code `corrupt`.
+
+Harness note for desktop sessions: under PowerShell 5.1,
+`Invoke-WebRequest -UseBasicParsing` returns Metro's `/status` body as
+bytes; a readiness poll must decode it before matching
+`packager-status:running`.
+
+### Device lane at the design heads
+
+At `f44a200` on the clean-prebuild binary: sign-in, `maestro:denied`,
+`quarantine-recovery` PASS. At `ca96181`: 15 of 18 with the three causes
+above. Owed: one full 18-flow sweep at a head carrying finds 40 to 45, so
+the design checkpoint stands on the whole lane rather than on its parts.
