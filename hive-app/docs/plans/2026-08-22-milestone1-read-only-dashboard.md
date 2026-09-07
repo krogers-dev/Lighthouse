@@ -2624,3 +2624,53 @@ client-facing wording, and the iOS lane when the Expo account and
 hardware exist. The `main` branch question stands: this branch's pull
 request still targets another session's branch, and a release-candidate
 conversation needs a real integration branch first.
+
+## 2026-09-07 — clean-checkout drill at `7bd7808`: the whole system from git alone, plus two public values
+
+Fresh clone of the pushed branch into an empty directory (`/tmp`, so the
+`hivepg` traversal rule from the earlier drill holds), `npm ci` from the
+lockfile, every static gate, the stack binaries from nothing, both live
+lanes, then the candidate export lane. Per-step exit codes were captured
+by the drill script itself:
+
+| Drill step                                 | Result                                                                                               |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| clone → HEAD                               | `7bd7808`                                                                                            |
+| npm ci                                     | exit 0                                                                                               |
+| typecheck                                  | exit 0                                                                                               |
+| jest                                       | **431 passed across 33 suites**                                                                      |
+| test:scripts (node:test)                   | **352 passed, 0 failed**                                                                             |
+| eslint `--max-warnings 0`                  | exit 0                                                                                               |
+| format:check                               | exit 0                                                                                               |
+| maestro:validate                           | OK — 18 flows, 5 helper scripts                                                                      |
+| audit:gate                                 | OK — 2 advisory sources across 14 package nodes, none high/critical uncovered                        |
+| secrets:scan                               | **HOLD, exit 3, by design** — 4 history exceptions PROPOSED, not ratified; 268 files, 763 blobs      |
+| fetch:e2e-binaries (cold)                  | exit 0 — postgrest and mailpit from the pinned, digest-verified releases; gotrue REBUILT at v2.196.0 |
+| binary stack: black-box harness (`run`)    | exit 0 — **157 passed, 0 failed**                                                                    |
+| binary stack: app composition (`bridge`)   | exit 0 — **7 passed, 0 failed**                                                                      |
+| config:check                               | FAILED in the bare clone; exit 0 once `.env.local` was supplied (see below)                          |
+| export:candidate (inspects its own output) | exit 0 once `.env.local` was supplied — bundle:inspect OK, zero QA-hook markers across 73 files      |
+
+**The one input git does not carry.** `config:check` and the export lane
+read `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_CLIENT_KEY` from
+the environment or from the untracked `.env.local`. In the bare clone
+both failed with exactly "configuration is missing …" — the fail-closed
+answer, since an export with no configuration must not be produced. The
+file holds those two public values and nothing else (the local loopback
+URL and the approved public client key; never a secret), so it is the
+same two values any machine needs, and this is recorded as the drill's
+single non-git input rather than hidden by pre-seeding it. The drill
+script's separate `bundle:inspect:candidate` call afterwards reported "no
+export found at ./dist" — that invocation expects a bare `expo export`
+into `dist/`, which the candidate lane does not produce because it
+inspects and then removes its own temporary export; a drill-script
+misstep, not a lane result, and the lane's own inspection is the one that
+counts.
+
+### State
+
+Everything runnable runs green from a clean clone at this head, with the
+two public configuration values as the only inputs and `secrets:scan` the
+only HOLD, awaiting Kody's written ratification. Device lane: 18 of 18.
+Kody-owned: the ratification sentence, Stacie's client-facing wording,
+the iOS lane, and where `main` lives.
