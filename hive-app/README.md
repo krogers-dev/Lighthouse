@@ -93,12 +93,22 @@ is what has never been done.
 > clean prebuild while Metro is running leaves that Metro stalled (one
 > thread pinned, `/status` taking 15–30 s, bundles arriving minutes after
 > launch), and every flow then fails at its first launch wait (find 44).
-> Restart Metro after any pull that touches `metro.config.js`, and treat a
-> `(1 module)` bundle line right after a multi-file pull as a STALE bundle:
-> the running Metro can stop rebuilding changed files while still serving,
-> and two device runs then measured a fix that was not on the device
-> (find 50, desktop 2, 2026-09-07). A fresh Metro reports the full module
-> count (about 1690) on the next cold start.
+> Restart Metro after any pull that touches `metro.config.js`, or when its
+> log says "Restart the server": the running Metro can stop rebuilding
+> changed files while still serving, and two device runs then measured a
+> fix that was not on the device (find 50, desktop 2, 2026-09-07). The
+> reliable staleness signal in a QA build is the missing
+> `HIVE_QA_KEYBOARD_HOOK installed` line in `adb logcat -s ReactNativeJS`
+> after a cold start; a `(1 module)` bundle line is the normal delta when
+> nothing in the graph changed and is suspicious only right after a pull
+> that touched JavaScript or `metro.config.js`. A fresh Metro reports the
+> full module count (about 1690) on the next cold start.
+>
+> Maestro's Android driver clears logcat at every flow start, so after the
+> multi-flow enrollment runner `adb logcat -d` holds only its last flow.
+> To read the app's log through a runner, start
+> `adb logcat -v time -s ReactNativeJS > file` before it and stop it after
+> (desktop 2, run 10).
 
 Everything below runs on Windows, macOS, or Linux. This is the lane that
 closes A3 (black-box e2e) and the Android half of A5 (Maestro flows).

@@ -3526,3 +3526,66 @@ Owed at this head, on the desktop: `maestro:enroll` (mfa-enroll,
 staff-sign-out, mfa-login — the verify tap under the keyboard is exactly
 what run 9 shows scrollable now), `sign-in.yaml`, and
 `quarantine-recovery.yaml` with the logcat counts for find 46.
+
+## 2026-09-07 — desktop 2, run 10: the enrollment runner passes twice, the quarantine flow's log is clean; finds 30/37/46/47/49 device-confirmed; the whole lane has now passed at v3.0 heads
+
+Run 10 at `4cb6144` (evidence `35667bd`,
+`security/evidence/2026-09-07-desktop2/enroll-and-quarantine-at-4cb6144.md`),
+on the Metro run 9 restarted, no rebuild, no emulator change, and a
+`dumpsys meminfo` memory gate that never came near its threshold (1.00 to
+1.10 GB free including cache at every reading; no `lowmemorykiller` line
+and no OOM kill of the app in any window — every `am_kill` was a Maestro
+stop or clear-state launch).
+
+| Flow                                         | Result                                                                                                                                                                                                                                                 |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| mfa-enroll, staff-sign-out, mfa-login        | **PASS, twice** (`maestro:enroll OK`, exit 0, 154 s and 157 s): the find 47 scroll to `mfa-submit` at 100 % visibility and the tap COMPLETED in both enroll and login; factor revoked and read back zero; clipboard scrubbed; artifact tree gone       |
+| sign-in                                      | **PASS** (exit 0, 37 s)                                                                                                                                                                                                                                |
+| quarantine-recovery (find 46's device proof) | **PASS** (exit 0, 30 s) with a clean `ReactNativeJS` log: 0 `Auto refresh tick failed`, 0 `QuarantineRequiredError`, 0 `Uncaught`, 0 unhandled rejections, 0 error class names of any kind; the log held only the hook's lines and two bootstrap lines |
+| crash buffer                                 | 0 bytes after every flow                                                                                                                                                                                                                               |
+
+The keyboard hook showed the room applied on every screen that raises a
+keyboard: `height=312 … room=336` under the full keyboard for the email
+field, `height=268 screenY=622 … room=292` under the number pad for the
+OTP and TOTP fields, on the sign-in, enrollment and login screens alike,
+each show answered within about 10 to 25 ms and each hide followed by
+`room=0`. The shell needs no special case for the two keyboard heights.
+
+**Finds 30, 37, 47 and 49 are device-confirmed end to end**, and **find
+46 is device-confirmed**. With runs 5 (`bd2be6c`: every screen flow,
+accessibility-smoke, the confinement proof, the denied runner — 14 of
+18), 6 (`e92c133`: reinstall, three times clean) and 10 (`4cb6144`: the
+enrollment runner's three flows, sign-in, quarantine-recovery), **every
+one of the 18 flows has now passed at a v3.0 head on the device.** Find
+48 stays open at one native crash in the first twelve cleared launches
+and none in the roughly twenty since.
+
+Two runbook facts from the run, both now in the README:
+
+- Maestro's Android driver clears logcat at every flow start (the main
+  buffer's earliest entry equalled the flow's launch instant in three
+  separate flows, without a wrap and with no `logcat -c` anywhere in the
+  repo's scripts), so a post-hoc `adb logcat -d` after the multi-flow
+  runner shows only its last flow. Hook lines through the runner are
+  captured by a live `adb logcat -v time -s ReactNativeJS > file` started
+  before it; the supplementary pass was captured that way and reproduced
+  the sign-in dump line for line.
+- Find 50, refined: after a docs-only pull a fresh launch produced a
+  `(1 module)` bundle line with the hook present, so that line alone is
+  the normal delta when nothing in the graph changed. The stale-bundle
+  signal is the missing `installed` line (or Metro's own "Restart the
+  server" line); `(1 module)` is suspicious only right after a pull that
+  touched JavaScript or `metro.config.js`.
+
+The RAM-headroom question from runs 8 and 9 closes on this evidence
+unless Kody wants the emulator's allocation raised for other reasons:
+under the correct metric the emulator had a gigabyte to spare
+throughout, and run 8's driver death remains the one such event.
+
+**The design checkpoint stands on the whole lane.** What remains is not
+device work: Stacie's review of the wording and feel (the screenshots),
+the one-line "Welcome to HIVE" title decision, the real sign-in email
+and support address values, the iOS lane when the account and hardware
+exist, the `main` branch, store icon masters and a splash image (asset
+QA, HOLD), TalkBack/VoiceOver, tablet and landscape — Kody-owned, listed
+on PR #1.
