@@ -3210,3 +3210,47 @@ Open, not fixed: the next desktop run launches `reinstall.yaml` three times
 with the crash log buffer captured after each, so a recurrence carries a
 readable backtrace. Until then this is a single unexplained crash, not a
 verdict on the lane.
+
+## 2026-09-07 — desktop 2, run 6: find 48 not reproduced; find 47's fix was not enough
+
+Evidence `e970016`
+(`security/evidence/2026-09-07-desktop2/enroll-and-reinstall-at-find-47.md`),
+at `e92c133`, on the clean-prebuild binary with the fresh Metro
+(`/status` 0.044 s).
+
+- **`reinstall.yaml` three times: PASS, PASS, PASS**, every step
+  COMPLETED, the device crash buffer empty after each. Find 48 stands at
+  one native crash in twelve cleared launches across two sessions and
+  none at this head. Still open, still unexplained, no longer a lane
+  blocker.
+- **`maestro:enroll`: FAIL** at the new step, `Scrolling DOWN until id:
+mfa-submit is visible … FAILED — No visible element found`, at the
+  same moment as run 5 (immediately after the wrong code is typed). In
+  run 5 the label ABOVE the field could not be found; now the control
+  BELOW it cannot be found even after scrolling for 20 s, while the
+  field itself takes taps and text. The runner's cleanup ran (helper
+  terminated, clipboard scrubbed, factor revoked and verified clean,
+  artifact tree removed), which by design also destroyed Maestro's
+  failure screenshot and hierarchy — the enrollment screen shows the QR
+  and the setup key, so no artifact of it may ever be retained. staff-
+  sign-out and mfa-login again NOT RUN.
+
+So find 47's diagnosis (the label out of view) was incomplete: with the
+keyboard open on this long screen, nothing below the field can be
+brought into view either. The consistent explanation is the keyboard
+handling itself. This app targets Android 15 edge-to-edge, no
+`softwareKeyboardLayoutMode` is set (Expo's default is `resize`), and no
+edge-to-edge helper is installed; under edge-to-edge the window is not
+resized for the keyboard unless the app applies the IME inset itself, so
+the scroll view keeps its full-height viewport, the keyboard overlays
+its lower part, and a control that sits under the keyboard at maximum
+scroll can never be scrolled out from under it. The sign-in and code
+screens escape this because their controls sit near the top of the
+page; the enrollment screen, with the QR and the setup-key panel above
+the field, does not — and at `ca96181` the label tap happened to land
+above the keyboard line. This is a product defect as much as a flow one:
+a person on that screen must dismiss the keyboard by BACK to reach the
+verify control. Recorded as find 49, pending a measurement: a desktop
+probe on the sign-in screen (no secrets) records the root view and the
+control bounds before and after the keyboard opens, which settles resize
+versus overlay before any code changes.
