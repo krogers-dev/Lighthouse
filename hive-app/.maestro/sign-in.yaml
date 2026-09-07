@@ -12,7 +12,8 @@ name: Invite-only OTP sign-in reaches the scoped dashboard
     visible:
       id: 'sign-in-email'
     timeout: 30000
-- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+- assertVisible:
+    id: 'sign-in-email'
 - tapOn:
     id: 'sign-in-email'
 - inputText: 'client.owner@example.invalid'
@@ -40,6 +41,6 @@ name: Invite-only OTP sign-in reaches the scoped dashboard
 # only selector that names ONE row: both rows carry the same client name in
 # their subtitle, so a client-name prefix would match the other entity too.
 # Parentheses are escaped because Maestro matches text as a REGEX.
-- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
 - assertVisible:
     id: 'dashboard-workspace'

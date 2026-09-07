@@ -11,7 +11,7 @@ tags:
 # resumed session lands on the chooser rather than the last workspace.
 # Re-selecting here is also what proves the session survived the relaunch.
 - assertVisible: 'Choose a workspace'
-- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
 - assertVisible:
     id: 'dashboard-workspace'
 - tapOn:

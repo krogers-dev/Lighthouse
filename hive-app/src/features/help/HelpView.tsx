@@ -2,19 +2,24 @@
  *
  * No remote CMS and no network read — help must work when the rest of the
  * app cannot reach the server, which is exactly when someone needs it.
- * The wording is placeholder pending Stacie's relationship language
- * (D4); the contact route is deliberately described rather than wired,
- * because no support address, phone number, or destination has been
- * approved, and inventing one would be inventing a channel. */
+ * Wording decided 2026-09-07 (wording review; Stacie may revise any line
+ * here without touching a screen). The contact route is a configured
+ * public value, EXPO_PUBLIC_SUPPORT_EMAIL: when it is set the section
+ * carries a tappable address, and when it is not the section says how to
+ * reach the team today — never an invented address. */
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 
-import { AppText, useThemeColors } from '@/ui';
+import { formatServerDate } from '@/features/shared/labels';
+import { AppText, Button, useThemeColors } from '@/ui';
 import { radii, spacing } from '@/ui/tokens';
 
 /** Bumped whenever the content below changes, so a support conversation
  * can establish which help text a given build actually shipped. */
-export const HELP_CONTENT_VERSION = '1.0.0';
+export const HELP_CONTENT_VERSION = '1.1.0';
+/** The date the content below last changed, shown to the reader as the
+ * plain fact it is; the version stays alongside it for support. */
+export const HELP_CONTENT_UPDATED = '2026-09-07';
 
 interface HelpSection {
   id: string;
@@ -55,7 +60,7 @@ const SECTIONS: readonly HelpSection[] = [
     id: 'contact',
     testID: 'help-section-contact',
     heading: 'Getting help from a person',
-    body: 'For anything that needs a person, contact Honeybee Accounting the way you normally reach your team. Support contact details will be listed here once they are confirmed.',
+    body: 'For anything that needs a person, contact your Honeybee team the way you normally reach them.',
   },
 ];
 
@@ -70,7 +75,12 @@ const styles = StyleSheet.create({
   list: { gap: spacing.sm },
 });
 
-export function HelpView(): React.JSX.Element {
+export interface HelpViewProps {
+  /** Configured support address (EXPO_PUBLIC_SUPPORT_EMAIL); absent until set. */
+  supportEmail?: string;
+}
+
+export function HelpView({ supportEmail }: HelpViewProps = {}): React.JSX.Element {
   const colors = useThemeColors();
   return (
     <View style={styles.container} testID="help">
@@ -91,11 +101,20 @@ export function HelpView(): React.JSX.Element {
               {section.heading}
             </AppText>
             <AppText variant="body">{section.body}</AppText>
+            {section.id === 'contact' && supportEmail ? (
+              <Button
+                kind="secondary"
+                label={`Email ${supportEmail}`}
+                onPress={() => void Linking.openURL(`mailto:${supportEmail}`)}
+                accessibilityHint="Opens your email app with a new message to your Honeybee team"
+                testID="help-support-email"
+              />
+            ) : null}
           </View>
         ))}
       </View>
       <AppText variant="caption" tone="secondary" testID="help-version">
-        {`Help content version ${HELP_CONTENT_VERSION}`}
+        {`Help text updated ${formatServerDate(HELP_CONTENT_UPDATED)} (version ${HELP_CONTENT_VERSION})`}
       </AppText>
     </View>
   );

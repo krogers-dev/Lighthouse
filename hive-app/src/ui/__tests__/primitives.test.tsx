@@ -120,14 +120,14 @@ describe('screen states', () => {
   it('ErrorState shows only the safe user message', async () => {
     await render(<ErrorState error={new SafeError('network')} />);
     expect(
-      screen.getByText('We could not reach the service. Check your connection and try again.'),
+      screen.getByText('We could not reach HIVE. Check your connection and try again.'),
     ).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
   });
 
-  it('OfflineState explains that stale copies are never shown', async () => {
+  it('OfflineState explains that nothing unverified is shown', async () => {
     await render(<OfflineState />);
-    expect(screen.getByText(/Nothing is shown from stale copies/)).toBeTruthy();
+    expect(screen.getByText(/nothing appears until you reconnect/)).toBeTruthy();
   });
 
   it('QuarantineState offers only the scrub action', async () => {
@@ -135,13 +135,13 @@ describe('screen states', () => {
     await render(<QuarantineState onScrub={onScrub} />);
     const buttons = screen.getAllByRole('button');
     expect(buttons).toHaveLength(1);
-    await fireEvent.press(screen.getByRole('button', { name: 'Reset secure sign-in data' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Reset sign-in on this device' }));
     expect(onScrub).toHaveBeenCalled();
   });
 
   it('QuarantineState hides the action while a scrub runs', async () => {
     await render(<QuarantineState onScrub={() => undefined} scrubInProgress />);
     expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByText('Resetting secure sign-in data')).toBeTruthy();
+    expect(screen.getByText('Resetting sign-in on this device')).toBeTruthy();
   });
 });

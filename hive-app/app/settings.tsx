@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
 
+import { getRuntime } from '@/app-runtime';
 import { useAuthController, useAuthState } from '@/auth/provider';
 import { SettingsView } from '@/features/settings/SettingsView';
 import { AuthorizedScreen } from '@/features/shared/AuthorizedScreen';
@@ -9,6 +10,7 @@ export default function SettingsRoute(): React.JSX.Element {
   const state = useAuthState();
   const controller = useAuthController();
   const router = useRouter();
+  const runtime = getRuntime();
   const authorized = state.name === 'authorized' ? state : null;
   const workspaceName = authorized
     ? authorized.memberships.find((m) => m.membershipId === authorized.scope.membershipId)
@@ -28,6 +30,7 @@ export default function SettingsRoute(): React.JSX.Element {
     // nav in that state on its own.
     <AuthorizedScreen current="account" testID="settings-screen" alsoAllow={['signing_out']}>
       <SettingsView
+        supportEmail={runtime.ok ? runtime.services.env.supportEmail : undefined}
         workspaceName={workspaceName}
         canSwitchScope={(authorized?.memberships.length ?? 0) > 1}
         signingOut={state.name === 'signing_out'}

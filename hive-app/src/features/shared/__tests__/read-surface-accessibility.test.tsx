@@ -387,6 +387,6 @@ describe('read-surface accessibility properties that span the screens', () => {
     // being collapsed behind a single accessible label.
     expect(screen.getByTestId('dashboard-case-case-a').props.accessible).not.toBe(true);
     expect(screen.getByText('2025 books close (Synthetic)')).toBeTruthy();
-    expect(screen.getByLabelText('Needs attention: Waiting on records')).toBeTruthy();
+    expect(screen.getByLabelText('Needs attention: Waiting on documents')).toBeTruthy();
   });
 });

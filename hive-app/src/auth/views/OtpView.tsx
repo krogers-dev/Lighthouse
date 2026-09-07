@@ -38,12 +38,12 @@ export function OtpView({
       </AppText>
       <AppText variant="body" tone="secondary">
         {otpSent
-          ? `We sent a one-time code to ${email}.`
-          : `Requesting a one-time code for ${email}…`}
+          ? `We sent a sign-in code to ${email}.`
+          : `Requesting a sign-in code for ${email}…`}
       </AppText>
       {notice ? <Notice tone="danger" title={userMessageFor(notice)} testID="otp-notice" /> : null}
       <TextField
-        label="One-time code"
+        label="Sign-in code"
         value={code}
         onChangeText={setCode}
         keyboardType="number-pad"

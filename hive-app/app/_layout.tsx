@@ -91,8 +91,8 @@ export function ErrorBoundary(): React.JSX.Element {
         </AppText>
         <Notice
           tone="danger"
-          title="Something went wrong"
-          body="HIVE hit an unexpected problem and stopped to keep your information safe. Close the app fully and open it again."
+          title="HIVE stopped to keep your information safe"
+          body="HIVE hit a problem it could not recover from and stopped to keep your information safe. Close the app fully and open it again. If this keeps happening, contact your Honeybee team."
         />
       </Screen>
     </SafeAreaProvider>

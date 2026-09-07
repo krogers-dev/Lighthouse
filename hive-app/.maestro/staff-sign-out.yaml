@@ -29,10 +29,12 @@ tags:
     id: 'settings-screen'
 - tapOn:
     id: 'settings-sign-out'
-- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+- assertVisible:
+    id: 'sign-in-email'
 # The session must not survive a relaunch.
 - stopApp
 - launchApp
-- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+- assertVisible:
+    id: 'sign-in-email'
 - assertNotVisible:
     id: 'dashboard-workspace'

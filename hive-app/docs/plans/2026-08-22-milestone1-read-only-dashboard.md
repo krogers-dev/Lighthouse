@@ -2727,3 +2727,75 @@ history blobs with completeness verified (his clone carries more history
 than the build container's), 4 history-exception entries reconciled
 covering 5 historical matches, secretlint clean. The approver holds the
 only copy; the repository holds the digest.
+
+## 2026-09-07 — client-facing wording: every string reviewed, the decisions taken
+
+Kody asked for every client-facing string with analysis, then said "make
+the recommended changes and fix the four concerns; make the best decision
+for us". Relationship language is Stacie's (WO-002 D4), so every word
+below is placed where she can change it without touching a screen, a
+query, or a flow: statuses, roles, and activity words in one table
+(`labels.ts`), the error lines in one table (`errors.ts`), and each
+screen's own text in its view. The review itself is published as a page
+for Kody and Stacie; this is the record of what changed and why.
+
+### The four concerns
+
+1. **"Contact Honeybee Accounting" had nowhere to go.** No address may be
+   invented, so the channel is now a configured public value:
+   `EXPO_PUBLIC_SUPPORT_EMAIL`, optional, validated as an address, and
+   refused outside development when it uses a reserved or testing domain
+   (`.invalid`, `.test`, `.example`, `example.com`). When set, Help and
+   Account carry a tappable `Email <address>` line that opens the mail
+   app; when unset, they say to reach the team the way clients do today.
+   Every remaining mention reads "contact your Honeybee team". Tests cover
+   accept, refuse, development allowance, and both screens with and
+   without the value; the "invents no channel" test still holds.
+2. **A wrong or lapsed email got the generic line.** The gateway now maps
+   the invite-only refusal (422, `otp_disabled` / `signup_disabled`) to
+   `not_authorized` — "We could not send a code to this email. If you
+   expect access to HIVE, contact your Honeybee team." — and a rate limit
+   (429 or an `over_*_rate_limit` code) to `rate_limited`. The line says
+   what happened and what to do without stating whether the email is
+   authorized; the server already answers unknown emails differently, so
+   the app's wording is not what keeps that private. Kody may still
+   choose the generic line back; it is one table entry.
+3. **The real sign-in email does not exist yet.** The hosted project is
+   HOLD, so only the local template could be aligned ("Enter this sign-in
+   code in the HIVE app to continue"). Recorded as owed: subject, sender
+   name, body, and the expiry claim, which must match the hosted setting.
+4. **A build label on the client's Help screen.** The last line now reads
+   "Help text updated September 7, 2026 (version 1.1.0)": a plain fact
+   for the reader, the version kept for support.
+
+### The wording changes
+
+One name for the code (`sign-in code`; field label, lead line, hint, code
+screen, email); the reset path speaks of "sign-in on this device" and
+"Your records are safe with Honeybee"; one tense for "Your session ended";
+the offline body says nothing unverified is shown; Home says "Anything
+that needs you will show up here"; owners and actors are "Honeybee
+team", "Your preparer", "Honeybee reviewer", "Honeybee approver", "You",
+and "HIVE"; badge prefixes are "Status", "Done", "Needs attention",
+"Paused"; a request's "Expired" keeps its familiar word but carries the
+plain status prefix (what makes a request expire is the workflow's to
+define); the chooser shows and reads a business name once when it is also
+the entity name; the email placeholder is `you@yourbusiness.com`; the two
+full-stop screens share one text; "Waiting on documents" and "Returned
+for changes" replace "Waiting on records" and "Needs another pass"; the
+authenticator screen tells staff who can reset a lost authenticator.
+Decided and kept: no contractions anywhere (consistent and calm), and the
+visible "Note/Problem" prefixes (what is shown is what is heard).
+
+### Flows
+
+The sign-in lead sentence was asserted in six flows as the signed-out
+landmark; those assertions now use the field's testID, so wording is
+Stacie's to change without breaking the device lane. The clipboard scrub
+copies the title. The two quarantine flows assert the new words. Every
+chooser tap uses the deduplicated row label. `maestro:validate` OK.
+
+Gates fresh: typecheck 0; jest **445 across 35 suites** (new: support
+address validation, sign-in answers, chooser rows, Settings, Help);
+node:test 353; eslint, prettier, format:check clean. Device evidence for
+the changed flows is owed and is the next run.

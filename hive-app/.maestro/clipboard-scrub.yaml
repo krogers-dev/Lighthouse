@@ -15,5 +15,7 @@ tags:
 ---
 - launchApp:
     clearState: true
-- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
-- copyTextFrom: 'Sign in with your authorized email. We will send a one-time code.'
+- assertVisible:
+    id: 'sign-in-email'
+# The title is the harmless on-screen text copied over the secret.
+- copyTextFrom: 'HIVE'

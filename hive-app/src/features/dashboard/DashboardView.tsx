@@ -110,7 +110,7 @@ export function DashboardView({
       {state === 'empty' ? (
         <EmptyState
           title="Nothing needs your attention"
-          body="There is no open work in this workspace right now. We will surface anything that needs you here."
+          body="There is no open work in this workspace right now. Anything that needs you will show up here."
           testID="dashboard-empty"
         />
       ) : null}

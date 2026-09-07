@@ -11,6 +11,8 @@ export type SafeErrorCode =
   | 'offline'
   | 'auth_invalid'
   | 'auth_expired'
+  | 'not_authorized'
+  | 'rate_limited'
   | 'denied'
   | 'stale_scope'
   | 'storage'
@@ -20,15 +22,22 @@ export type SafeErrorCode =
   | 'unknown';
 
 const USER_MESSAGES: Record<SafeErrorCode, string> = {
-  network: 'We could not reach the service. Check your connection and try again.',
+  network: 'We could not reach HIVE. Check your connection and try again.',
   offline: 'You appear to be offline. Reconnect to continue.',
   auth_invalid: 'That sign-in code was not accepted. Request a new code and try again.',
-  auth_expired: 'Your session has ended. Sign in again to continue.',
+  auth_expired: 'Your session ended. Sign in again to continue.',
+  // Invite-only sign-in (2026-09-07 wording review): the server refused to
+  // send to this email. Says what happened and what to do, without stating
+  // whether the email is authorized.
+  not_authorized:
+    'We could not send a code to this email. If you expect access to HIVE, contact your Honeybee team.',
+  rate_limited: 'Too many attempts. Wait a while, then request a new code.',
   denied: 'You do not have access to this record.',
   stale_scope: 'Your access changed. Choose a workspace again to continue.',
-  storage: 'Secure storage on this device reported a problem.',
+  storage:
+    'Secure storage on this device reported a problem. Close the app fully and open it again.',
   quarantine:
-    'Secure sign-in data on this device could not be verified. Reset secure sign-in data to continue.',
+    'Sign-in on this device could not be verified. Reset sign-in on this device to continue.',
   config: 'The app is not configured correctly for this build.',
   conflict: 'This record changed while you were viewing it. Refresh to continue.',
   unknown: 'Something went wrong. Try again in a moment.',

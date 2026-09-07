@@ -12,7 +12,7 @@ name: Sign-out removes protected UI and survives relaunch signed out
     visible:
       text: 'Choose a workspace'
     timeout: 30000
-- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
 - assertVisible:
     id: 'dashboard-workspace'
 - tapOn:
@@ -21,10 +21,12 @@ name: Sign-out removes protected UI and survives relaunch signed out
     id: 'settings-screen'
 - tapOn:
     id: 'settings-sign-out'
-- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+- assertVisible:
+    id: 'sign-in-email'
 # The session must not survive a relaunch.
 - stopApp
 - launchApp
-- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+- assertVisible:
+    id: 'sign-in-email'
 - assertNotVisible:
     id: 'dashboard-workspace'

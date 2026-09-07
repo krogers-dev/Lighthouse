@@ -128,7 +128,7 @@ export function OfflineState({
   return (
     <StateBlock
       title="You are offline"
-      body="HIVE needs a connection to show current, verified information. Nothing is shown from stale copies."
+      body="HIVE only shows information it has just verified, so nothing appears until you reconnect."
       actionLabel={onRetry ? 'Check connection' : undefined}
       onAction={onRetry}
       live
@@ -143,7 +143,7 @@ export function QuarantineState({
   lastAttemptFailed = false,
   testID,
 }: {
-  /** The only exit: verified scrub of secure sign-in data. Never a session retry. */
+  /** The only exit: verified scrub of the sign-in saved on this device. Never a session retry. */
   onScrub: () => void;
   scrubInProgress?: boolean;
   lastAttemptFailed?: boolean;
@@ -152,17 +152,17 @@ export function QuarantineState({
   return (
     <View testID={testID}>
       <StateBlock
-        title="Secure sign-in data needs a reset"
+        title="Sign-in on this device needs a reset"
         body={
           lastAttemptFailed
-            ? 'The reset did not complete. Your records are safe on the server. Try the reset again.'
-            : 'Sign-in data stored on this device could not be verified, so HIVE will not use it. Your records are safe on the server. Reset secure sign-in data, then sign in again.'
+            ? 'The reset did not complete. Your records are safe with Honeybee. Try the reset again.'
+            : 'The sign-in saved on this device could not be verified, so HIVE will not use it. Your records are safe with Honeybee. Reset sign-in on this device, then sign in again.'
         }
-        actionLabel={scrubInProgress ? undefined : 'Reset secure sign-in data'}
+        actionLabel={scrubInProgress ? undefined : 'Reset sign-in on this device'}
         onAction={scrubInProgress ? undefined : onScrub}
         live
       />
-      {scrubInProgress ? <LoadingState label="Resetting secure sign-in data" /> : null}
+      {scrubInProgress ? <LoadingState label="Resetting sign-in on this device" /> : null}
     </View>
   );
 }

@@ -17,9 +17,9 @@ export interface StatusBadgeProps {
  * color-only (WCAG 1.4.1). */
 const KIND_WORD: Record<StatusKind, string> = {
   neutral: 'Status',
-  stable: 'Stable',
+  stable: 'Done',
   attention: 'Needs attention',
-  blocked: 'Blocked',
+  blocked: 'Paused',
 };
 
 const KIND_GLYPH: Record<StatusKind, string> = {

@@ -89,6 +89,21 @@ export function classifyGetSessionError(error: unknown): 'expired' | 'offline' |
   return 'other';
 }
 
+/** The two sign-in answers that must not fall through to the generic line
+ * (2026-09-07 wording review). With shouldCreateUser: false the auth
+ * server refuses an email it will not send to (422, otp_disabled /
+ * signup_disabled); a rate limit is 429 or an over_*_rate_limit code.
+ * Everything else keeps its original shape for the safe-error mapper. */
+export function mapSignInRequestError(error: unknown): unknown {
+  if (!isAuthApiError(error)) return error;
+  const code = error.code ?? '';
+  if (error.status === 429 || code.includes('rate_limit')) return new SafeError('rate_limited');
+  if (error.status === 422 || code === 'otp_disabled' || code === 'signup_disabled') {
+    return new SafeError('not_authorized');
+  }
+  return error;
+}
+
 async function currentAal(client: HiveSupabaseClient): Promise<'aal1' | 'aal2'> {
   const { data, error } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
   if (error) return 'aal1';
@@ -130,11 +145,11 @@ function makeAuthGateway(client: HiveSupabaseClient): AuthGateway {
         email,
         options: { shouldCreateUser: false },
       });
-      if (error) throw error;
+      if (error) throw mapSignInRequestError(error);
     },
     async verifyOtp(email: string, token: string): Promise<SessionInfo> {
       const { data, error } = await client.auth.verifyOtp({ email, token, type: 'email' });
-      if (error) throw error;
+      if (error) throw mapSignInRequestError(error);
       return requireSessionInfo(await toSessionInfo(client, data.session));
     },
     async listTotpFactors() {

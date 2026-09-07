@@ -16,7 +16,7 @@ export default function FatalRoute(): React.JSX.Element {
       <Notice
         tone="danger"
         title="HIVE stopped to keep your information safe"
-        body="An unrecoverable problem occurred. Close the app fully and open it again. If this keeps happening, contact Honeybee Accounting."
+        body="HIVE hit a problem it could not recover from and stopped to keep your information safe. Close the app fully and open it again. If this keeps happening, contact your Honeybee team."
       />
     </Screen>
   );

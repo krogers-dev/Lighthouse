@@ -128,6 +128,9 @@ export function MfaView({
         loading={verifying}
         testID="mfa-submit"
       />
+      <AppText variant="caption" tone="secondary" testID="mfa-recovery-hint">
+        Lost access to your authenticator? Contact your Honeybee team to reset it.
+      </AppText>
       <Button
         kind="secondary"
         label="Sign out"

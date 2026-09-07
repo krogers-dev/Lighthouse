@@ -47,7 +47,7 @@ describe('DashboardView states', () => {
     expect(screen.getByTestId('dashboard-list')).toBeTruthy();
     expect(screen.getByTestId('dashboard-case-case-newer')).toBeTruthy();
     expect(screen.getByTestId('dashboard-case-case-older')).toBeTruthy();
-    expect(screen.getByLabelText('Needs attention: Waiting on records')).toBeTruthy();
+    expect(screen.getByLabelText('Needs attention: Waiting on documents')).toBeTruthy();
     expect(screen.getByText('One statement is still needed (Synthetic)')).toBeTruthy();
     expect(screen.getByText('Provide the missing statement (Synthetic)')).toBeTruthy();
     expect(screen.getByText('Owner: You')).toBeTruthy();

@@ -19,12 +19,12 @@ const styles = StyleSheet.create({
 
 const REASON_COPY: Record<NonNullable<SignInViewProps['signedOutReason']>, string> = {
   expired: 'Your session ended. Sign in again to continue.',
-  scrubbed: 'Secure sign-in data was reset. Sign in again to continue.',
-  no_access: 'This account has no workspace access yet. Contact Honeybee Accounting.',
+  scrubbed: 'Sign-in on this device was reset. Sign in again to continue.',
+  no_access: 'This account has no workspace access yet. Contact your Honeybee team.',
   offline: 'HIVE could not verify your access. Reconnect and sign in to continue.',
 };
 
-/** Invite-only entry: an email receives a one-time code only if it was
+/** Invite-only entry: an email receives a sign-in code only if it was
  * authorized in advance. Self-registration does not exist. */
 export function SignInView({
   onSubmitEmail,
@@ -40,7 +40,7 @@ export function SignInView({
         HIVE
       </AppText>
       <AppText variant="body" tone="secondary">
-        Sign in with your authorized email. We will send a one-time code.
+        Sign in with your authorized email. We will send a sign-in code.
       </AppText>
       {signedOutReason ? (
         <Notice tone="info" title={REASON_COPY[signedOutReason]} testID="signed-out-reason" />
@@ -54,7 +54,7 @@ export function SignInView({
         onChangeText={setEmail}
         keyboardType="email-address"
         autoComplete="email"
-        placeholder="you@example.invalid"
+        placeholder="you@yourbusiness.com"
         editable={!busy}
         onSubmitEditing={() => trimmed.length > 0 && onSubmitEmail(trimmed)}
         testID="sign-in-email"
@@ -64,7 +64,7 @@ export function SignInView({
         onPress={() => onSubmitEmail(trimmed)}
         disabled={trimmed.length === 0}
         loading={busy}
-        accessibilityHint="Sends a one-time sign-in code to this email"
+        accessibilityHint="Sends a sign-in code to this email"
         testID="sign-in-submit"
       />
     </View>

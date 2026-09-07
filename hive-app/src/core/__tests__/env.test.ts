@@ -181,3 +181,51 @@ describe('JWT-form privileged keys (review P2-1)', () => {
     expect(classifyClientKey(anonJwt)).toBe('legacy-anon');
   });
 });
+
+describe('EXPO_PUBLIC_SUPPORT_EMAIL (2026-09-07 wording review)', () => {
+  const base = {
+    EXPO_PUBLIC_SUPABASE_URL: 'https://example-project.supabase.co',
+    EXPO_PUBLIC_SUPABASE_CLIENT_KEY: PUBLISHABLE,
+  };
+
+  it('is optional: absent means no address is shown, not a failure', () => {
+    expect(validateEnvironment(base, 'release').supportEmail).toBeUndefined();
+    expect(
+      validateEnvironment({ ...base, EXPO_PUBLIC_SUPPORT_EMAIL: '  ' }, 'release').supportEmail,
+    ).toBeUndefined();
+  });
+
+  it('accepts a plausible address in release', () => {
+    const config = validateEnvironment(
+      { ...base, EXPO_PUBLIC_SUPPORT_EMAIL: ' hive-support@honeybeeaccounting-synthetic.co ' },
+      'release',
+    );
+    expect(config.supportEmail).toBe('hive-support@honeybeeaccounting-synthetic.co');
+  });
+
+  it('refuses a value that is not an email address', () => {
+    expectProblems(
+      () =>
+        validateEnvironment({ ...base, EXPO_PUBLIC_SUPPORT_EMAIL: 'call the office' }, 'release'),
+      'EXPO_PUBLIC_SUPPORT_EMAIL is not a valid email address',
+    );
+  });
+
+  it('refuses a reserved or testing domain outside development, and allows it there', () => {
+    for (const reserved of ['team@example.invalid', 'team@hive.test', 'team@example.com']) {
+      expectProblems(
+        () => validateEnvironment({ ...base, EXPO_PUBLIC_SUPPORT_EMAIL: reserved }, 'release'),
+        'reserved or testing domain',
+      );
+    }
+    const dev = validateEnvironment(
+      {
+        EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+        EXPO_PUBLIC_SUPABASE_CLIENT_KEY: PUBLISHABLE,
+        EXPO_PUBLIC_SUPPORT_EMAIL: 'team@example.invalid',
+      },
+      'development',
+    );
+    expect(dev.supportEmail).toBe('team@example.invalid');
+  });
+});

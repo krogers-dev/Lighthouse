@@ -17,13 +17,14 @@ name: Reinstall purges stale secure data before auth starts
 # the signed-out screen first is what makes the two negatives evidence.
 - extendedWaitUntil:
     visible:
-      text: 'Sign in with your authorized email. We will send a one-time code.'
+      id: 'sign-in-email'
     timeout: 30000
 - assertNotVisible:
     id: 'dashboard-workspace'
 - assertNotVisible:
     id: 'quarantine-screen'
-- assertVisible: 'Sign in with your authorized email. We will send a one-time code.'
+- assertVisible:
+    id: 'sign-in-email'
 # The purged install signs in cleanly (no quarantine, no stale identity).
 - tapOn:
     id: 'sign-in-email'

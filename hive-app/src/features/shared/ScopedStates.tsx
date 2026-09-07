@@ -95,7 +95,7 @@ export function ScopedStates({
     return (
       <EmptyState
         title="No access to this workspace"
-        body="Your access here has changed. If this seems wrong, contact Honeybee Accounting."
+        body="Your access here has changed. If this seems wrong, contact your Honeybee team."
         actionLabel={onSwitchScope ? 'Choose a workspace' : undefined}
         onAction={onSwitchScope}
         testID={testIDs.denied}

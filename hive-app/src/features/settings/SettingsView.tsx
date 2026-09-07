@@ -6,13 +6,15 @@
  * route exist — recorded in PRODUCT.md as a store-release dependency.
  */
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Linking, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Notice } from '@/ui';
 import { spacing } from '@/ui/tokens';
 
 export interface SettingsViewProps {
   email?: string;
+  /** Configured support address (EXPO_PUBLIC_SUPPORT_EMAIL); absent until set. */
+  supportEmail?: string;
   workspaceName?: string;
   canSwitchScope: boolean;
   signingOut: boolean;
@@ -26,6 +28,7 @@ const styles = StyleSheet.create({
 });
 
 export function SettingsView({
+  supportEmail,
   workspaceName,
   canSwitchScope,
   signingOut,
@@ -46,6 +49,16 @@ export function SettingsView({
         title="Your access"
         body="Access to HIVE is managed by Honeybee Accounting. To change who can see this workspace, contact your Honeybee team."
       />
+      {supportEmail ? (
+        <Button
+          kind="secondary"
+          label={`Email ${supportEmail}`}
+          onPress={() => void Linking.openURL(`mailto:${supportEmail}`)}
+          accessibilityHint="Opens your email app with a new message to your Honeybee team"
+          disabled={signingOut}
+          testID="settings-support-email"
+        />
+      ) : null}
       {canSwitchScope ? (
         <Button
           kind="secondary"

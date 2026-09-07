@@ -16,7 +16,7 @@ name: Storage quarantine blocks protected UI; scrub is the only recovery
 # ScopeKey is memory-only by design (docs/data-classification.md), so a
 # resumed session lands on the chooser rather than the last workspace.
 - assertVisible: 'Choose a workspace'
-- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
 - assertVisible:
     id: 'dashboard-workspace'
 - openLink: hivedev:///?qa=corrupt-storage
@@ -32,7 +32,7 @@ name: Storage quarantine blocks protected UI; scrub is the only recovery
     id: 'dashboard-workspace'
 - assertVisible:
     id: 'quarantine-screen'
-- assertVisible: 'Secure sign-in data needs a reset'
+- assertVisible: 'Sign-in on this device needs a reset'
 - assertNotVisible: 'Retry'
 - tapOn: 'Reset secure sign-in data'
 # Verified scrub lands on signed-out with the scrubbed notice; sign-in works.
@@ -41,5 +41,5 @@ name: Storage quarantine blocks protected UI; scrub is the only recovery
 # what the screen actually renders and therefore part of what a
 # full-match text assertion has to say. Periods escaped: Maestro matches
 # text as a regex (find 35).
-- assertVisible: 'Note: Secure sign-in data was reset\. Sign in again to continue\.'
+- assertVisible: 'Note: Sign-in on this device was reset\. Sign in again to continue\.'
 - assertVisible: 'Email'

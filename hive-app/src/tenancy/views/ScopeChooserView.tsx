@@ -33,6 +33,24 @@ const ROLE_LABEL: Record<Membership['role'], string> = {
   approver: 'Approver',
 };
 
+/** Most clients are one business with one legal entity under the same
+ * name; showing (and reading aloud) that name twice per row helped no one
+ * (2026-09-07 wording review). The client name appears only when it
+ * differs from the entity name. */
+export function chooserLabel(membership: Membership): string {
+  const role = ROLE_LABEL[membership.role];
+  return membership.clientName === membership.entityName
+    ? `${membership.entityName}, ${role}`
+    : `${membership.clientName}, ${membership.entityName}, ${role}`;
+}
+
+export function chooserDetail(membership: Membership): string {
+  const role = ROLE_LABEL[membership.role];
+  return membership.clientName === membership.entityName
+    ? role
+    : `${membership.clientName} · ${role}`;
+}
+
 /** Explicit client/entity selection, required whenever more than one
  * server-confirmed membership exists. Selection is by membership id from
  * this list only — never from a route param or deep link. */
@@ -56,7 +74,7 @@ export function ScopeChooserView({
           <Pressable
             key={membership.membershipId}
             accessibilityRole="radio"
-            accessibilityLabel={`${membership.clientName}, ${membership.entityName}, ${ROLE_LABEL[membership.role]}`}
+            accessibilityLabel={chooserLabel(membership)}
             onPress={() => onSelect(membership.membershipId)}
             style={({ pressed }) => [
               styles.option,
@@ -72,7 +90,7 @@ export function ScopeChooserView({
               {membership.entityName}
             </AppText>
             <AppText variant="caption" tone="secondary" importantForAccessibility="no">
-              {`${membership.clientName} · ${ROLE_LABEL[membership.role]}`}
+              {chooserDetail(membership)}
             </AppText>
           </Pressable>
         ))}

@@ -18,10 +18,10 @@ import type { StatusKind } from '@/ui/primitives/StatusBadge';
 
 export const OWNER_LABEL: Record<MembershipRole, string> = {
   client_user: 'You',
-  intake: 'Honeybee intake',
+  intake: 'Honeybee team',
   preparer: 'Your preparer',
-  reviewer: 'Reviewer',
-  approver: 'Approver',
+  reviewer: 'Honeybee reviewer',
+  approver: 'Honeybee approver',
 };
 
 /** Activity never names a person, only the acting role (threat T3). */
@@ -35,12 +35,12 @@ export const ACTOR_LABEL: Record<ActivityActorRole, string> = {
 export const CASE_STATUS_PRESENTATION: Record<CaseStatus, { kind: StatusKind; label: string }> = {
   DRAFT: { kind: 'neutral', label: 'Being set up' },
   INTAKE_RECORDED: { kind: 'neutral', label: 'Received' },
-  EVIDENCE_PENDING: { kind: 'attention', label: 'Waiting on records' },
+  EVIDENCE_PENDING: { kind: 'attention', label: 'Waiting on documents' },
   READY_FOR_REVIEW: { kind: 'neutral', label: 'Ready for review' },
   IN_REVIEW: { kind: 'neutral', label: 'In review' },
   APPROVAL_PENDING: { kind: 'neutral', label: 'Awaiting approval' },
   APPROVED: { kind: 'stable', label: 'Approved' },
-  RETURNED: { kind: 'attention', label: 'Needs another pass' },
+  RETURNED: { kind: 'attention', label: 'Returned for changes' },
   HOLD: { kind: 'blocked', label: 'On hold' },
 };
 
@@ -51,7 +51,11 @@ export const REQUEST_STATUS_PRESENTATION: Record<
   OPEN: { kind: 'attention', label: 'Needs a response' },
   ANSWERED: { kind: 'neutral', label: 'Answered' },
   CLOSED: { kind: 'stable', label: 'Closed' },
-  EXPIRED: { kind: 'blocked', label: 'Expired' },
+  // "Expired" is the familiar word for a request whose time ran out; it is
+  // a fact about the request, not a block on the client, so it carries the
+  // plain status prefix (2026-09-07 wording review). What makes a request
+  // expire is the workflow's to define.
+  EXPIRED: { kind: 'neutral', label: 'Expired' },
 };
 
 export const ACTIVITY_KIND_LABEL: Record<ActivityEventKind, string> = {

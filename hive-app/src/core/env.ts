@@ -15,6 +15,10 @@ export interface EnvironmentConfig {
   readonly supabaseClientKey: string;
   readonly keyKind: ClientKeyKind;
   readonly variant: BuildVariant;
+  /** The firm's support address, shown as a tappable line in Help and
+   * Account (2026-09-07 wording review). Optional and public; absent means
+   * the screens describe the existing channel instead of inventing one. */
+  readonly supportEmail?: string;
 }
 
 export type EnvSource = Readonly<Record<string, string | undefined>>;
@@ -40,6 +44,11 @@ const JWT_SHAPED_PATTERN = /^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
 const SECRET_SHAPED_PATTERNS = [/^sb_secret_/, /service_role/i];
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '10.0.2.2', '::1', '[::1]']);
+
+const SUPPORT_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** Reserved and testing domains never ship to a client as the way to reach
+ * the firm; they are fine in development, where everything is synthetic. */
+const RESERVED_SUPPORT_DOMAIN = /\.(invalid|test|example|localhost)$|[@.]example\.(com|net|org)$/i;
 
 export function isLoopbackUrl(rawUrl: string): boolean {
   try {
@@ -134,6 +143,20 @@ export function validateEnvironment(source: EnvSource, variant: BuildVariant): E
     }
   }
 
+  const rawSupport = source['EXPO_PUBLIC_SUPPORT_EMAIL']?.trim() ?? '';
+  let supportEmail: string | undefined;
+  if (rawSupport.length > 0) {
+    if (rawSupport.length > 254 || !SUPPORT_EMAIL_PATTERN.test(rawSupport)) {
+      problems.push('EXPO_PUBLIC_SUPPORT_EMAIL is not a valid email address');
+    } else if (variant !== 'development' && RESERVED_SUPPORT_DOMAIN.test(rawSupport)) {
+      problems.push(
+        'EXPO_PUBLIC_SUPPORT_EMAIL uses a reserved or testing domain, which is only permitted in development',
+      );
+    } else {
+      supportEmail = rawSupport;
+    }
+  }
+
   if (problems.length > 0 || !parsedUrl || !keyKind) {
     throw new EnvironmentValidationError(problems);
   }
@@ -143,5 +166,6 @@ export function validateEnvironment(source: EnvSource, variant: BuildVariant): E
     supabaseClientKey: rawKey,
     keyKind,
     variant,
+    ...(supportEmail ? { supportEmail } : {}),
   };
 }

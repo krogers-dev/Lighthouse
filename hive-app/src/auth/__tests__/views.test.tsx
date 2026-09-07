@@ -24,7 +24,7 @@ describe('SignInView', () => {
         signedOutReason="expired"
       />,
     );
-    expect(screen.getByText(/could not reach the service/)).toBeTruthy();
+    expect(screen.getByText(/could not reach HIVE/)).toBeTruthy();
     expect(screen.getByText(/Your session ended/)).toBeTruthy();
   });
 });
@@ -42,7 +42,7 @@ describe('OtpView', () => {
   it('submits the entered code', async () => {
     const onSubmitCode = jest.fn();
     await render(<OtpView {...baseProps} onSubmitCode={onSubmitCode} />);
-    await fireEvent.changeText(screen.getByLabelText('One-time code'), '123456');
+    await fireEvent.changeText(screen.getByLabelText('Sign-in code'), '123456');
     await fireEvent.press(screen.getByTestId('otp-submit'));
     expect(onSubmitCode).toHaveBeenCalledWith('123456');
   });

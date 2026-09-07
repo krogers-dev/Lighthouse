@@ -22,7 +22,7 @@ tags:
 # ScopeKey is memory-only by design (docs/data-classification.md), so a
 # resumed session lands on the chooser rather than the last workspace.
 - assertVisible: 'Choose a workspace'
-- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Bakery LLC \(Synthetic\), Client access'
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
 - assertVisible:
     id: 'dashboard-workspace'
 - tapOn:
