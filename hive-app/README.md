@@ -58,20 +58,33 @@ prove different things. Each is independent of the others.
 | 2. The app running: simulator, Maestro flows, VoiceOver | A Mac with Xcode (any Apple Silicon Mac, a Mac mini included); no Apple Developer account, no signing                 | Every flow and both appearances on iOS; VoiceOver; the launch screen; the keyboard room under iOS's events |
 | 3. A physical iPhone, later TestFlight                  | Apple Developer Program membership (Kody's purchase) and signing, which is HOLD until Kody authorizes it exactly      | Real hardware; the internal-testing track before any store binary                                          |
 
-Tier 1 is configured. `eas.json` carries one profile, `ios-simulator`,
-and `npm run eas:guard` holds the lane to that authorization: one
-profile, simulator-only, no submit block, no signing or Apple-account
-keys, and a `.easignore` that still covers every `.gitignore` entry (the
-check that stops `.env.local` from being uploaded). To run it, once the
-account exists:
+Tier 1 is configured and is the tier Kody chose first (2026-09-07).
+`eas.json` carries one profile, `ios-simulator`, pinned to the
+repository's Node (22.23.2) and to EAS CLI 23.2.0 (the current release
+on the npm registry that day; `cli.version` makes a drifted CLI refuse
+to run), and `npm run eas:guard` holds the lane to that authorization:
+one profile, simulator-only, no submit block, no signing or
+Apple-account keys, and a `.easignore` that still covers every
+`.gitignore` entry (the check that stops `.env.local` from being
+uploaded). The run, from `hive-app` on any machine with the repository
+and `npm ci` done:
 
 ```bash
-npx eas-cli build --platform ios --profile ios-simulator
+npx eas-cli@23.2.0 login                                        # the Expo account's owner does this; credentials never enter the repo
+npm run eas:guard                                               # must print OK before every upload
+npx eas-cli@23.2.0 build --platform ios --profile ios-simulator # uploads the project, builds on Expo's macOS workers
 ```
 
-The build carries no Supabase configuration (`.env.local` is not
-uploaded) and would reach the configuration-fatal screen on launch by
-design. It answers "does it compile", not "does it work".
+What to expect on the first run: the CLI offers to create an EAS project
+for the account and writes its public `extra.eas.projectId` (and the
+`owner`) into `app.json`; that change is committed afterwards so later
+runs do not ask again. The upload is the project minus `.easignore`
+(synthetic content only, never `.env.local`). The build page URL is
+printed at once; a first iOS build takes roughly ten to twenty minutes.
+The artifact carries no Supabase configuration and would reach the
+configuration-fatal screen on launch by design: it answers "does it
+compile", not "does it work". The evidence to keep is the build page's
+final status and, on a failure, the last part of the Xcode log.
 
 What is verified without a Mac, at every head that touches native
 configuration: `npx expo prebuild --platform ios --no-install` succeeds,

@@ -3667,3 +3667,19 @@ not rediscovered.
 Gates at this head: typecheck 0, eslint 0, prettier clean, node:test
 **378**, `config:check` OK, `eas:guard` OK, `maestro:validate` OK, jest
 **507 across 40 suites**.
+
+### Tier 1 chosen, and prepared
+
+Kody's answer to the tier question: "Neither yet: prove it compiles
+first" — the EAS simulator build. The npm registry was reachable from
+here, so the profile now pins what the worker runs: `node` 22.23.2 (the
+repository's engine pin) and `cli.version` 23.2.0 (the current EAS CLI
+that day; a drifted CLI refuses to run). `eas:guard` still passes and its
+twelve tests hold. EAS CLI 23.2.0 was fetched and run here: `eas config`
+stops at the account wall exactly as documented, which is the boundary —
+the account, the terms, the login and the upload are Kody's, and they
+run on his machine. The README's tier-1 block carries the three commands
+in order, what the first run writes into `app.json` (the public EAS
+project id, to be committed afterwards), what the upload contains, and
+what counts as evidence. Nothing else is needed from this side until the
+build page's final status comes back.
