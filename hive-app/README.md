@@ -89,7 +89,10 @@ is what has never been done.
 > the native project before building: `npx expo prebuild --platform android
 --clean`, then `npx expo run:android`. A plain `expo run:android` reuses the
 > existing gitignored `android/` directory, so icon, splash, and color changes
-> are silently NOT applied (desktop 2, 2026-09-06).
+> are silently NOT applied (desktop 2, 2026-09-06). Then restart Metro: a
+> clean prebuild while Metro is running leaves that Metro stalled (one
+> thread pinned, `/status` taking 15–30 s, bundles arriving minutes after
+> launch), and every flow then fails at its first launch wait (find 44).
 
 Everything below runs on Windows, macOS, or Linux. This is the lane that
 closes A3 (black-box e2e) and the Android half of A5 (Maestro flows).

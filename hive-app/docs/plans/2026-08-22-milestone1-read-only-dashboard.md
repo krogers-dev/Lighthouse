@@ -3049,3 +3049,44 @@ launcher capture, and the three flows at the head carrying finds 40 and
   (`grpc UNAVAILABLE`), the device healthy immediately after; a fresh
   sign-in and rerun passed 12 of 12. Transient tooling, like the driver
   start-up timeout in run 4.
+
+## 2026-09-07 — the design evidence is on the branch; a clean prebuild proves the icon; find 44
+
+The follow-on desktop session rebased its single evidence commit onto
+`8732561` and pushed it as `1aa3bee`, then added the launcher capture as
+`d69ab64`. `security/evidence/2026-09-07-desktop2/` now holds the lanes
+report for run 4, a README describing every capture and command, and 28
+PNGs (the 27 design screenshots in light, dark, and 200 % text, plus the
+launcher). Pulled here: all 28 are PNG, `audit:gate` OK (no prohibited
+assets), `secrets:scan OK`, prettier clean.
+
+**The icon and colors are proven.** `npx expo prebuild --platform android
+--clean` regenerated the native project: `colors.xml` carries
+`#F3F2EA` and `#111310` and no v2.0 value, the launcher mipmaps are the
+derived mark (15,711 bytes at xxxhdpi against the 803-byte placeholder),
+and the debug manifest still carries the loopback network security config.
+`npx expo run:android`: `BUILD SUCCESSFUL in 1m 11s`, installed and
+launched. The launcher shows the gold honeycomb mark on a dark circle; the
+system splash is Warm Paper with the mark on a Soft Black circle (Android
+12+ draws the launcher icon on an imageless splash, which is exactly the
+configuration). Find 43 closed.
+
+**First device evidence of the lockup on the rebuilt binary.** Outside
+Maestro, `uiautomator` listed `sign-in-screen`, `brand-header`,
+`brand-mark`, `brand-wordmark`, `sign-in-email` and `sign-in-submit` on the
+freshly built app: the header band with the mark and wordmark renders on
+the device.
+
+### Find 44 — a clean prebuild stalls the running Metro
+
+Every flow failed at its first launch wait after the clean prebuild — not
+the app: the Metro that had been serving since 14:52 (started by an
+earlier `expo run:android`) was left with one thread pinned at 100 %,
+`/status` answering in 15–33 s, and bundles arriving six minutes after
+launch, once `android/` had been replaced underneath it. `sign-in.yaml`
+therefore failed three times at `sign-in-email` after its 30 s wait, and
+`maestro:denied`, `accessibility-smoke` (its failure screenshot was the
+splash) and `quarantine-recovery` failed the same way. Transport evidence,
+not app evidence: finds 40 to 42 remain unverified on the device. Runbook
+(README): restart Metro after any clean prebuild. A desktop session with
+explicit authority to stop and restart Metro reruns the four flows next.
