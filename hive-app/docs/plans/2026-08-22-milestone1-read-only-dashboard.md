@@ -3683,3 +3683,89 @@ in order, what the first run writes into `app.json` (the public EAS
 project id, to be committed afterwards), what the upload contains, and
 what counts as evidence. Nothing else is needed from this side until the
 build page's final status comes back.
+
+### Tier 1 result — HIVE compiles for iOS; find 52 — the upload set EAS actually took
+
+**The first iOS compile of this app, ever.** Kody created the Expo
+account (`honeybee-dev`), pulled `1762421`, logged the pinned CLI in,
+ran the guard, and ran the build. EAS CLI 23.2.0 created the project
+`@honeybee-dev/hive` (id `993169dd-d693-461c-b086-0e33b6ac98de`) and
+linked it into `app.json`; the export-compliance prompt was answered
+"standard/exempt encryption only" (OS TLS and keychain, no cryptography
+of the app's own), which the CLI recorded as
+`ios.infoPlist.ITSAppUsesNonExemptEncryption: false`; both are committed
+at `bb795d2` exactly as the CLI wrote them on his machine. Build
+`6f77c438-948c-4518-83aa-cd3e694e9b59`
+(https://expo.dev/accounts/honeybee-dev/projects/hive/builds/6f77c438-948c-4518-83aa-cd3e694e9b59):
+compressed in 22 s, uploaded in 14 s, **Build finished**, a simulator
+`.app` artifact. So the iOS target compiles at the design head, pods
+resolve, the Metro bundle builds without `.env.local`, and — because
+Xcode's storyboard compiler ran — find 51's repaired launch screen
+compiles. Nothing has run on iOS yet; that stays a Mac question.
+
+**Find 52 — the upload set was not the one the guard held (medium; fixed,
+proven here, one more build to confirm on the desktop).** The CLI
+reported a 342 MB project archive against about 9 MB of tracked content
+in the whole repository. Reading the CLI's source (the npx cache here
+holds 23.2.0, `vcs/clients/git.js` and `vcs/local.js`) explains it
+exactly:
+
+- EAS CLI reads `.easignore` at the **git root only**
+  (`path.join(rootPath, '.easignore')`, `rootPath` from `git rev-parse
+--show-toplevel`). This repository's `.easignore` lived in `hive-app/`
+  and was never read. The guard, which held that file to a superset of
+  `hive-app/.gitignore`, was holding a file EAS did not use.
+- With no root `.easignore`, the CLI makes a no-checkout shallow clone of
+  HEAD and then copies the **working tree** over it through the
+  `.gitignore` files it finds by glob, each under its directory prefix
+  (`hive-app/`). On Windows the relative path it tests carries
+  backslashes while the prefix carries a forward slash, so the
+  `startsWith(prefix)` check fails and every nested `.gitignore` rule is
+  skipped (read from the source, not measured; the root `.gitignore`
+  still applies because its prefix is empty). That is how a generated
+  Android project with its build outputs — the bulk of 342 MB — plus
+  Metro's `.expo` cache and `.env.local` could go up from a machine where
+  git itself ignores all of them.
+- What could have been in it, by category: the generated `android/`
+  project and Gradle outputs, `.expo/`, `.env.local` (the loopback origin
+  and the local stack's publishable key — both approved public
+  configuration under `security/approved-config.json`, the values the app
+  itself is allowed to hold), the Supabase CLI's `supabase/.temp/` state,
+  and the tracked docs, evidence and tests the nested `.easignore` meant
+  to withhold. No signing material exists anywhere in this project, and
+  `local-supabase.mjs` never writes a service-role key or JWT secret to
+  disk (the seed mints its bearer in memory). So no secret by this
+  project's rules left the machine, but the boundary that was promised
+  was not the boundary that was enforced, and that is the find.
+
+The fix: `.easignore` now lives at the repository root, written with
+forward slashes from there, a complete superset of BOTH `.gitignore`
+files (the app's anchored entries re-rooted: `/ios` → `hive-app/ios`,
+`supabase/.temp/` → `hive-app/supabase/.temp/`; unanchored ones spelled
+the same), naming `.git` so the clone's metadata is dropped too, plus the
+not-needed-to-compile exclusions from the root (`hive-app/docs/`,
+`hive-app/security/`, `hive-app/supabase/`, `hive-app/tests/`,
+`hive-app/.maestro/`, the root `tests/` and `scripts/`, `MIGRATION.md`,
+test files). The nested file is removed. `eas:guard` now reads the root
+file, checks it against both `.gitignore` files through `rootedEntry`
+(the gitignore anchoring rule as a pure function), requires `.git`, and
+refuses a nested `.easignore` outright; its tests (fourteen) cover the
+re-rooting rule in both directions and the layout refusals.
+
+**Proven here without spending a build**, by running the CLI's own copy
+routine (`makeShallowCopyAsync` from the cached 23.2.0) against this
+repository with a dummy `android/`, `ios/`, `.expo/` and `.cache/` planted
+and `.env.local` present: **157 files, 2.3 MB**, zero files under any
+excluded path, zero `.env*.local`, no `.git`. And the clone-deletion pass
+the CLI runs when a root `.easignore` exists (`git ls-files
+--exclude-from=.easignore --ignored --cached`) removes **200** tracked
+files — docs, evidence, tests, flows, migrations, the root migration
+tooling — and **none** of the files the build needs (`src/`, `app/`,
+`assets/`, `plugins/`, the configs and lockfile). The next simulator build
+will report the archive at about 2 MB; that number is the desktop-side
+confirmation, and it needs no other change.
+
+Kody's call, recorded not pushed: the 342 MB archive of build 6f77c438
+is retained by Expo with that build. Nothing secret by this project's
+rules was in it; deleting the build from the dashboard is the lever if he
+wants it gone anyway.

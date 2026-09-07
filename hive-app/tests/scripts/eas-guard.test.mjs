@@ -7,16 +7,19 @@
  * HOLD, and none of them look alarming in a diff.
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
+  APP_PREFIX,
   AUTHORIZED_PROFILE,
   auditEasConfig,
+  easignoreLayoutProblems,
   ignoreEntries,
   missingFromEasignore,
+  rootedEntry,
 } from '../../scripts/eas-guard.mjs';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -127,12 +130,65 @@ test('ignoreEntries drops comments and blank lines, keeps patterns', () => {
   assert.deepEqual(ignoreEntries(null), []);
 });
 
-test('the committed .easignore covers every .gitignore entry', () => {
-  const missing = missingFromEasignore(
-    readFileSync(path.join(appRoot, '.gitignore'), 'utf8'),
-    readFileSync(path.join(appRoot, '.easignore'), 'utf8'),
+test('the committed ROOT .easignore covers every entry of both .gitignore files, and names .git', () => {
+  const repoRoot = path.resolve(appRoot, '..');
+  const easignore = readFileSync(path.join(repoRoot, '.easignore'), 'utf8');
+  assert.deepEqual(
+    missingFromEasignore(readFileSync(path.join(repoRoot, '.gitignore'), 'utf8'), easignore, ''),
+    [],
   );
-  assert.deepEqual(missing, []);
+  assert.deepEqual(
+    missingFromEasignore(
+      readFileSync(path.join(appRoot, '.gitignore'), 'utf8'),
+      easignore,
+      APP_PREFIX,
+    ),
+    [],
+  );
+  assert.ok(ignoreEntries(easignore).includes('.git'));
+  // And no nested .easignore is left to disagree with it (find 52).
+  assert.equal(existsSync(path.join(appRoot, '.easignore')), false);
+});
+
+test('a nested .gitignore entry is re-rooted the way gitignore semantics require (find 52)', () => {
+  // Anchored entries take the directory in front…
+  assert.equal(rootedEntry('/ios', 'hive-app/'), 'hive-app/ios');
+  assert.equal(rootedEntry('/android', 'hive-app/'), 'hive-app/android');
+  // …so do entries with a slash anywhere but the end…
+  assert.equal(rootedEntry('supabase/.temp/', 'hive-app/'), 'hive-app/supabase/.temp/');
+  // …while unanchored entries match at any depth and are spelled the same.
+  assert.equal(rootedEntry('node_modules/', 'hive-app/'), 'node_modules/');
+  assert.equal(rootedEntry('*.pem', 'hive-app/'), '*.pem');
+  assert.equal(rootedEntry('.env*.local', 'hive-app/'), '.env*.local');
+  assert.equal(rootedEntry('!keep.me', 'hive-app/'), '!keep.me');
+  assert.equal(rootedEntry('!/keep.me', 'hive-app/'), '!hive-app/keep.me');
+  // At the root itself nothing changes.
+  assert.equal(rootedEntry('/ios', ''), 'ios');
+  assert.equal(rootedEntry('tests/fixtures/', ''), 'tests/fixtures/');
+  // The superset check uses the rooted spelling, so a root .easignore
+  // that copied `/ios` verbatim would be caught: it does not cover
+  // hive-app/ios.
+  assert.deepEqual(
+    missingFromEasignore('/ios\nnode_modules/\n', '/ios\nnode_modules/\n', 'hive-app/'),
+    ['hive-app/ios'],
+  );
+  assert.deepEqual(
+    missingFromEasignore('/ios\nnode_modules/\n', 'hive-app/ios\nnode_modules/\n', 'hive-app/'),
+    [],
+  );
+});
+
+test('NEGATIVE: a .easignore anywhere but the git root, or a nested one, is refused (find 52)', () => {
+  assert.deepEqual(easignoreLayoutProblems({ rootExists: true, nestedExists: false }), []);
+  assert.match(
+    easignoreLayoutProblems({ rootExists: false, nestedExists: false })[0],
+    /missing from the git root/,
+  );
+  assert.match(
+    easignoreLayoutProblems({ rootExists: true, nestedExists: true })[0],
+    /never reads a nested/,
+  );
+  assert.equal(easignoreLayoutProblems({ rootExists: false, nestedExists: true }).length, 2);
 });
 
 test('NEGATIVE: a .easignore that drops an entry is caught, env files above all', () => {

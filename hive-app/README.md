@@ -64,10 +64,13 @@ repository's Node (22.23.2) and to EAS CLI 23.2.0 (the current release
 on the npm registry that day; `cli.version` makes a drifted CLI refuse
 to run), and `npm run eas:guard` holds the lane to that authorization:
 one profile, simulator-only, no submit block, no signing or
-Apple-account keys, and a `.easignore` that still covers every
-`.gitignore` entry (the check that stops `.env.local` from being
-uploaded). The run, from `hive-app` on any machine with the repository
-and `npm ci` done:
+Apple-account keys, and a `.easignore` at the REPOSITORY ROOT — the only
+place EAS CLI reads it (find 52) — that covers every entry of both
+`.gitignore` files and names `.git` (the check that stops `.env.local`,
+the generated native projects and the clone's metadata from being
+uploaded; a nested `.easignore` fails the guard because EAS never reads
+one). The run, from `hive-app` on any machine with the repository and
+`npm ci` done:
 
 ```bash
 npx eas-cli@23.2.0 login                                        # the Expo account's owner does this; credentials never enter the repo
@@ -78,8 +81,9 @@ npx eas-cli@23.2.0 build --platform ios --profile ios-simulator # uploads the pr
 What to expect on the first run: the CLI offers to create an EAS project
 for the account and writes its public `extra.eas.projectId` (and the
 `owner`) into `app.json`; that change is committed afterwards so later
-runs do not ask again. The upload is the project minus `.easignore`
-(synthetic content only, never `.env.local`). The build page URL is
+runs do not ask again. The upload is the repository from its git root
+minus the root `.easignore`: about 160 files and 2 MB, synthetic content
+only, never `.env.local`. The build page URL is
 printed at once; a first iOS build takes roughly ten to twenty minutes.
 The artifact carries no Supabase configuration and would reach the
 configuration-fatal screen on launch by design: it answers "does it

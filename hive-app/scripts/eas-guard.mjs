@@ -16,8 +16,12 @@
  *    build, which needs Apple Developer credentials and signing);
  *  - any `submit` configuration at all;
  *  - credential, certificate, provisioning, or Apple-account keys;
- *  - an .easignore that has drifted from .gitignore, which is how
- *    .env.local would start being uploaded.
+ *  - a .easignore that is not at the git root, or that has drifted from
+ *    either .gitignore, which is how .env.local and the generated native
+ *    projects start being uploaded (find 52, 2026-09-07: EAS CLI reads
+ *    .easignore at the git root ONLY, and the nested one this repository
+ *    used to carry was never read — the first build uploaded 342 MB
+ *    against 9 MB of tracked content).
  *
  * Exit codes follow the repository contract: 0 pass, 1 findings,
  * 2 engine failure.
@@ -28,6 +32,10 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/** The git root: the only place EAS CLI reads .easignore from. */
+const repoRoot = path.resolve(appRoot, '..');
+/** hive-app/ as EAS sees it from the git root, forward slashes. */
+export const APP_PREFIX = 'hive-app/';
 
 /** The single profile this repository is authorized to build. Changing
  * this name is a deliberate act and shows up in the diff as one. */
@@ -133,15 +141,54 @@ export function ignoreEntries(text) {
     .filter((line) => line !== '' && !line.startsWith('#'));
 }
 
-/** .easignore must cover everything .gitignore does.
+/** A .gitignore entry as it must be spelled in a .easignore that lives at
+ * the git root, when the .gitignore lives in `prefix` below it.
  *
- * The failure this prevents is specific and silent: if .easignore
- * replaces .gitignore when deciding what to upload, then a .gitignore
- * entry with no counterpart here means that file starts being sent to a
- * third party. `.env*.local` is the one that matters. */
-export function missingFromEasignore(gitignoreText, easignoreText) {
+ * gitignore semantics: an entry with a slash anywhere but the end is
+ * anchored to its own file's directory, so from the root it needs that
+ * directory in front (`/ios` → `hive-app/ios`, `supabase/.temp/` →
+ * `hive-app/supabase/.temp/`); an entry with no slash, or only a trailing
+ * one, matches at any depth and is spelled the same everywhere
+ * (`node_modules/`, `*.pem`, `.env*.local`). A negation keeps its `!`. */
+export function rootedEntry(entry, prefix) {
+  const negated = entry.startsWith('!');
+  const pattern = negated ? entry.slice(1) : entry;
+  const body = pattern.endsWith('/') ? pattern.slice(0, -1) : pattern;
+  let rooted;
+  if (pattern.startsWith('/')) rooted = `${prefix}${pattern.slice(1)}`;
+  else if (body.includes('/')) rooted = `${prefix}${pattern}`;
+  else rooted = pattern;
+  return negated ? `!${rooted}` : rooted;
+}
+
+/** The root .easignore must cover everything each .gitignore does.
+ *
+ * The failure this prevents is specific and silent: the root .easignore
+ * REPLACES every .gitignore when EAS decides what to upload, so a
+ * .gitignore entry with no counterpart there means that file starts being
+ * sent to a third party. `.env*.local` and the generated native projects
+ * are the ones that matter. */
+export function missingFromEasignore(gitignoreText, easignoreText, prefix = '') {
   const eas = new Set(ignoreEntries(easignoreText));
-  return ignoreEntries(gitignoreText).filter((entry) => !eas.has(entry));
+  return ignoreEntries(gitignoreText)
+    .map((entry) => rootedEntry(entry, prefix))
+    .filter((entry) => !eas.has(entry));
+}
+
+/** Where the .easignore lives decides whether EAS reads it at all. */
+export function easignoreLayoutProblems({ rootExists, nestedExists }) {
+  const problems = [];
+  if (!rootExists) {
+    problems.push(
+      '.easignore is missing from the git root — EAS CLI reads it there only, so the upload set would fall back to the working tree filtered by .gitignore, which its Windows copy applies incompletely (find 52)',
+    );
+  }
+  if (nestedExists) {
+    problems.push(
+      'hive-app/.easignore exists — EAS CLI never reads a nested .easignore; the root one is the upload set, so remove the nested file rather than let two disagree',
+    );
+  }
+  return problems;
 }
 
 function main() {
@@ -163,19 +210,36 @@ function main() {
 
   const problems = auditEasConfig(config);
 
-  const easignorePath = path.join(appRoot, '.easignore');
-  if (!existsSync(easignorePath)) {
-    problems.push(
-      '.easignore is missing — the upload set would fall back to .gitignore implicitly rather than being stated',
-    );
-  } else {
-    const missing = missingFromEasignore(
-      readFileSync(path.join(appRoot, '.gitignore'), 'utf8'),
-      readFileSync(easignorePath, 'utf8'),
-    );
-    for (const entry of missing) {
+  const easignorePath = path.join(repoRoot, '.easignore');
+  problems.push(
+    ...easignoreLayoutProblems({
+      rootExists: existsSync(easignorePath),
+      nestedExists: existsSync(path.join(appRoot, '.easignore')),
+    }),
+  );
+  if (existsSync(easignorePath)) {
+    const easignoreText = readFileSync(easignorePath, 'utf8');
+    const sources = [
+      { label: '.gitignore', file: path.join(repoRoot, '.gitignore'), prefix: '' },
+      { label: 'hive-app/.gitignore', file: path.join(appRoot, '.gitignore'), prefix: APP_PREFIX },
+    ];
+    for (const source of sources) {
+      const missing = missingFromEasignore(
+        readFileSync(source.file, 'utf8'),
+        easignoreText,
+        source.prefix,
+      );
+      for (const entry of missing) {
+        problems.push(
+          `the root .easignore does not cover ${source.label} entry '${entry}' — that file would be uploaded to the build service`,
+        );
+      }
+    }
+    // The shallow clone's .git is uploaded unless the .easignore names it
+    // (the CLI special-cases exactly this check).
+    if (!ignoreEntries(easignoreText).includes('.git')) {
       problems.push(
-        `.easignore does not cover .gitignore entry '${entry}' — that file would be uploaded to the build service`,
+        "the root .easignore does not list '.git' — the clone's repository metadata would be uploaded",
       );
     }
   }
@@ -187,7 +251,7 @@ function main() {
   }
 
   console.log(
-    `eas:guard OK — one profile ('${AUTHORIZED_PROFILE}'), simulator-only, no submit lane, upload set covers .gitignore`,
+    `eas:guard OK — one profile ('${AUTHORIZED_PROFILE}'), simulator-only, no submit lane, root .easignore covers both .gitignore files`,
   );
   process.exit(0);
 }
