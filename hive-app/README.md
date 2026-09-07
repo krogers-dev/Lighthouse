@@ -93,6 +93,12 @@ is what has never been done.
 > clean prebuild while Metro is running leaves that Metro stalled (one
 > thread pinned, `/status` taking 15–30 s, bundles arriving minutes after
 > launch), and every flow then fails at its first launch wait (find 44).
+> Restart Metro after any pull that touches `metro.config.js`, and treat a
+> `(1 module)` bundle line right after a multi-file pull as a STALE bundle:
+> the running Metro can stop rebuilding changed files while still serving,
+> and two device runs then measured a fix that was not on the device
+> (find 50, desktop 2, 2026-09-07). A fresh Metro reports the full module
+> count (about 1690) on the next cold start.
 
 Everything below runs on Windows, macOS, or Linux. This is the lane that
 closes A3 (black-box e2e) and the Android half of A5 (Maestro flows).

@@ -3468,3 +3468,61 @@ find 46, with Metro's log clean of `Auto refresh tick failed` and
 `Uncaught (in promise)`. The emulator's RAM allocation is Kody's call; the
 lane will keep meeting the low-memory killer at 2.4 GB on clear-state
 launches.
+
+## 2026-09-07 — desktop 2, run 9: the keyboard room works on the device; find 49 device-confirmed on the sign-in screen; find 50 (runbook)
+
+Run 9 at `724c9fc` (evidence `eb425a1`,
+`security/evidence/2026-09-07-desktop2/keyboard-hook-at-724c9fc.md`): the
+observation the third iteration was built for, and with it the answer.
+
+**The event fires, the numbers are right, the scroll view shrinks.** On
+both taps into `sign-in-email` the hook logged
+`event=keyboardDidShow height=312 screenY=578` (window 411×914 dp; the
+keyboard's 883 px is 336 dp, and 312 is that less the 24 dp navigation
+bar the height excludes, exactly as `keyboardRoomFor` assumes), followed
+at once by `room … containerBottom=914 keyboardHeight=312 bottomInset=24
+room=336`. The uiautomator dump with the keyboard up shows the shell's
+scroll view at `[0,295][1080,1518]` against the IME frame top of 1517 px
+(336 dp × 2.625 = 882 px); the wrapper itself keeps its bounds (it pads);
+`keyboardDidHide` restored `room=0` both times; no `keyboardWillShow`
+lines on Android, as expected. `containerBottom` was 914 on every line but
+one transient `null` during launch. Find 49 is therefore
+**device-confirmed on the sign-in screen at the second iteration's
+computation** (`4c6c625`'s shell, unchanged by the third iteration beyond
+the reporting seam); the enrollment flows that first exposed it are the
+remaining proof.
+
+**Why runs 7 and 8 measured zero (find 50, runbook).** The first launch of
+run 9 showed no `installed` line at all: the previous Metro process,
+after a 20-file pull, served a **one-module delta** and printed `Detected
+a change in metro.config.js. Restart the server to see the new results.`
+A runbook restart (`Start-Process cmd /c set CI=1&& set
+EXPO_PUBLIC_QA_HOOKS=1&& npx expo start --port 8081`, `/status` ready in
+four tries) produced a full 1690-module bundle in 3.7 s and the hook
+appeared. So the bundle that run 8 measured cannot be shown to have
+carried the second iteration, and `screen-keyboard-room` — absent from
+run 8's dump, present in run 9's under the same testID — says it very
+probably did not. Runs 7 and 8 measured a stale bundle; the second
+iteration was right on the first day. Recorded as find 50 in the README's
+Android runbook: after any pull, treat a `(1 module)` bundle line right
+after a multi-file pull as a stale bundle and restart Metro; a pull that
+touches `metro.config.js` always needs the restart.
+
+**Not run:** the enrollment runner, sign-in and `quarantine-recovery`
+(find 46's device proof). The task's memory gate (300 MB in `free -m`
+after the observation; the emulator showed 140 MB) held them back. That
+gate measured the wrong column: `dumpsys meminfo` a minute later reported
+1.0 GB free including cache, and Android's low-memory killer acts on
+pressure, not on `free`'s first column. Run 10 uses `dumpsys meminfo`'s
+free figure (≥ 600 MB including cache before each flow) and treats a
+`DeviceServerDiedException` as the infrastructure failure it is (rerun
+once, recorded). The emulator's 2.4 GB allocation stays Kody's call.
+
+The QA keyboard hook stays: it is production-inert by the same three
+proofs as the other hooks, and it gives the device lane a permanent
+observable for keyboard geometry on every screen.
+
+Owed at this head, on the desktop: `maestro:enroll` (mfa-enroll,
+staff-sign-out, mfa-login — the verify tap under the keyboard is exactly
+what run 9 shows scrollable now), `sign-in.yaml`, and
+`quarantine-recovery.yaml` with the logcat counts for find 46.
