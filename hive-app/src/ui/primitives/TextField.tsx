@@ -22,12 +22,13 @@ export interface TextFieldProps {
   editable?: boolean;
   onSubmitEditing?: () => void;
   testID?: string;
-  /** testID for the LABEL text. A device flow taps it to blur the field:
-   * the label is plain text (never a control), sits directly above the
-   * input so it is on screen whenever the input is, and a tap on it is
-   * unhandled — the ScrollView blurs the input and the soft keyboard, if
-   * one is up, goes with the focus. This replaces Maestro's hideKeyboard,
-   * which on Android is an unconditional BACK key press (find 37). */
+  /** testID for the LABEL text, so a device flow can address the label as
+   * plain text (never a control). The MFA flows once tapped it to blur the
+   * field in place of Maestro's hideKeyboard, an unconditional BACK key
+   * press on Android (find 37); since find 47 they scroll the control they
+   * need into view instead, because under an open keyboard the label of a
+   * long screen can leave the visible hierarchy. The id stays for any flow
+   * that needs to locate the label. */
   labelTestID?: string;
 }
 

@@ -57,12 +57,14 @@ export const KNOWN_COMMANDS = new Set([
  * through 2.x). With no soft keyboard showing that BACK reaches the app,
  * and this app's auth screens REPLACE one another (expo-router Redirect),
  * so at the single-entry stack it exits the app — every later step fails
- * "not found". A field is blurred by tapping its label instead
- * (TextField labelTestID). */
+ * "not found". Flows bring the control they need into view with
+ * scrollUntilVisible instead (find 47); tapping the field's label to blur it
+ * (find 37) stopped working once the taller 2026 design pushed the label out
+ * of the visible hierarchy under the keyboard. */
 export const FORBIDDEN_COMMANDS = new Map([
   [
     'hideKeyboard',
-    'on Android this is an unconditional BACK key press; with no soft keyboard up it exits the single-entry auth stack (find 37) — blur the field by tapping its label (tapOn id <field>-label) instead',
+    'on Android this is an unconditional BACK key press; with no soft keyboard up it exits the single-entry auth stack (find 37) — bring the control you need into view with scrollUntilVisible instead (find 47)',
   ],
 ]);
 

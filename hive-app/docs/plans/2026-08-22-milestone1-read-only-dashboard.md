@@ -3150,3 +3150,63 @@ At `f44a200` on the clean-prebuild binary: sign-in, `maestro:denied`,
 `quarantine-recovery` PASS. At `ca96181`: 15 of 18 with the three causes
 above. Owed: one full 18-flow sweep at a head carrying finds 40 to 45, so
 the design checkpoint stands on the whole lane rather than on its parts.
+
+## 2026-09-07 — desktop 2, run 5: the full lane at `bd2be6c`, 14 of 18; finds 47 and 48
+
+The whole lane at the head carrying finds 40 to 45, on the clean-prebuild
+binary with the fresh Metro (`/status` 0.042 s): evidence `3b6573c`
+(`security/evidence/2026-09-07-desktop2/full-lane-at-find-45.md`).
+
+| Flow                                                                                                                                                                                                                 | Result                                                   |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| sign-in (three sweep runs and inside the denied runner), requests, activity-and-help, nav-persistence, read-surfaces-offline, scope-switch, offline, sign-out, clipboard-scrub, quarantine-recovery, expired-session | **PASS**, every step COMPLETED, exit 0                   |
+| accessibility-smoke                                                                                                                                                                                                  | **PASS** — its first pass on this desktop (find 45 held) |
+| confinement-probe (`maestro:confinement`)                                                                                                                                                                            | **PASS**, `CONFINEMENT PROOF OK`                         |
+| read-surfaces-denied (`maestro:denied`)                                                                                                                                                                              | **PASS**, `maestro:denied OK`                            |
+| mfa-enroll (`maestro:enroll`)                                                                                                                                                                                        | FAIL at `Tap on id: mfa-code-label` after the wrong code |
+| mfa-login, staff-sign-out                                                                                                                                                                                            | NOT RUN — the enroll runner stopped before them          |
+| reinstall                                                                                                                                                                                                            | FAIL — native SIGSEGV in the app process on launch, once |
+
+Every scroll-into-view guard from find 42 ran (`Scrolling DOWN until
+… COMPLETED` before request-detail-back, settings-back,
+settings-switch-scope, settings-sign-out and the quarantine button), and
+the enroll runner's cleanup ran to completion on its failure path
+(clipboard overwritten, factor revoked and verified clean, artifact tree
+scrubbed).
+
+### Find 47 — under the keyboard, the code field's label left the visible hierarchy
+
+`mfa-enroll.yaml` blurred the code field by tapping its label (find 37's
+replacement for `hideKeyboard`) so the verify control would come out from
+under the soft keyboard (find 30). At `ca96181` that worked; at the 2026
+design's head the label was `Element not found` right after the wrong code
+was typed. The label still carries its testID (`labelTestID` on
+`TextField`, rendered on the label text; the primitives test proves it),
+and the same tap had passed before the enrollment screen grew a larger
+title, a filled setup-key panel and the header band, so the label is off
+the visible area under the keyboard rather than missing — the runner's
+confinement scrubs its own artifacts, so this is inferred, not seen. The
+mechanism was fragile either way: it depended on where the keyboard left
+the scroll. The three MFA flows now bring `mfa-submit` itself into view
+with `scrollUntilVisible` before every verify tap (completes at once when
+already visible), the validator's `hideKeyboard` refusal points there, and
+the gate test pins the new shape. `labelTestID` stays. Owed: the enroll
+runner (which covers mfa-enroll, staff-sign-out, mfa-login) at this head.
+
+### Find 48 — one native crash on a clear-state launch (open)
+
+`reinstall.yaml`'s cleared launch never reached the sign-in screen: the
+device log shows `Fatal signal 11 (SIGSEGV) … fault addr 0x10` in thread
+`FrescoLightWeig` (Fresco's lightweight image-pipeline executor) 0.4 s
+after `Running "main"`, inside ART interpreter frames with
+`kotlin.SynchronizedLazyImpl.getValue` the only named Java frame; Maestro's
+screenshot showed the launcher. One occurrence in nine cleared launches
+that session (the other eight, in the runners and the sweep, booted
+normally), Metro healthy, emulator image `sdk_gphone16k` (16 KB pages,
+Android 15). The design added the app's first native `Image` (the mark in
+the header), so Fresco now runs at every boot; whether this is an ART
+fault on the 16 KB-page image or an image-decode race is not established.
+Open, not fixed: the next desktop run launches `reinstall.yaml` three times
+with the crash log buffer captured after each, so a recurrence carries a
+readable backtrace. Until then this is a single unexplained crash, not a
+verdict on the lane.

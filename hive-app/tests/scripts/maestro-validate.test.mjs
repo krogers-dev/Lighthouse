@@ -421,23 +421,30 @@ test('NEGATIVE: hideKeyboard is forbidden with the reason, and is not merely unk
   assert.ok(FORBIDDEN_COMMANDS.has('hideKeyboard'));
 });
 
-test('find 37: the MFA flows blur the code field by its label before every verify tap, never by hideKeyboard', () => {
+test('finds 37 and 47: the MFA flows bring the verify control into view before every verify tap, never by hideKeyboard or a label tap', () => {
   for (const flow of ['mfa-enroll.yaml', 'mfa-login.yaml']) {
     const text = readFileSync(new URL(`../../.maestro/${flow}`, import.meta.url), 'utf8');
     const [, stepsDoc] = YAML.parseAllDocuments(text);
     const steps = stepsDoc.toJS();
     const name = (step) => (typeof step === 'string' ? step : Object.keys(step)[0]);
     assert.ok(!steps.some((s) => name(s) === 'hideKeyboard'), `${flow} still uses hideKeyboard`);
+    assert.ok(
+      !steps.some((s) => name(s) === 'tapOn' && s.tapOn?.id === 'mfa-code-label'),
+      `${flow} still blurs the field by its label (find 47)`,
+    );
     const submits = steps
       .map((s, i) => [s, i])
       .filter(([s]) => name(s) === 'tapOn' && s.tapOn?.id === 'mfa-submit');
     assert.ok(submits.length > 0, `${flow} taps mfa-submit`);
     for (const [, i] of submits) {
-      assert.deepEqual(
-        steps[i - 1],
-        { tapOn: { id: 'mfa-code-label' } },
-        `${flow}: the step before tapping mfa-submit (step ${i + 1}) must blur the field by its label`,
+      const before = steps[i - 1];
+      assert.equal(
+        name(before),
+        'scrollUntilVisible',
+        `${flow}: the step before tapping mfa-submit (step ${i + 1}) must scroll it into view`,
       );
+      assert.equal(before.scrollUntilVisible?.element?.id, 'mfa-submit');
+      assert.equal(before.scrollUntilVisible?.direction, 'DOWN');
     }
   }
 });

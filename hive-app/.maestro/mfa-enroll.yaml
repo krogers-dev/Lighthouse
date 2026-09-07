@@ -78,15 +78,21 @@ name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, corr
 - tapOn:
     id: 'mfa-code'
 - inputText: ${output.totpWrongCode}
-# Blur the field by tapping its label — plain text, never a control. The
-# soft keyboard, if one is up, goes with the focus (it covered the verify
-# control, find 30); if none is up nothing else happens. NOT hideKeyboard:
-# on Android Maestro implements that as an unconditional BACK key press,
-# which with no soft keyboard showing reaches the app and exits the
-# single-entry auth stack — every later step then fails "not found"
-# (find 37).
-- tapOn:
-    id: 'mfa-code-label'
+# Bring the verify control into view rather than dismissing the keyboard.
+# With the keyboard up it covered the control (find 30); hideKeyboard is an
+# unconditional BACK on Android and exited the auth stack (find 37); and
+# tapping the field's label to blur it stopped working once the 2026 design
+# made this screen taller, the label having left the visible hierarchy under
+# the keyboard (find 47, 2026-09-07 desktop run). Scrolling to the control is
+# deterministic and completes at once when it is already visible.
+- scrollUntilVisible:
+    element:
+      id: 'mfa-submit'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
 - tapOn:
     id: 'mfa-submit'
 - assertVisible:
@@ -100,15 +106,21 @@ name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, corr
 - eraseText
 - runScript: totp-code.js
 - inputText: ${output.totpCode}
-# Blur the field by tapping its label — plain text, never a control. The
-# soft keyboard, if one is up, goes with the focus (it covered the verify
-# control, find 30); if none is up nothing else happens. NOT hideKeyboard:
-# on Android Maestro implements that as an unconditional BACK key press,
-# which with no soft keyboard showing reaches the app and exits the
-# single-entry auth stack — every later step then fails "not found"
-# (find 37).
-- tapOn:
-    id: 'mfa-code-label'
+# Bring the verify control into view rather than dismissing the keyboard.
+# With the keyboard up it covered the control (find 30); hideKeyboard is an
+# unconditional BACK on Android and exited the auth stack (find 37); and
+# tapping the field's label to blur it stopped working once the 2026 design
+# made this screen taller, the label having left the visible hierarchy under
+# the keyboard (find 47, 2026-09-07 desktop run). Scrolling to the control is
+# deterministic and completes at once when it is already visible.
+- scrollUntilVisible:
+    element:
+      id: 'mfa-submit'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
 - tapOn:
     id: 'mfa-submit'
 # reviewer.rae holds a single membership -> straight to Home at AAL2.
