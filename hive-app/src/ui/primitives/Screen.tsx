@@ -1,16 +1,54 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
   useWindowDimensions,
+  type KeyboardEvent,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandHeader } from './BrandHeader';
 import { useThemeColors } from '../theme';
 import { appChrome, layout, spacing } from '../tokens';
+
+/** How much bottom padding the content container needs so that nothing in it
+ * is hidden under the soft keyboard (find 49).
+ *
+ * Under Android edge-to-edge (this app targets Android 15) the window is NOT
+ * resized for the keyboard: React Native's root view only reports the
+ * keyboard through an event, and the `screenY` in that event is taken from
+ * the "visible display frame" on the assumption that the window shrank —
+ * which it did not, so `KeyboardAvoidingView` computed a zero overlap on the
+ * device while the verify control sat under the keyboard (desktop 2,
+ * 2026-09-07, run 7). The reported HEIGHT is right, so the room is computed
+ * from it: the keyboard's top edge is the window's bottom minus that height
+ * (minus the navigation-bar inset on Android, which the height excludes),
+ * and the room is the part of this container that lies below that edge.
+ * On a platform that does resize the window, the container's measured
+ * bottom already sits at the keyboard's top and the room is zero. */
+export function keyboardRoomFor({
+  containerBottom,
+  windowHeight,
+  keyboardHeight,
+  bottomInset,
+  platform,
+}: {
+  /** The container's bottom edge in window coordinates (the shell's outer
+   * view sits at the window origin, so a layout relative to it is that). */
+  containerBottom: number | null;
+  windowHeight: number;
+  keyboardHeight: number;
+  bottomInset: number;
+  platform: typeof Platform.OS;
+}): number {
+  if (containerBottom === null || keyboardHeight <= 0) return 0;
+  const keyboardTop = windowHeight - keyboardHeight - (platform === 'android' ? bottomInset : 0);
+  return Math.max(0, Math.round(containerBottom - keyboardTop));
+}
 
 export interface ScreenProps {
   children: React.ReactNode;
@@ -62,8 +100,33 @@ export function Screen({
 }: ScreenProps): React.JSX.Element {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
   const gutter = width < layout.compactWidth ? layout.compactGutter : layout.screenGutter;
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [containerBottom, setContainerBottom] = useState<number | null>(null);
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, (event: KeyboardEvent) =>
+      setKeyboardHeight(event.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  const onContainerLayout = useCallback((event: LayoutChangeEvent) => {
+    const { y, height } = event.nativeEvent.layout;
+    setContainerBottom(y + height);
+  }, []);
+  const keyboardRoom = keyboardRoomFor({
+    containerBottom,
+    windowHeight,
+    keyboardHeight,
+    bottomInset: insets.bottom,
+    platform: Platform.OS,
+  });
   // The header band owns the top inset and the footer band the bottom
   // one, so the column reserves neither twice.
   const padding = {
@@ -96,18 +159,14 @@ export function Screen({
   return (
     <View testID={testID} style={[styles.outer, { backgroundColor: colors.canvas }]}>
       {headerBand}
-      {/* The content makes room for the soft keyboard itself. Under Android
-          edge-to-edge (this app targets Android 15) the window is NOT resized
-          for the keyboard: React Native's root view only reports the
-          keyboard's height, so without this a long screen's controls below
-          the focused field stay under the keyboard at maximum scroll and
-          cannot be reached — the enrollment screen's verify control was
-          exactly that (find 49, 2026-09-07). The padding is the measured
-          overlap between this container and the keyboard, so on a platform
-          that does resize the window it is zero and never doubles. */}
-      <KeyboardAvoidingView
-        behavior="padding"
-        style={styles.scroller}
+      {/* The content makes room for the soft keyboard itself (find 49; see
+          keyboardRoomFor above): the container measures where it ends and
+          pads its bottom by the part of it the keyboard covers, so the
+          scroll view shrinks to the keyboard's top edge and any control can
+          be scrolled above it. */}
+      <View
+        style={[styles.scroller, { paddingBottom: keyboardRoom }]}
+        onLayout={onContainerLayout}
         testID="screen-keyboard-room"
       >
         {scroll ? (
@@ -121,7 +180,7 @@ export function Screen({
         ) : (
           <View style={[styles.scroller, ...column]}>{children}</View>
         )}
-      </KeyboardAvoidingView>
+      </View>
       {footerBand}
     </View>
   );

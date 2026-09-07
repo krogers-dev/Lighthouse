@@ -3286,3 +3286,34 @@ typecheck 0, eslint 0, prettier clean, jest **485 across 38 suites**.
 Device proof owed: `maestro:enroll` (the verify tap under the keyboard,
 and with it mfa-login and staff-sign-out) and `sign-in.yaml`, at this
 head, on the desktop.
+
+### Find 49, second iteration — the avoiding view padded by zero on the device
+
+Run 7 at `fc1de67` (evidence `631f58b`,
+`security/evidence/2026-09-07-desktop2/enroll-at-find-49.md`): sign-in
+PASS on the new bundle (16 of 16), `maestro:enroll` FAIL at the same
+`scrollUntilVisible mfa-submit` step, crash buffer empty. The session's
+read-only diagnostics showed the served bundle carried the container
+(`screen-keyboard-room`, six `KeyboardAvoidingView` references) and no
+JavaScript warnings, and that with the keyboard up the scroll view still
+spanned `[0,295][1080,2400]` — the container measured a zero overlap.
+
+The cause is in React Native's Android root view: for a window declared
+`adjustResize` it reports the keyboard's `screenY` as the bottom of the
+"visible display frame", on the assumption that the window shrank. Under
+edge-to-edge it did not, so `screenY` equals the container's bottom and
+`KeyboardAvoidingView` computes no overlap, while the event's `height` is
+right (the IME inset less the navigation-bar inset). The shell therefore
+no longer trusts `screenY`: it listens to the keyboard events itself,
+measures the container's bottom edge from its own layout (the shell's
+outer view sits at the window origin, as the probe showed), takes the
+keyboard's top as the window's bottom minus the reported height (minus
+the navigation-bar inset on Android, which the height excludes), and pads
+by the part of the container below that edge — zero on any platform that
+does resize the window. `keyboardRoomFor` is a pure exported function
+with its own tests (the emulator's numbers, a footer below the container,
+the hidden and resized cases, iOS), and an event-level test drives the
+listeners and the layout and checks the padding appears and clears.
+Gates: typecheck 0, eslint 0, prettier clean, jest **490 across 38
+suites**, node:test 369. Device proof owed again: `maestro:enroll` and
+`sign-in.yaml` at this head.
