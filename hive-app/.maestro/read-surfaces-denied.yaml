@@ -21,7 +21,13 @@ tags:
     clearState: false
 # ScopeKey is memory-only by design (docs/data-classification.md), so a
 # resumed session lands on the chooser rather than the last workspace.
-- assertVisible: 'Choose a workspace'
+# Bounded wait, not a bare assertion: a dev build fetches its bundle on a
+# cold start (find 31), and the denied runner met exactly that race on the
+# 2026-09-06 desktop run (find 41).
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
 - tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
 - assertVisible:
     id: 'dashboard-workspace'

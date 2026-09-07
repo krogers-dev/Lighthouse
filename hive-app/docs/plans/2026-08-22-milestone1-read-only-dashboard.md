@@ -2927,3 +2927,64 @@ out of band.
 - This is a design checkpoint on the local synthetic lane. It is not
   native release readiness: production configuration, signing, submission,
   and live data stay HOLD.
+
+## 2026-09-07 — desktop 2, fourth run: all 18 flows at `ca96181`, 15 of 18; finds 40 and 41
+
+The desktop session ran the three runners and the twelve individual flows
+in dependency order at `ca96181` (Pixel 8 emulator, API 35; Metro and the
+emulator untouched; airplane mode confirmed disabled after every one of
+the fifteen sweep runs; no run roots or helper ports left behind). Its
+report reached this session as a peer message — the coordinator's listed
+name did not carry the prefix the runbook told it to look for, so it sent
+the report to the only running HIVE cloud session — and a copy is committed
+by the follow-on desktop session as
+`security/evidence/2026-09-07-desktop2/lanes-report-3-at-ca96181.md`.
+
+**15 PASS.** `maestro:enroll` (reset → enroll → staff sign-out → login on
+the same factor → revoke; helper terminated, clipboard scrubbed, artifacts
+confined and removed), `maestro:confinement` (the QR-bearing failure
+artifact confined to the private run root and scrubbed), and the sweep:
+sign-in (three times), requests, activity-and-help, nav-persistence,
+read-surfaces-offline, scope-switch, offline, sign-out, reinstall,
+clipboard-scrub, expired-session — every step COMPLETED, exit 0. The
+wording commit's changed assertions (the `sign-in-email` landmark, the
+deduplicated chooser row, the new notice text) all held on the device.
+
+**3 FAIL, three different causes.**
+
+1. `quarantine-recovery`: `Tap on "Reset secure sign-in data"... FAILED`
+   — find 40, the tap label the wording commit had renamed; the quarantine
+   screen itself rendered and the new title assertion COMPLETED. Fixed at
+   `3898ea5`.
+2. `accessibility-smoke`: Maestro's Android driver did not start within its
+   timeout (`AndroidDriverTimeoutException`, driver port 57077) before
+   `Running on Pixel_8` or any step; the very next flow started the driver
+   and passed. Infrastructure, transient, not retried under the run's
+   rules; the flow's assertions were not exercised at `ca96181` and are
+   owed on the next run.
+3. `read-surfaces-denied` inside `maestro:denied`: the flow's second step,
+   `Assert that "Choose a workspace" is visible`, failed immediately after
+   `launchApp` following a sign-in that had reached the dashboard. The
+   revoke was never reached; the runner restored and verified the
+   membership and scrubbed the artifact tree on its exit path, as designed.
+   Nine sweep flows launch exactly the same way and every one of them
+   COMPLETED that step, so this is the cold-boot race find 31 named — a dev
+   build fetches its bundle on launch and a bare assertion does not wait
+   long enough — surfacing in the one flow that runs straight after a fresh
+   bundle. Find 41.
+
+### Find 41 — a bounded wait after every launch, not only in sign-in
+
+`sign-in.yaml` waits up to 30 s for its landmark after a cleared launch
+(find 31); the other flows asserted the workspace chooser right after
+`launchApp` with a bare `assertVisible`. All nine now use
+`extendedWaitUntil` (30 s) for that first landmark: activity-and-help,
+expired-session, nav-persistence, offline, quarantine-recovery,
+read-surfaces-denied, read-surfaces-offline, requests, scope-switch. The
+four chooser assertions that follow an in-app transition (a scope switch,
+a code submit) stay bare: the app is already running there.
+`maestro:validate` OK (18 flows).
+
+Owed on the device: `accessibility-smoke`, `quarantine-recovery`, and
+`maestro:denied` at a head carrying finds 40 and 41, alongside the design
+screenshots.
