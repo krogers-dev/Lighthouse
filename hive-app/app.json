@@ -27,6 +27,7 @@
     },
     "plugins": [
       "./plugins/with-android-imageless-splash",
+      "./plugins/with-ios-imageless-splash",
       "expo-router",
       "expo-secure-store",
       [

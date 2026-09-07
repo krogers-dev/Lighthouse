@@ -46,42 +46,89 @@ The toolchain is pinned, and `npm run verify:toolchain` enforces it.
 | Xcode          | current    | iOS development build — **macOS only**          |
 | Android Studio | current    | Android development build — macOS/Windows/Linux |
 
-### Establishing that iOS compiles, without a Mac
+### The iOS lane
 
-Whether this app builds for iOS at all was an open question — nobody had
-ever built it for that platform. `eas.json` configures one profile,
-`ios-simulator`, to answer exactly that and nothing else:
+Nobody on this project has a Mac yet, and Xcode runs only on macOS, so
+the iOS lane splits into three tiers that need different things and
+prove different things. Each is independent of the others.
+
+| Tier                                                    | Needs                                                                                                                 | Proves                                                                                                     |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 1. Compile proof: an EAS simulator build                | An Expo account and EAS terms (Kody's), nothing from Apple, no Mac. Uploads the project (synthetic) to Expo's servers | The iOS target compiles at this head. The artifact runs only on a macOS Simulator                          |
+| 2. The app running: simulator, Maestro flows, VoiceOver | A Mac with Xcode (any Apple Silicon Mac, a Mac mini included); no Apple Developer account, no signing                 | Every flow and both appearances on iOS; VoiceOver; the launch screen; the keyboard room under iOS's events |
+| 3. A physical iPhone, later TestFlight                  | Apple Developer Program membership (Kody's purchase) and signing, which is HOLD until Kody authorizes it exactly      | Real hardware; the internal-testing track before any store binary                                          |
+
+Tier 1 is configured. `eas.json` carries one profile, `ios-simulator`,
+and `npm run eas:guard` holds the lane to that authorization: one
+profile, simulator-only, no submit block, no signing or Apple-account
+keys, and a `.easignore` that still covers every `.gitignore` entry (the
+check that stops `.env.local` from being uploaded). To run it, once the
+account exists:
 
 ```bash
 npx eas-cli build --platform ios --profile ios-simulator
 ```
 
-Read before running it:
+The build carries no Supabase configuration (`.env.local` is not
+uploaded) and would reach the configuration-fatal screen on launch by
+design. It answers "does it compile", not "does it work".
 
-- **It needs an Expo account and terms acceptance, and it uploads this
-  project to Expo's servers.** Everything here is synthetic so nothing
-  sensitive moves, but it is an outward transfer to a third party and a
-  decision someone has to make. No account is configured in this
-  repository and no build has been run.
-- **It needs no Apple Developer account and no signing.** A simulator
-  build is unsigned. Signing, submission, and release stay HOLD.
-- **The artifact is not a demo.** `.env.local` is not uploaded, so the
-  build carries no Supabase configuration and would reach the
-  configuration-fatal screen on launch. That is the designed fail-closed
-  behavior; the build answers "does it compile", not "does it work".
-- **It runs only on a macOS Simulator.** A simulator build cannot be
-  installed on Windows, on Linux, or on a physical iPhone.
+What is verified without a Mac, at every head that touches native
+configuration: `npx expo prebuild --platform ios --no-install` succeeds,
+emitting bundle identifier `com.myhbcfo.hive.development` at deployment
+target 16.4, `NSAllowsArbitraryLoads=false`, the `hivedev` URL scheme,
+`UIUserInterfaceStyle=Automatic`, all four orientations on iPhone and
+iPad, an opaque 1024-point app icon (the App Store rule; the icon script
+composes it over Soft Black on purpose), and a launch screen that names
+the `SplashScreenBackground` colour set (Warm Paper by day, Soft Black by
+night). That last one is the work of
+`plugins/with-ios-imageless-splash.js`: expo-splash-screen's imageless
+path leaves the storyboard referencing a removed image view and keeps the
+system white or black background, so the plugin runs after it and
+repairs exactly that (find 51; `tests/scripts/ios-imageless-splash.test.mjs`
+holds it against the generated storyboard). Like its Android twin it
+throws when a splash image is configured, so it retires loudly.
 
-`npm run eas:guard` holds the lane to that authorization: one profile,
-simulator-only, no submit block, no signing or Apple-account keys, and a
-`.easignore` that still covers every `.gitignore` entry — the check that
-stops `.env.local` from being uploaded. It is part of the gate list above.
+#### Tier 2 on a Mac, end to end
 
-The generated iOS project has been verified here: `expo prebuild
---platform ios` succeeds, emits bundle identifier
-`com.myhbcfo.hive.development` at deployment target 16.4, and keeps
-`NSAllowsArbitraryLoads=false` in the Info.plist. Compiling that project
-is what has never been done.
+```bash
+npm run preflight:device                 # Xcode, an iOS runtime, Docker, Maestro
+npm ci
+node scripts/local-supabase.mjs up       # the simulator shares the host loopback: 127.0.0.1 is right
+node scripts/local-supabase.mjs seed
+CI=1 EXPO_PUBLIC_QA_HOOKS=1 npx expo run:ios   # development build onto the booted simulator; prebuild and pod install run for you
+```
+
+Then the flows, exactly as on Android (`maestro test .maestro/<flow>.yaml`,
+`npm run maestro:enroll`, `npm run maestro:denied`,
+`npm run maestro:confinement`); Maestro drives the booted simulator. Read
+before the first run:
+
+- `offline.yaml` is Android-only (`setAirplaneMode` has no iOS driver);
+  the iOS offline check is manual: Simulator has no airplane mode, so
+  stop the local stack instead and watch the offline state.
+- `reinstall.yaml` on iOS is manual, as its header says: sign in,
+  uninstall, reinstall, and confirm the Keychain remnant is purged before
+  auth starts (the install marker's whole purpose).
+- The QA deep links work through Maestro's `openLink`; by hand they are
+  `xcrun simctl openurl booted 'hivedev:///?qa=corrupt-storage'`.
+- The keyboard room (find 49) uses iOS's `keyboardWillShow` and subtracts
+  no inset (the iOS keyboard height already includes the home-indicator
+  area). The QA build's `HIVE_QA_KEYBOARD_HOOK` lines appear in Metro's
+  terminal on iOS; the first run should record them for the enrollment
+  screen the way run 9 did on Android.
+- After `pod install`, confirm `ios/HIVEDev/PrivacyInfo.xcprivacy` exists:
+  Expo aggregates the modules' privacy manifests into it at that step.
+  The app's own code uses no required-reason API directly.
+
+Release-readiness items that are not this lane's to decide, recorded so
+they are not rediscovered: `ITSAppUsesNonExemptEncryption` is unset (the
+export-compliance declaration is Kody's, made in App Store Connect or in
+`ios.infoPlist`); the generated Info.plist carries Expo's
+`NSAllowsLocalNetworking=true` (development convenience, to be dropped
+for a release build); the `NSFaceIDUsageDescription` string is
+expo-secure-store's template text and the app never requests biometric
+gating.
 
 ### The Android lane, end to end
 
@@ -158,74 +205,6 @@ It applies to the `debug` and `debugOptimized` source sets only. Gradle
 build types do not inherit source sets, which is why both are named; a
 **release** build is untouched and carries no cleartext exception of any
 kind. `npm run config:check` fails if the plugin stops being registered.
-
-### Running iOS still needs a Mac
-
-Xcode runs only on macOS, so running the app on iOS, the iOS simulator,
-and the iOS half of the Maestro lane cannot happen on a Windows or Linux
-machine at any cost — it is not a missing install, and the EAS lane above
-does not change it. Android and the local Supabase stack run on all
-three. `preflight:device` reports this as **BLOCKED**
-rather than as a finding, because a check that fails forever on something
-nobody can install is a check people learn to ignore.
-
-On Windows, note that Docker Desktop wants the WSL2 backend, and the
-Android emulator needs WHPX (Windows Features → Windows Hypervisor
-Platform) — an emulator without acceleration presents as a hung test
-rather than as a missing prerequisite.
-
-Use a **development build**, not Expo Go — the app depends on native
-SecureStore behavior that Expo Go cannot provide.
-
-## Running it
-
-Check the machine first — the device lanes need tooling this repository
-cannot pin:
-
-```bash
-npm run preflight:device    # reports what is missing; installs nothing
-```
-
-It exits 0 when Docker, a simulator or emulator, and Maestro are all
-present, and 1 with a list when they are not. It is report-only by
-design: what gets installed on your machine is your call.
-
-```bash
-npm ci
-node scripts/local-supabase.mjs up    # starts the stack; writes .env.local (real local key, loopback)
-node scripts/local-supabase.mjs seed
-npx expo run:android           # see the Android lane above; macOS only: npx expo run:ios
-```
-
-`up` writes `.env.local` itself from `supabase status` (0600, gitignored):
-the loopback URL and the stack's public client key. On an Android
-emulator add `--android-emulator` — see the Android lane above.
-`env:synthetic` is the separate no-Docker tool for gate/export lanes: it
-writes a publishable-SHAPED but deliberately nonfunctional key, so an app
-configured by it cannot sign in — never use it for running the app
-against the live stack. It refuses to overwrite an existing `.env.local`
-without `--force`.
-
-Sign-in codes are delivered to the local Mailpit at
-http://127.0.0.1:54324 — nothing leaves the machine.
-
-Seeded synthetic accounts:
-
-| Account                           | Sees                                                         |
-| --------------------------------- | ------------------------------------------------------------ |
-| `client.owner@example.invalid`    | Two workspaces (entities A1 and A2), so the chooser appears  |
-| `client.second@example.invalid`   | One workspace under a different client                       |
-| `reviewer.rae@example.invalid`    | Staff; requires TOTP and AAL2 before any protected row       |
-| `preparer.pat@example.invalid`    | Staff across two different clients                           |
-| `mixed.cross@example.invalid`     | Client on one entity, staff on another — the mixed-role path |
-| `nomember.norman@example.invalid` | Nothing — the zero-access path                               |
-
-`intake.beth@example.invalid` and `approver.avery@example.invalid` are
-seeded too; the full matrix is `scripts/lib/synthetic-identities.mjs`.
-
-Staff accounts enrol TOTP on first sign-in. `node scripts/totp-helper.mjs`
-generates codes for the synthetic accounts during QA; the secret stays in
-that process's memory and never reaches a file, a log, or a screenshot.
 
 ### The web target does not run the app
 

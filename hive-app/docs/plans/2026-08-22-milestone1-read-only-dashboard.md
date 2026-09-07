@@ -3589,3 +3589,81 @@ and support address values, the iOS lane when the account and hardware
 exist, the `main` branch, store icon masters and a splash image (asset
 QA, HOLD), TalkBack/VoiceOver, tablet and landscape — Kody-owned, listed
 on PR #1.
+
+## 2026-09-07 — the iOS lane opened on Kody's word: the iOS project verified at the design head; find 51, the imageless iOS launch screen
+
+Kody: "Let's get going on iOS." What can be done without a Mac was done
+first; the decisions only Kody can take are put to him at the end.
+
+**The iOS project at today's head.** `expo prebuild --platform ios
+--no-install` succeeds at the v3.0 design head (the last verification was
+2026-08-26, before the design, the fonts and the icons). The generated
+project carries bundle identifier `com.myhbcfo.hive.development`,
+deployment target 16.4, `NSAllowsArbitraryLoads=false`, the `hivedev`
+URL scheme (the QA deep links), `UIUserInterfaceStyle=Automatic` (the
+dark theme), all four orientations on iPhone and iPad with
+`UIRequiresFullScreen=false`, version 0.1.0 build 1, and the 1024-point
+app icon — measured fully opaque (minimum alpha 255 over 1,048,576
+pixels), which the App Store requires and the icon script composes over
+Soft Black on purpose. The Manrope faces load at runtime through
+`expo-font`, so no `UIAppFonts` entry is needed. The Maestro runners use
+no Android tooling (Maestro's own flows do the clipboard scrub), so they
+apply to a booted simulator as they are; `offline.yaml` stays
+Android-only (`setAirplaneMode`) and `reinstall.yaml` is manual on iOS,
+both as their headers say. `preflight:device` already checks Xcode and
+an iOS runtime on macOS. `eas:guard` still holds the one simulator
+profile. No Expo account exists, no build has been run, and nobody has a
+Mac: those facts are unchanged.
+
+### Find 51 — the imageless iOS launch screen (medium; fixed, unbuilt)
+
+Reading the generated `SplashScreen.storyboard` found the iOS twin of
+the Android imageless-splash find of 2026-08-28. expo-splash-screen's
+imageless path (`removeImageFromSplashScreen`, 57.0.8) removes the image
+view and nothing else: its constraint removal matches ids it never wrote
+(the template's `0VC-Wk-OaO` / `zR4-NK-mVN` against sha1 ids), so the
+two constraints centring the removed `EXPO-SplashScreen` view stay and
+the storyboard references an object that does not exist; its resource
+removal reads `existingImageIndex && existingImageIndex > -1`, which
+skips index 0, so the `SplashScreenLogo` resource stays; and the
+container view keeps the template's `systemBackgroundColor`, so the
+`SplashScreenBackground` colour set the vendor writes into the asset
+catalog — Warm Paper and Soft Black — is never referenced and the launch
+screen would be plain white or black. Whether Xcode's storyboard
+compiler rejects the dangling references was not tested (no Mac); the
+brand colour omission is certain from the file.
+
+`plugins/with-ios-imageless-splash.js` runs after the vendor's storyboard
+mod (registered before expo-splash-screen: mods execute in reverse
+registration order, the same mechanism the Android twin relies on,
+confirmed in `@expo/config-plugins`' `withBaseMod`) and repairs exactly
+those three things: drops every constraint referencing the absent view
+(and the empty `<constraints>` element with them, as Xcode writes it),
+drops the dangling image resources, and points the background at the
+named colour, adding the named-colour resource with the configured light
+value in sRGB and dropping the now-unreferenced system colour. It throws
+when an image view is present (a splash image was configured; the plugin
+must go) and when nothing is left to repair (upstream fixed itself), so
+it retires loudly. `tests/scripts/ios-imageless-splash.test.mjs` holds
+it against the generated storyboard verbatim (nine cases, both failure
+directions), and a real prebuild here shows the result: the container
+names `SplashScreenBackground`, the resource carries #F3F2EA as
+`0.952941176470588 / 0.949019607843137 / 0.917647058823529`, and no
+constraint, image resource or system colour remains. Compiling it is
+tier 2's first act on a Mac.
+
+**The three tiers, recorded in the README:** (1) the EAS simulator build
+for compile proof — an Expo account and terms, Kody's, nothing from
+Apple, no Mac; (2) a Mac with Xcode for the app running, the flows,
+VoiceOver and the launch screen — no Apple account, no signing; (3) a
+physical iPhone and later TestFlight — Apple Developer Program
+membership and signing, HOLD until Kody authorizes it exactly. The Mac
+run path is written end to end, with the iOS notes for the flows, the QA
+links, the keyboard hook and the privacy manifest aggregation, and the
+release-readiness items (`ITSAppUsesNonExemptEncryption`,
+`NSAllowsLocalNetworking`, the Face ID string) are listed so they are
+not rediscovered.
+
+Gates at this head: typecheck 0, eslint 0, prettier clean, node:test
+**378**, `config:check` OK, `eas:guard` OK, `maestro:validate` OK, jest
+**507 across 40 suites**.
