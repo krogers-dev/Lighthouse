@@ -2674,3 +2674,43 @@ two public configuration values as the only inputs and `secrets:scan` the
 only HOLD, awaiting Kody's written ratification. Device lane: 18 of 18.
 Kody-owned: the ratification sentence, Stacie's client-facing wording,
 the iOS lane, and where `main` lives.
+
+## 2026-09-07 — ratification: the four history exceptions, in Kody's words
+
+Kody wrote, in this session: "I ratify the four proposed history exceptions
+in security/secret-scan-allowlist.json." That sentence is the authority the
+approval model has waited on since 2026-08-21; everything below is
+mechanics, executed exactly as `security/APPROVALS.md` and the ratification
+tooling prescribe.
+
+- `draft`: the decision record was written OUTSIDE the repository at
+  candidate `986d5a35c2190fc580b9b92d0e77a9d5055f9c02` (the head at the
+  moment of ratification; the flip is the commit after it), binding the
+  four entries, the manifest digest
+  `2f5a5a30…aaae4b` over the whole effective allowlist, the shared expiry
+  2026-11-21, approver Kody, and approvedAt `2026-09-07T00:20:48Z`. Its
+  sha256 — `b374a222…7f66f9` — was recomputed independently with
+  `sha256sum` and matched.
+- `apply`: all four entries flipped from `proposed` to `ratified` with
+  `ratifiedOn 2026-09-07`, `ratifiedBy Kody`, the reference, and the
+  record digest; no substantive field changed, so the manifest digest the
+  record binds is unchanged by the flip.
+- Verification, record supplied out-of-band through
+  `HIVE_APPROVAL_RECORDS` with the digest stated independently through
+  `HIVE_APPROVAL_DIGESTS`, at `HIVE_CANDIDATE_SHA` = the candidate:
+  **`secrets:scan OK`, exit 0** — self-test ok, 268 tracked files, 750
+  history blobs with completeness verified, 4 history-exception entries
+  reconciled covering 5 historical matches, secretlint clean. Without the
+  record the gate still exits 3, which is the point.
+
+Custody: the build container is ephemeral, so the record is handed to
+Kody's own machine byte-exactly (base64 through the desktop session,
+digest re-checked there), into a directory outside any checkout. He keeps
+it; the repository carries only the digest and the reference.
+
+### State
+
+No gate is HOLD at this head. Every runnable gate is green from a clean
+clone, the device lane is 18 of 18, and `secrets:scan` exits 0 with the
+approver's record supplied out-of-band. Kody-owned next: Stacie's
+client-facing wording, the iOS lane, and where `main` lives.

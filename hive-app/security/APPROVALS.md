@@ -65,12 +65,25 @@ be able to point at material the implementer controls. A surviving
 
 ## Current state
 
-**Nothing is ratified.** The four history exceptions in
-`security/secret-scan-allowlist.json` are `proposed`, so `secrets:scan` exits 3
-(HOLD). The two audit waivers were retired on 2026-09-06 by their own recorded
+**Ratified.** On 2026-09-07 Kody ratified the four history exceptions in
+`security/secret-scan-allowlist.json` in writing ("I ratify the four proposed
+history exceptions in security/secret-scan-allowlist.json."). The decision
+record was drafted at candidate `986d5a35c2190fc580b9b92d0e77a9d5055f9c02`
+(manifest `2f5a5a306e79d72dadd5a333d5e6c53cf63e9d22c3d62560f7c0140bcdaaae4b`,
+four entries, shared expiry 2026-11-21), its digest is
+`b374a22273b651d1378e14ab2a8b7b47baeb3c706ac0a1b723ac1764db7f66f9`, and the
+provenance was applied to the entries in the commit after that candidate. The
+record itself lives OUTSIDE this repository, in Kody's custody, and is never
+committed; `secrets:scan` exits 0 only when it is supplied out-of-band:
+
+    HIVE_CANDIDATE_SHA=986d5a35c2190fc580b9b92d0e77a9d5055f9c02 HIVE_APPROVAL_RECORDS=<path to the record> HIVE_APPROVAL_DIGESTS=b374a22273b651d1378e14ab2a8b7b47baeb3c706ac0a1b723ac1764db7f66f9 npm run secrets:scan
+
+Without it the gate still exits 3 — a stale ratification cannot be replayed
+from repository contents alone. The exceptions expire on 2026-11-21; after that
+date the gate returns to HOLD until the history is rewritten or a new record is
+ratified. The two audit waivers were retired on 2026-09-06 by their own recorded
 removal condition — the SDK 57 patch refresh dropped `image-size` from the
 dependency tree, so neither advisory exists to waive (history preserved in
 `security/waivers.json` `$history`); with no waiver on file and only
 below-gate moderates in the audit, `audit:gate` exits 0. No signing key and no
-approval is invented here — clearing the remaining HOLD requires Kody's decision
-record, supplied out-of-band after the child commit exists.
+approval is invented here.
