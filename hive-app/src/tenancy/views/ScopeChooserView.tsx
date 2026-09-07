@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { MembershipId } from '@/core/ids';
 import { AppText, Button, useThemeColors } from '@/ui';
-import { radii, spacing, touchTarget } from '@/ui/tokens';
+import { layout, spacing } from '@/ui/tokens';
 
 import type { Membership } from '../types';
 
@@ -15,13 +15,21 @@ export interface ScopeChooserViewProps {
 
 const styles = StyleSheet.create({
   container: { gap: spacing.lg },
-  list: { gap: spacing.sm },
+  heading: { gap: spacing.sm },
+  list: {},
   option: {
-    minHeight: touchTarget.minHeight,
-    borderWidth: 2,
-    borderRadius: radii.md,
-    padding: spacing.md,
-    gap: spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    minHeight: layout.controlMinHeight,
+    paddingVertical: spacing.md,
+    borderTopWidth: layout.hairline,
+  },
+  optionBody: { flex: 1, gap: spacing.xs },
+  focused: {
+    outlineStyle: 'solid',
+    outlineWidth: layout.focusRingWidth,
+    outlineOffset: layout.focusRingOffset,
   },
 });
 
@@ -51,6 +59,44 @@ export function chooserDetail(membership: Membership): string {
     : `${membership.clientName} · ${role}`;
 }
 
+function WorkspaceOption({
+  membership,
+  onSelect,
+}: {
+  membership: Membership;
+  onSelect: () => void;
+}): React.JSX.Element {
+  const colors = useThemeColors();
+  const [focused, setFocused] = useState(false);
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityLabel={chooserLabel(membership)}
+      onPress={onSelect}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={({ pressed }) => [
+        styles.option,
+        { borderTopColor: colors.divider, opacity: pressed ? 0.85 : 1 },
+        focused && [styles.focused, { outlineColor: colors.focusRing }],
+      ]}
+      testID={`scope-option-${membership.membershipId}`}
+    >
+      <View style={styles.optionBody}>
+        <AppText variant="bodyStrong" importantForAccessibility="no">
+          {membership.entityName}
+        </AppText>
+        <AppText variant="caption" tone="secondary" importantForAccessibility="no">
+          {chooserDetail(membership)}
+        </AppText>
+      </View>
+      <AppText variant="heading" tone="secondary" importantForAccessibility="no">
+        ›
+      </AppText>
+    </Pressable>
+  );
+}
+
 /** Explicit client/entity selection, required whenever more than one
  * server-confirmed membership exists. Selection is by membership id from
  * this list only — never from a route param or deep link. */
@@ -59,40 +105,24 @@ export function ScopeChooserView({
   onSelect,
   onSignOut,
 }: ScopeChooserViewProps): React.JSX.Element {
-  const colors = useThemeColors();
   return (
     <View style={styles.container}>
-      <AppText variant="heading" accessibilityRole="header">
-        Choose a workspace
-      </AppText>
-      <AppText variant="body" tone="secondary">
-        You have access to more than one workspace. Choose where to work; you can switch at any time
-        from Account.
-      </AppText>
+      <View style={styles.heading}>
+        <AppText variant="title" accessibilityRole="header">
+          Choose a workspace
+        </AppText>
+        <AppText variant="body" tone="secondary">
+          You have access to more than one workspace. Choose where to work; you can switch at any
+          time from Account.
+        </AppText>
+      </View>
       <View style={styles.list} accessibilityRole="radiogroup">
         {memberships.map((membership) => (
-          <Pressable
+          <WorkspaceOption
             key={membership.membershipId}
-            accessibilityRole="radio"
-            accessibilityLabel={chooserLabel(membership)}
-            onPress={() => onSelect(membership.membershipId)}
-            style={({ pressed }) => [
-              styles.option,
-              {
-                borderColor: colors.border,
-                backgroundColor: colors.surface,
-                opacity: pressed ? 0.85 : 1,
-              },
-            ]}
-            testID={`scope-option-${membership.membershipId}`}
-          >
-            <AppText variant="label" importantForAccessibility="no">
-              {membership.entityName}
-            </AppText>
-            <AppText variant="caption" tone="secondary" importantForAccessibility="no">
-              {chooserDetail(membership)}
-            </AppText>
-          </Pressable>
+            membership={membership}
+            onSelect={() => onSelect(membership.membershipId)}
+          />
         ))}
       </View>
       <Button kind="secondary" label="Sign out" onPress={onSignOut} testID="scope-sign-out" />

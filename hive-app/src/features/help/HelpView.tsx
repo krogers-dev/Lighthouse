@@ -12,7 +12,7 @@ import { Linking, StyleSheet, View } from 'react-native';
 
 import { formatServerDate } from '@/features/shared/labels';
 import { AppText, Button, useThemeColors } from '@/ui';
-import { radii, spacing } from '@/ui/tokens';
+import { layout, spacing } from '@/ui/tokens';
 
 /** Bumped whenever the content below changes, so a support conversation
  * can establish which help text a given build actually shipped. */
@@ -67,12 +67,11 @@ const SECTIONS: readonly HelpSection[] = [
 const styles = StyleSheet.create({
   container: { gap: spacing.lg },
   section: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    padding: spacing.md,
-    gap: spacing.xs,
+    paddingVertical: spacing.md,
+    borderTopWidth: layout.hairline,
+    gap: spacing.sm,
   },
-  list: { gap: spacing.sm },
+  list: {},
 });
 
 export interface HelpViewProps {
@@ -91,10 +90,7 @@ export function HelpView({ supportEmail }: HelpViewProps = {}): React.JSX.Elemen
         {SECTIONS.map((section) => (
           <View
             key={section.id}
-            style={[
-              styles.section,
-              { backgroundColor: colors.surface, borderColor: colors.divider },
-            ]}
+            style={[styles.section, { borderTopColor: colors.divider }]}
             testID={section.testID}
           >
             <AppText variant="heading" accessibilityRole="header">

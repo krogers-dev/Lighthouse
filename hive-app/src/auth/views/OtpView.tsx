@@ -17,6 +17,7 @@ export interface OtpViewProps {
 
 const styles = StyleSheet.create({
   container: { gap: spacing.lg },
+  heading: { gap: spacing.sm },
   secondaryRow: { gap: spacing.sm },
 });
 
@@ -33,14 +34,16 @@ export function OtpView({
   const trimmed = code.trim();
   return (
     <View style={styles.container}>
-      <AppText variant="heading" accessibilityRole="header">
-        Enter your sign-in code
-      </AppText>
-      <AppText variant="body" tone="secondary">
-        {otpSent
-          ? `We sent a sign-in code to ${email}.`
-          : `Requesting a sign-in code for ${email}…`}
-      </AppText>
+      <View style={styles.heading}>
+        <AppText variant="title" accessibilityRole="header">
+          Enter your sign-in code
+        </AppText>
+        <AppText variant="body" tone="secondary">
+          {otpSent
+            ? `We sent a sign-in code to ${email}.`
+            : `Requesting a sign-in code for ${email}…`}
+        </AppText>
+      </View>
       {notice ? <Notice tone="danger" title={userMessageFor(notice)} testID="otp-notice" /> : null}
       <TextField
         label="Sign-in code"

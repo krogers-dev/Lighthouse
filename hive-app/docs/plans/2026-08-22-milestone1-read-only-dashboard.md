@@ -2799,3 +2799,131 @@ Gates fresh: typecheck 0; jest **445 across 35 suites** (new: support
 address validation, sign-in answers, chooser rows, Settings, Help);
 node:test 353; eslint, prettier, format:check clean. Device evidence for
 the changed flows is owed and is the next run.
+
+## 2026-09-07 — the HIVE 2026 design, implemented: Brand Kit v3.0, the approved mark, Manrope
+
+Kody supplied the HIVE 2026 design package (direction PDF, Brand Kit v3.0,
+the approved 2026-08-25 honeycomb product mark, five static Manrope faces,
+a token reference and an implementation map) and instructed: implement it
+in the native app, one reviewable slice first, then carry it through; the
+package is a design draft for implementation and review, not approval to
+publish. The reviewed source was `ca96181`, which was the head, so nothing
+newer needed preserving. The package is kept byte for byte under
+`docs/design/2026-09-07-hive-2026-design-package/` with a provenance table
+of every received file (two SVG derivatives and the web font excluded, by
+the audit gate's PNG-only image policy and because native bundles the
+static faces; their hashes are recorded).
+
+### What the package proved before anything was edited
+
+- The five TTFs are real static instances: OS/2 weight classes 400, 500,
+  600, 700, 800, unique family names `Manrope400`…`Manrope800`, no `fvar`
+  axis to alias through. Bytes match the package manifest.
+- The mark is the exact 512 × 460 RGBA asset, 84.8 % transparent, all four
+  corners alpha 0. Bytes match the manifest.
+- `expo-font` 57.0.3 and `expo-asset` 57.0.16 were already installed
+  through `expo`; `expo-font` is now declared as an exact direct dependency
+  (the only dependency change; the lockfile gained one line).
+
+### The three slices
+
+**Slice 1 — the shared layer.** `src/ui/tokens.ts` carries the twelve
+v3.0 functional colors and the same semantic interface (24 roles kept,
+plus `canvas` and a paused-status pair), a theme-independent `appChrome`
+(Deep Black header and navigation in both themes), layout constants, and
+a type scale in which every role names its exact face AND that face's own
+weight. `src/ui/fonts.tsx` registers the five faces locally through
+`expo-font` under a bounded budget (3 s): past it, or on failure, the app
+proceeds on system fonts at the same sizes and weights and still switches
+to Manrope if the faces arrive later; the root layout holds the splash
+only while loading and releases it on a ceiling of its own, so typography
+can never block auth. `AppText` and the native `TextInput` in `TextField`
+consume `fontFamily` explicitly (adding it to the scale alone did
+nothing, as the package warned). `Screen` grew the pinned header band with
+the lockup (`BrandHeader`: the mark at its natural ratio, decorative
+beside the words, image hidden from assistive technology, text-only
+lockup if the image fails), a canvas-colored surround for wide windows,
+and the 24 / 16 gutters. `PrimaryNav` is the Deep Black bar with a filled
+Honey Gold pill for the current destination. Buttons are 52-high pills,
+fields 56-high squares with a real boundary, panels 16-radius, focus a
+3-unit ring outside the control. `app.json` carries the v3.0 colors and a
+color-only adaptive-icon background. Verified before slice 2: typecheck 0;
+the UI, navigation, shell, accessibility, and view suites green.
+
+**Slice 2 — Home and Requests.** Rows separated by thin rules replace the
+boxed cards: title, exact status, attention, next action, owner, dates,
+and on Requests a chevron and the due date in the strong caption. Every
+prop, handler, testID, status word, date formatter, recorded-through line,
+and Refresh control is as before. Verified before slice 3: the dashboard,
+requests, accessibility, and both contract suites green.
+
+**Slice 3 — everything else.** Request detail (owner and dates as a small
+table, each row one accessible item), Activity (accent dot, quiet rules),
+Help (sections on rules), Account (the access text as a heading and body,
+as the direction shows), sign-in (the lockup now carries the name, so the
+title greets: "Welcome to HIVE", one line for Stacie), the code and
+authenticator screens (the setup key on the filled info panel), and the
+workspace chooser (rows with a chevron, still a radio group selected by
+membership id). The native icon set is DERIVED from the unchanged mark by
+`scripts/brand-icons.mjs` — pure Node, no image library — and
+`tests/scripts/brand-icons` holds the tree to that derivation; the
+adaptive foreground keeps every cell tip inside Android's safe circle. The
+splash stays imageless (color only) with its plugin in place; a splash
+image and the store masters wait for platform asset QA.
+
+### Decisions taken against the reference, each measured
+
+- Dark danger and success text use derived shades (`#F0A9A2` 9.70:1,
+  `#A9CFA9` 10.84:1) rather than the reference's Warm Paper, so an error
+  line still reads as one at a glance; the words carry the meaning either
+  way. A paused status has its own quiet pair (6.72:1 / 8.55:1) rather
+  than the solid Error panel, which stays for real problems.
+- `textDisabled` is Muted Copy / Sage as the reference proposes; disabled
+  controls also drop to 55 % opacity, as before.
+- The specimen label "Design preview · Synthetic data" is presentation
+  copy on the mockups, not product copy, and is not rendered.
+- The Account "Your access" notice became a heading and body (the
+  direction's composition); the words are unchanged.
+
+### Find 40 — a flow tapped a label the wording commit had renamed
+
+`quarantine-recovery.yaml` still tapped 'Reset secure sign-in data' after
+`ca96181` renamed the button to 'Reset sign-in on this device'.
+`maestro:validate` proves testIDs against the sources but not quoted text
+selectors, so the rename slipped past it, and the 18-flow rerun at
+`ca96181` running on desktop 2 as this is written will fail that flow at
+the tap. Fixed here (the tap now names the current label). Owed: a
+validator check that every plain-text selector in a flow occurs in the
+sources or the seed, or a testID on that button and a switch to it.
+
+### Gates at this head
+
+typecheck 0; eslint `--max-warnings 0` clean; prettier clean (the
+received package documents are excluded, being kept byte-exact); jest
+**481 across 37 suites** (new: fonts — bounded load, budget, late arrival,
+explicit `fontFamily` on text and input; brand header — natural ratio,
+hidden image, text fallback; contrast and tokens rewritten for v3.0 with
+every functional pair measured; navigation's filled pill); node:test
+**369** (new: brand assets held to the manifest with OS/2 weights, mark
+transparency, v3.0 colors in app.json and tokens; icons held to the
+derivation); `maestro:validate` OK (18 flows); `config:check` OK;
+`audit:gate` OK; `secrets:scan OK` with the ratification record supplied
+out of band.
+
+### Not evidence, and owed
+
+- **No screenshots yet.** This environment has no emulator or simulator.
+  The device lane is desktop 2: a follow-on session pulls this head, runs
+  the app on the API 35 emulator over Metro (fonts and the mark load at
+  runtime, no native rebuild needed for the restyle), captures light and
+  dark, 200 % text, and the offline and error states, and reruns the flows.
+  The icon and color changes in `app.json` show only after a native
+  rebuild (`expo run:android`), which is the second desktop task.
+- iOS rendering of the faces (font traits, safe areas) is unverified: no
+  Mac, no Expo account.
+- TalkBack and VoiceOver passes, landscape, 320-wide, and tablet remain
+  device items. The store icon masters from the vector source, mask
+  previews, and the splash image are platform asset QA, HOLD.
+- This is a design checkpoint on the local synthetic lane. It is not
+  native release readiness: production configuration, signing, submission,
+  and live data stay HOLD.

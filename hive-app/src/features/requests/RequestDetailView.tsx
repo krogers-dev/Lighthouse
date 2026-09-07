@@ -5,7 +5,11 @@
  * selected scope and RLS filters before that, so a request belonging to
  * another workspace simply produces no row — and this screen shows
  * "not found here" rather than anything that would confirm it exists
- * somewhere else. */
+ * somewhere else.
+ *
+ * Presentation (HIVE 2026 design, 2026-09-07): the title and status lead,
+ * the explanation follows, and a small table of owner and dates keeps
+ * responsibility together; the only action is the existing Back. */
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -19,7 +23,7 @@ import {
 import { ScopedStates } from '@/features/shared/ScopedStates';
 import type { ScopedLoadStateName } from '@/features/shared/useScopedLoad';
 import { AppText, Button, EmptyState, StatusBadge, useThemeColors } from '@/ui';
-import { radii, spacing } from '@/ui/tokens';
+import { layout, spacing } from '@/ui/tokens';
 
 export interface RequestDetailViewProps {
   state: ScopedLoadStateName;
@@ -32,14 +36,48 @@ export interface RequestDetailViewProps {
 
 const styles = StyleSheet.create({
   container: { gap: spacing.lg },
-  card: {
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    padding: spacing.md,
+  detail: {
+    gap: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: layout.hairline,
+  },
+  table: {
+    gap: spacing.sm,
+    paddingTop: spacing.md,
+    borderTopWidth: layout.hairline,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'baseline',
     gap: spacing.sm,
   },
-  meta: { gap: spacing.xs },
+  tableLabel: { minWidth: 112 },
+  tableValue: { flex: 1, minWidth: 120 },
 });
+
+function DetailRow({
+  label,
+  value,
+  strong = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+}): React.JSX.Element {
+  // One accessible item per row: a reader hears "Owner: You", not two
+  // unrelated fragments.
+  return (
+    <View style={styles.tableRow} accessible accessibilityLabel={`${label}: ${value}`}>
+      <AppText variant="caption" tone="secondary" style={styles.tableLabel}>
+        {label}
+      </AppText>
+      <AppText variant={strong ? 'bodyStrong' : 'caption'} style={styles.tableValue}>
+        {value}
+      </AppText>
+    </View>
+  );
+}
 
 export function RequestDetailView({
   state,
@@ -78,7 +116,7 @@ export function RequestDetailView({
 
       {state === 'ready' && request && presentation ? (
         <View
-          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.divider }]}
+          style={[styles.detail, { borderTopColor: colors.divider }]}
           testID="request-detail-ready"
         >
           <AppText variant="heading">{request.title}</AppText>
@@ -88,17 +126,11 @@ export function RequestDetailView({
             testID="request-detail-status"
           />
           <AppText variant="body">{request.detail}</AppText>
-          <View style={styles.meta}>
-            <AppText variant="caption" tone="secondary">
-              {`Owner: ${OWNER_LABEL[request.ownerRole]}`}
-            </AppText>
-            <AppText variant="caption" tone="secondary">
-              {`Requested ${formatServerDate(request.requestedOn)}`}
-            </AppText>
+          <View style={[styles.table, { borderTopColor: colors.divider }]}>
+            <DetailRow label="Owner" value={OWNER_LABEL[request.ownerRole]} strong />
+            <DetailRow label="Requested" value={formatServerDate(request.requestedOn)} />
             {request.dueOn ? (
-              <AppText variant="caption" tone="secondary">
-                {`Due ${formatServerDate(request.dueOn)}`}
-              </AppText>
+              <DetailRow label="Due" value={formatServerDate(request.dueOn)} />
             ) : null}
           </View>
         </View>

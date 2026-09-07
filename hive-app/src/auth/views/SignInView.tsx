@@ -15,6 +15,7 @@ export interface SignInViewProps {
 
 const styles = StyleSheet.create({
   container: { gap: spacing.lg },
+  heading: { gap: spacing.sm },
 });
 
 const REASON_COPY: Record<NonNullable<SignInViewProps['signedOutReason']>, string> = {
@@ -25,7 +26,12 @@ const REASON_COPY: Record<NonNullable<SignInViewProps['signedOutReason']>, strin
 };
 
 /** Invite-only entry: an email receives a sign-in code only if it was
- * authorized in advance. Self-registration does not exist. */
+ * authorized in advance. Self-registration does not exist.
+ *
+ * The HIVE lockup lives on the header band above this view, so the screen
+ * title greets rather than repeats the name (HIVE 2026 design; one line
+ * Stacie can change). The instructions below it are the authorized-email
+ * wording decided in the 2026-09-07 review. */
 export function SignInView({
   onSubmitEmail,
   busy,
@@ -36,12 +42,14 @@ export function SignInView({
   const trimmed = email.trim();
   return (
     <View style={styles.container}>
-      <AppText variant="title" accessibilityRole="header">
-        HIVE
-      </AppText>
-      <AppText variant="body" tone="secondary">
-        Sign in with your authorized email. We will send a sign-in code.
-      </AppText>
+      <View style={styles.heading}>
+        <AppText variant="title" accessibilityRole="header">
+          Welcome to HIVE
+        </AppText>
+        <AppText variant="body" tone="secondary">
+          Sign in with your authorized email. We will send a sign-in code.
+        </AppText>
+      </View>
       {signedOutReason ? (
         <Notice tone="info" title={REASON_COPY[signedOutReason]} testID="signed-out-reason" />
       ) : null}

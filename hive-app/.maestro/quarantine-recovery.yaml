@@ -34,7 +34,7 @@ name: Storage quarantine blocks protected UI; scrub is the only recovery
     id: 'quarantine-screen'
 - assertVisible: 'Sign-in on this device needs a reset'
 - assertNotVisible: 'Retry'
-- tapOn: 'Reset secure sign-in data'
+- tapOn: 'Reset sign-in on this device'
 # Verified scrub lands on signed-out with the scrubbed notice; sign-in works.
 # The Notice primitive PREFIXES an info notice with "Note: " — that
 # prefix is deliberate (status is never colour-only), so it is part of

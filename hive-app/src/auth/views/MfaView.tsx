@@ -20,16 +20,19 @@ export interface MfaViewProps {
 
 const styles = StyleSheet.create({
   container: { gap: spacing.lg },
+  heading: { gap: spacing.sm },
   qrBox: {
     alignSelf: 'center',
     padding: spacing.md,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 2,
   },
+  /** A filled panel: the setup key is a distinct, protected piece of
+   * information, which is what filled panels are reserved for. */
   secretBox: {
     padding: spacing.md,
-    borderRadius: radii.md,
-    borderWidth: 1,
+    borderRadius: radii.lg,
+    gap: spacing.xs,
   },
 });
 
@@ -51,14 +54,16 @@ export function MfaView({
   const enrolling = Boolean(enrollment);
   return (
     <View style={styles.container}>
-      <AppText variant="heading" accessibilityRole="header">
-        {enrolling ? 'Set up your authenticator' : 'Verify it is you'}
-      </AppText>
-      <AppText variant="body" tone="secondary">
-        {enrolling
-          ? 'Scan the QR code with your authenticator app, or enter the setup key manually. Then enter the six-digit code it shows.'
-          : 'Enter the six-digit code from your authenticator app.'}
-      </AppText>
+      <View style={styles.heading}>
+        <AppText variant="title" accessibilityRole="header">
+          {enrolling ? 'Set up your authenticator' : 'Verify it is you'}
+        </AppText>
+        <AppText variant="body" tone="secondary">
+          {enrolling
+            ? 'Scan the QR code with your authenticator app, or enter the setup key manually. Then enter the six-digit code it shows.'
+            : 'Enter the six-digit code from your authenticator app.'}
+        </AppText>
+      </View>
       {notice ? (
         <>
           <Notice tone="danger" title={userMessageFor(notice)} testID="mfa-notice" />
@@ -94,17 +99,19 @@ export function MfaView({
         </View>
       ) : null}
       {enrollment ? (
-        <View
-          style={[
-            styles.secretBox,
-            { borderColor: colors.border, backgroundColor: colors.surface },
-          ]}
-        >
-          <AppText variant="label">Setup key</AppText>
-          <AppText variant="body" testID="mfa-enroll-secret" accessibilityLabel="Setup key">
+        <View style={[styles.secretBox, { backgroundColor: colors.panelInfoBackground }]}>
+          <AppText variant="labelSmall" style={{ color: colors.panelInfoText }}>
+            Setup key
+          </AppText>
+          <AppText
+            variant="bodyStrong"
+            style={{ color: colors.panelInfoText }}
+            testID="mfa-enroll-secret"
+            accessibilityLabel="Setup key"
+          >
             {enrollment.secret}
           </AppText>
-          <AppText variant="caption" tone="secondary">
+          <AppText variant="caption" style={{ color: colors.panelInfoText }}>
             Enter this key in your authenticator app if you cannot scan the code. Keep it private;
             HIVE never stores or shows it again.
           </AppText>

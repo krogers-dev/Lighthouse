@@ -22,8 +22,13 @@ describe('RequestDetailView', () => {
     await render(<RequestDetailView {...baseProps} state="ready" request={request} />);
     expect(screen.getByTestId('request-detail-ready')).toBeTruthy();
     expect(screen.getByText(request.detail)).toBeTruthy();
-    expect(screen.getByText('Owner: You')).toBeTruthy();
-    expect(screen.getByText('Requested August 10, 2026')).toBeTruthy();
+    // Owner and dates are a small table: each row is one accessible item
+    // whose name pairs the label with its value.
+    expect(screen.getByLabelText('Owner: You')).toBeTruthy();
+    expect(screen.getByLabelText('Requested: August 10, 2026')).toBeTruthy();
+    expect(screen.getByLabelText('Due: September 10, 2026')).toBeTruthy();
+    expect(screen.getByText('You')).toBeTruthy();
+    expect(screen.getByText('August 10, 2026')).toBeTruthy();
   });
 
   it('says a foreign id is not here, never that it exists elsewhere', async () => {
