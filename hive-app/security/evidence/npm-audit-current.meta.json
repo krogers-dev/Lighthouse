@@ -1,0 +1,34 @@
+{
+  "$comment": "Binding record for the archived raw npm audit report (RETURN-4 P2-6). The raw report in npm-audit-current.json is byte-for-byte as npm produced it; audit-gate.mjs hashes that file for the rawAuditSha256 ratification binding, so any future approval is bound to THIS evidence. Regenerate both files together whenever package-lock.json changes.",
+  "capturedAt": "2026-09-06T12:19:21.140Z",
+  "command": "npm audit --json",
+  "rawReportPath": "security/evidence/npm-audit-current.json",
+  "rawReportSha256": "eda0dee04d8459d2e9a02fb72dba1640112cd4eb95f335b932ea3c6eda97cf96",
+  "lockfileSha256": "0d96bebfee6d10220ddb2c84b92e0d1b08caa3eb21f1b1466999cb51934b3884",
+  "toolVersions": {
+    "node": "v22.23.2",
+    "npm": "10.9.8"
+  },
+  "npmExitStatus": 1,
+  "counts": {
+    "auditReportVersion": 2,
+    "affectedPackageNodes": 14,
+    "distinctAdvisorySources": 2,
+    "nodesBySeverity": {
+      "moderate": 14
+    },
+    "metadataVulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 14,
+      "high": 0,
+      "critical": 0,
+      "total": 14
+    }
+  },
+  "advisories": [
+    "https://github.com/advisories/GHSA-vcc3-ghjq-m6fr",
+    "https://github.com/advisories/GHSA-w5hq-g745-h8pq"
+  ],
+  "disposition": "Both distinct advisories (decode-uri-component GHSA-vcc3-ghjq-m6fr, uuid GHSA-w5hq-g745-h8pq) are moderate, below the audit:gate high threshold, in the Expo build chain only (not the app bundle). No waivers are on file: the two proposed image-size waivers were removed 2026-09-06 when the SDK 57 patch refresh dropped image-size from the tree (their recorded removal condition). Nothing is ratified."
+}

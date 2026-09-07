@@ -1,0 +1,47 @@
+appId: com.myhbcfo.hive.development
+name: Forced failure while the setup secret is on screen proves artifact confinement
+tags:
+  - confinement
+# RETURN-4 P1-8 confinement proof. This flow is DESIGNED TO FAIL at the
+# moment the enrollment QR and setup key are visible, which is exactly
+# when Maestro captures a failure screenshot. Running it under
+# `npm run maestro:confinement` proves that the resulting artifacts:
+#   - land ONLY in the run's mode-0700 --test-output-dir (screenshots are
+#     written there, or to ~/.maestro/tests when the flag is absent —
+#     never to --debug-output, which carries logs and the command journal);
+#   - never appear in the default ~/.maestro/tests location (the runner
+#     snapshots that directory before and after and fails on any new
+#     entry);
+#   - are removed by the runner's cleanup trap on the failing path.
+# No screenshot from this flow is ever retained: the runner scrubs the
+# whole artifact tree after asserting confinement, and only reports the
+# assertion outcome. The account is the synthetic reviewer.rae QA identity
+# and the factor it creates is revoked by the runner's cleanup.
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: 'sign-in-email'
+- inputText: 'reviewer.rae@example.invalid'
+- runScript: otp-snapshot.js
+- tapOn:
+    id: 'sign-in-submit'
+- assertVisible: 'Enter your sign-in code'
+- runScript: otp-fetch.js
+- tapOn:
+    id: 'otp-code'
+- inputText: ${output.otpCode}
+- tapOn:
+    id: 'otp-submit'
+# The secret is now on screen: QR plus manual setup key.
+- assertVisible: 'Set up your authenticator'
+- assertVisible:
+    id: 'mfa-enroll-qr'
+- assertVisible:
+    id: 'mfa-enroll-secret'
+# DELIBERATE FAILURE, with the secret visible: this text appears on no
+# HIVE screen, so Maestro fails here and captures its failure artifact of
+# a screen showing the QR and setup key. (A text selector, not a testID
+# selector, so the validator's testID existence check stays strict — a
+# deliberately missing testID would have needed an exemption.)
+- assertVisible: 'HIVE CONFINEMENT PROBE — no screen contains this text'

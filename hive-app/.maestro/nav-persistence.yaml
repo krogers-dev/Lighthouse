@@ -1,0 +1,90 @@
+appId: com.myhbcfo.hive.development
+name: The five destinations are peers — the nav survives arriving at each one
+tags:
+  - milestone1
+# Pre-steps: seeded stack up, signed in as client.owner@example.invalid
+# with the Harbor Light Bakery workspace selected (sign-in.yaml).
+#
+# The nav promises five peer destinations. A destination that dropped the
+# nav on arrival would strand the reader with only a system back gesture,
+# which is not a persistent label and is not discoverable with a screen
+# reader. Account did exactly that before this flow existed. Each leg
+# below arrives somewhere and then asserts the nav is still there, by a
+# sibling destination the screen itself does not render.
+---
+- launchApp:
+    clearState: false
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session lands on the chooser rather than the last workspace.
+# Bounded wait, not a bare assertion: a dev build fetches its bundle on a
+# cold start (find 31), and the denied runner met exactly that race on the
+# 2026-09-06 desktop run (find 41).
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- assertVisible:
+    id: 'nav-account'
+
+- tapOn:
+    id: 'nav-requests'
+- assertVisible:
+    id: 'requests-screen'
+- assertVisible:
+    id: 'nav-home'
+- assertVisible:
+    id: 'nav-account'
+
+- tapOn:
+    id: 'nav-activity'
+- assertVisible:
+    id: 'activity-screen'
+- assertVisible:
+    id: 'nav-home'
+- assertVisible:
+    id: 'nav-account'
+
+- tapOn:
+    id: 'nav-help'
+- assertVisible:
+    id: 'help-screen'
+- assertVisible:
+    id: 'nav-home'
+- assertVisible:
+    id: 'nav-account'
+
+- tapOn:
+    id: 'nav-account'
+- assertVisible:
+    id: 'settings-screen'
+- assertVisible:
+    id: 'nav-home'
+- assertVisible:
+    id: 'nav-requests'
+- assertVisible:
+    id: 'nav-activity'
+- assertVisible:
+    id: 'nav-help'
+
+# Back from Account returns to Help, the destination it was reached from —
+# the nav and a safe back are different moves, and both still work.
+# At 200% text this control can sit below the fold, and tap-by-id does not
+# scroll (find 42, 2026-09-06 desktop run): bring it into view first. This
+# completes at once when the control is already visible.
+- scrollUntilVisible:
+    element:
+      id: 'settings-back'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'settings-back'
+- assertVisible:
+    id: 'help-screen'
+- assertVisible:
+    id: 'nav-account'

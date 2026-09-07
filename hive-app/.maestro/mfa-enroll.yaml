@@ -1,0 +1,134 @@
+appId: com.myhbcfo.hive.development
+name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, correct code reaches AAL2
+# RUN THIS THROUGH THE RUNNER, never by hand:
+#   npm run maestro:enroll
+# scripts/maestro-enroll-runner.mjs is the only supported entry point. It
+# creates mode-0700 temporary directories for BOTH --debug-output and
+# --test-output-dir (screenshots go to the latter, never the former),
+# starts and terminates the loopback totp-helper, resets factors before
+# the run, revokes the disposable factor after it, scrubs the clipboard,
+# detects leakage into Maestro's default ~/.maestro/tests location, and
+# removes every temporary artifact on success, failure, and signals.
+# Pre-steps the runner performs for you:
+#   1. Seeded stack up; `node scripts/totp-helper.mjs` running (loopback).
+#   2. Factors reset with the CHECKED loopback command (seeding does NOT
+#      clear factors): reset-totp reviewer.rae@example.invalid, which
+#      verifies a zero-factor readback, making this flow repeatable after
+#      previous successful AND failed runs.
+#   3. The email code is read from Mailpit MID-FLOW by otp-fetch.js
+#      (snapshot semantics: only a message that arrives after
+#      otp-snapshot.js is accepted) — no out-of-band OTP_CODE variable.
+# Secret handling: the setup key belongs to a SYNTHETIC QA account. It is
+# copied once, handed to the loopback helper's memory in a POST body
+# (never CLI/env/URL), and the clipboard is overwritten immediately after.
+# The wrong code is guaranteed wrong across the previous/current/next
+# time windows, never a constant.
+# Artifact hygiene (RETURN-3 area 8): run with a restricted TEMPORARY
+# artifact directory (maestro test --debug-output <private tmp dir>) —
+# never the shared evidence folder — because Maestro captures screenshots
+# on failure and the setup screen shows the QR and key. After the run
+# (success or failure): revoke the disposable factor
+# (`reset-totp reviewer.rae@example.invalid` again if the run failed
+# mid-enrollment), scrub the temporary artifact directory, and only then
+# copy evidence for retention. Retained evidence begins at the post-setup
+# assertions — never while the secret is on screen.
+# Separate device evidence: the displayed QR scans successfully in a real
+# authenticator app (against this synthetic account; the scan itself is
+# performed, not photographed).
+---
+- launchApp:
+    clearState: true
+# A data-cleared install has to boot before it can be typed into; in a dev
+# build that includes fetching the bundle, which is not instantaneous
+# (find 31). Bounded wait rather than a race.
+- extendedWaitUntil:
+    visible:
+      id: 'sign-in-email'
+    timeout: 30000
+- tapOn:
+    id: 'sign-in-email'
+- inputText: 'reviewer.rae@example.invalid'
+# Snapshot Mailpit BEFORE requesting the code (stale-code replay is
+# rejected), then read the fresh code mid-flow.
+- runScript: otp-snapshot.js
+- tapOn:
+    id: 'sign-in-submit'
+- assertVisible: 'Enter your sign-in code'
+- runScript: otp-fetch.js
+- tapOn:
+    id: 'otp-code'
+- inputText: ${output.otpCode}
+- tapOn:
+    id: 'otp-submit'
+# First-time setup: QR and manual setup key are shown.
+- assertVisible: 'Set up your authenticator'
+- assertVisible:
+    id: 'mfa-enroll-qr'
+- assertVisible:
+    id: 'mfa-enroll-secret'
+- copyTextFrom:
+    id: 'mfa-enroll-secret'
+# Hand the key to the helper's memory (POST body); receive code+wrongCode.
+- runScript: totp-capture.js
+# Scrub the clipboard immediately: overwrite the copied secret with the
+# harmless on-screen heading.
+- copyTextFrom: 'Set up your authenticator'
+# The guaranteed-wrong code (differs from previous/current/next window
+# codes) fails safely and keeps the enrollment on screen.
+- tapOn:
+    id: 'mfa-code'
+- inputText: ${output.totpWrongCode}
+# Bring the verify control into view rather than dismissing the keyboard.
+# With the keyboard up it covered the control (find 30); hideKeyboard is an
+# unconditional BACK on Android and exited the auth stack (find 37); and
+# tapping the field's label to blur it stopped working once the 2026 design
+# made this screen taller, the label having left the visible hierarchy under
+# the keyboard (find 47, 2026-09-07 desktop run). Scrolling to the control is
+# deterministic and completes at once when it is already visible.
+- scrollUntilVisible:
+    element:
+      id: 'mfa-submit'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'mfa-submit'
+- assertVisible:
+    id: 'mfa-notice'
+- assertVisible:
+    id: 'mfa-enroll-qr'
+# Clear the failed entry, then enter a FRESH real code (the window may
+# have rolled during the failure round-trip).
+- tapOn:
+    id: 'mfa-code'
+- eraseText
+- runScript: totp-code.js
+- inputText: ${output.totpCode}
+# Bring the verify control into view rather than dismissing the keyboard.
+# With the keyboard up it covered the control (find 30); hideKeyboard is an
+# unconditional BACK on Android and exited the auth stack (find 37); and
+# tapping the field's label to blur it stopped working once the 2026 design
+# made this screen taller, the label having left the visible hierarchy under
+# the keyboard (find 47, 2026-09-07 desktop run). Scrolling to the control is
+# deterministic and completes at once when it is already visible.
+- scrollUntilVisible:
+    element:
+      id: 'mfa-submit'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'mfa-submit'
+# reviewer.rae holds a single membership -> straight to Home at AAL2.
+# Evidence retention may begin from here: the secret is no longer visible.
+# TOTP verify is a server round trip (challenge, verify, then the scoped
+# read), so the dashboard is not instantaneous: assert with a bounded
+# wait rather than racing it (find 31).
+- extendedWaitUntil:
+    visible:
+      id: 'dashboard-workspace'
+    timeout: 20000

@@ -1,0 +1,88 @@
+{
+  "status": "Design handoff; not release evidence",
+  "native_sha": "ca961818b68321791ab8b8de4b0bd345bb428999",
+  "brand_kit_library_id": "libfile_3a90eb8e01048191ae8190d68c0c94f1",
+  "assets": [
+    {
+      "path": "assets/Font-Source-Notice.txt",
+      "sha256": "009a473867dc7daf8d17bf4eaf066bfd1a21b97a3a345e47cb5788745cfab448",
+      "bytes": 406,
+      "source": "Current local HIVE source 4ab5be3291b7fec7d294051883dd229893913eef or accompanying generated source notice"
+    },
+    {
+      "path": "assets/HIVE-Mark-Transparent-2048.png",
+      "sha256": "3b50f64b697e21099fa2ee34741fab2a82b1c5846501f7022b709f264d45e272",
+      "bytes": 215408,
+      "source": "Library libfile_3c732e69a9a0819187024046389b1173; Graphics Design Team / HIVE Logo - Approved 2026-08-25"
+    },
+    {
+      "path": "assets/Manrope-400.ttf",
+      "sha256": "9291aa3225f4beb6213dcdc0a2844fb5aa9f5ec2a652dd0add3bf083ff1b6a8b",
+      "bytes": 35516,
+      "source": "Static instance of included manrope-latin-variable.woff2; unique internal names, see Font-Source-Notice.txt"
+    },
+    {
+      "path": "assets/Manrope-500.ttf",
+      "sha256": "2ed0d3b7b076255e56e83d17e911b6df0ad3c16566d3b69233c608a6872d44df",
+      "bytes": 35532,
+      "source": "Static instance of included manrope-latin-variable.woff2; unique internal names, see Font-Source-Notice.txt"
+    },
+    {
+      "path": "assets/Manrope-600.ttf",
+      "sha256": "0249199ce73afe6bc8f0e09bed2818bf69cbb59ad310a1522f0f3079c4fdf1a4",
+      "bytes": 35508,
+      "source": "Static instance of included manrope-latin-variable.woff2; unique internal names, see Font-Source-Notice.txt"
+    },
+    {
+      "path": "assets/Manrope-700.ttf",
+      "sha256": "40efcf38578a26d522c892cb54a030fdf11b07edb086052b787244c9806c6607",
+      "bytes": 35452,
+      "source": "Static instance of included manrope-latin-variable.woff2; unique internal names, see Font-Source-Notice.txt"
+    },
+    {
+      "path": "assets/Manrope-800.ttf",
+      "sha256": "b2b455c6aa22816e69b9b143475d7b4a47c1fed74781a7d2e3e2ab4e7d73ee34",
+      "bytes": 35632,
+      "source": "Static instance of included manrope-latin-variable.woff2; unique internal names, see Font-Source-Notice.txt"
+    },
+    {
+      "path": "assets/OFL.txt",
+      "sha256": "515d5a69bd24e78143d2f6217dbfcc08d6667718062bd183cb4fe19189208c93",
+      "bytes": 4385,
+      "source": "https://github.com/google/fonts/blob/main/ofl/manrope/OFL.txt; blob 472064afc4b8dec9079fab03b8ffafb617a1b2d8"
+    },
+    {
+      "path": "assets/hive-mark-primary-512.png",
+      "sha256": "b1f236abebcbbb1ba0f041d0f48a0e226cdc040cba358535239b03d2110f4906",
+      "bytes": 41773,
+      "source": "Current local HIVE source 4ab5be3291b7fec7d294051883dd229893913eef or accompanying generated source notice"
+    },
+    {
+      "path": "assets/hive-mark-primary.svg",
+      "sha256": "b54b2be745b88b8555898ded56f7c3717f611a6a664fe2ef42b8c40b0e1dd5e0",
+      "bytes": 1071,
+      "source": "Current local HIVE source 4ab5be3291b7fec7d294051883dd229893913eef or accompanying generated source notice"
+    },
+    {
+      "path": "source/hive-product-mark-opaque-reference.png",
+      "sha256": "11e412cfd7ac203c8b1d6454c9c95326f3a8d205a55db01f6bbac98dfa39a282",
+      "bytes": 13948,
+      "source": "Current local HIVE source 4ab5be3291b7fec7d294051883dd229893913eef or accompanying generated source notice",
+      "usage": "Historical reference only. Superseded for in-app placement."
+    },
+    {
+      "path": "assets/manrope-latin-variable.woff2",
+      "sha256": "e310b55a7fd9677f5e3555e6c6c4d064fa1f1d24393f0ddbe217cea12a8c432f",
+      "bytes": 24576,
+      "source": "Current local HIVE source 4ab5be3291b7fec7d294051883dd229893913eef or accompanying generated source notice"
+    },
+    {
+      "path": "assets/hive-mark-soft-black.svg",
+      "sha256": "50de3081619f983e84410ea4572a9c030535b413c1619395e43d13792a8ad6be",
+      "bytes": 807,
+      "source": "Current HIVE source 4ab5be3291b7fec7d294051883dd229893913eef, public/brand/hive-mark-soft-black.svg; unchanged supplied variant"
+    }
+  ],
+  "active_in_app_mark": "assets/hive-mark-primary-512.png",
+  "revision_note": "User requested transparent mark; use supplied transparent asset with no backing rectangle."
+}

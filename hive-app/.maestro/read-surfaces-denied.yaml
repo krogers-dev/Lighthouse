@@ -1,0 +1,57 @@
+appId: com.myhbcfo.hive.development
+name: Revoked membership denies the read surfaces without showing stale rows
+tags:
+  - milestone1
+# Run through the runner, never by hand:
+#   npm run maestro:denied
+# It signs in (sign-in.yaml, as client.owner@example.invalid), serves a
+# loopback single-use revoke endpoint in-process, runs this flow, and
+# RESTORES the membership on every exit path. The revoke lands MID-FLOW at
+# the runScript step below — the synchronization point find 21 recorded
+# this flow could not express: driven from outside, the delete landed
+# after the refresh request went out and the stale state never appeared.
+# Manual recovery after a run killed from outside:
+#   node scripts/local-supabase.mjs restore-membership client.owner@example.invalid entityA1
+#
+# The point: authorization is enforced by RLS, never by the UI. Once the
+# membership is gone the rows are gone, and the screen must say the access
+# changed rather than continue showing what it fetched a moment earlier.
+---
+- launchApp:
+    clearState: false
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session lands on the chooser rather than the last workspace.
+# Bounded wait, not a bare assertion: a dev build fetches its bundle on a
+# cold start (find 31), and the denied runner met exactly that race on the
+# 2026-09-06 desktop run (find 41).
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- tapOn:
+    id: 'nav-requests'
+- assertVisible:
+    id: 'requests-list'
+# Membership revoked HERE, mid-flow, through the runner's loopback endpoint.
+# The script THROWS if the revoke did not happen, so the flow fails at this
+# step with the reason rather than asserting a state never produced.
+- runScript:
+    file: revoke-membership.js
+    env:
+      REVOKE_USER: 'client.owner@example.invalid'
+      REVOKE_ENTITY: 'entityA1'
+# Reload: the rows must be gone and the screen must say the access changed.
+- tapOn:
+    id: 'requests-refresh'
+- extendedWaitUntil:
+    visible:
+      id: 'requests-stale'
+    timeout: 20000
+# No previously fetched row survives the revocation.
+- assertNotVisible:
+    id: 'requests-list'
+- assertNotVisible: 'Bank statement for the closing month \(Synthetic\)'
+- assertVisible: 'Choose a workspace'

@@ -1,0 +1,58 @@
+appId: com.myhbcfo.hive.development
+name: Requests list and detail are read-only within the selected scope
+tags:
+  - milestone1
+# Pre-steps: seeded stack up, signed in as client.owner@example.invalid
+# with the Harbor Light Bakery workspace selected (sign-in.yaml).
+# The seeded A1 case carries two requests; the B1 and B2 requests belong
+# to another client and entity and must never appear here.
+---
+- launchApp:
+    clearState: false
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session lands on the chooser rather than the last workspace.
+# Bounded wait, not a bare assertion: a dev build fetches its bundle on a
+# cold start (find 31), and the denied runner met exactly that race on the
+# 2026-09-06 desktop run (find 41).
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- tapOn:
+    id: 'nav-requests'
+- assertVisible:
+    id: 'requests-screen'
+- assertVisible:
+    id: 'requests-list'
+- assertVisible: 'Bank statement for the closing month \(Synthetic\)'
+- assertVisible: 'Confirm the vehicle expense category \(Synthetic\)'
+# Cross-scope isolation, visible in the UI: another client's request title
+# is seeded in the database and must not render here.
+- assertNotVisible: 'Quarterly packet source documents \(Synthetic\)'
+- assertNotVisible: 'Entity setup documents \(Synthetic\)'
+# Read-only: no respond, upload, or edit control exists in this binary.
+- assertNotVisible: 'Respond'
+- assertNotVisible: 'Upload'
+- tapOn: 'Bank statement for the closing month \(Synthetic\)'
+- assertVisible:
+    id: 'request-detail-ready'
+- assertVisible: 'The final month statement is needed to complete the records \(Synthetic\).'
+- assertNotVisible: 'Respond'
+# At 200% text this control can sit below the fold, and tap-by-id does not
+# scroll (find 42, 2026-09-06 desktop run): bring it into view first. This
+# completes at once when the control is already visible.
+- scrollUntilVisible:
+    element:
+      id: 'request-detail-back'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'request-detail-back'
+- assertVisible:
+    id: 'requests-list'

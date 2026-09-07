@@ -1,0 +1,77 @@
+# What is NOT uploaded to the EAS build servers.
+#
+# EAS CLI reads this file at the GIT ROOT only (eas-cli 23.2.0,
+# vcs/clients/git.js: path.join(rootPath, '.easignore') with rootPath from
+# `git rev-parse --show-toplevel`), and when it exists it REPLACES every
+# .gitignore for deciding the upload set: the CLI deletes matching files
+# from a shallow clone of HEAD and then copies the working tree through
+# these rules alone. A .easignore inside hive-app/ is never read; the first
+# simulator build (2026-09-07) uploaded 342 MB against 9 MB of tracked
+# content exactly that way (find 52). So this file lives here, is written
+# with forward slashes from the repository root, and is a complete
+# superset of BOTH .gitignore files (the root's, and hive-app/'s with its
+# anchored entries re-rooted as hive-app/...). `npm run eas:guard` fails
+# when either .gitignore has an entry this file does not cover, or when a
+# nested .easignore reappears.
+
+# ---- the clone's own metadata: the CLI removes it only when told to ----
+.git
+
+# ---- mirrors the root .gitignore ----
+tests/fixtures/
+__pycache__/
+*.pyc
+
+# ---- mirrors hive-app/.gitignore (unanchored entries match at any depth) ----
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.pem
+.env*.local
+*.tsbuildinfo
+example
+hive-app/ios
+hive-app/android
+hive-app/supabase/.temp/
+.cache/
+
+# ---- generated native projects wherever they appear (belt and braces) ----
+ios/
+android/
+
+# ---- not needed to compile, so not sent to a third party ----
+# The build runs `npm ci`, prebuild, and xcodebuild inside hive-app/. None
+# of these reach the database, the device flows, the gate evidence, the
+# prose, or the repository's migration tooling, and every file withheld
+# is one that cannot leak from someone else's infrastructure.
+hive-app/docs/
+hive-app/security/
+hive-app/supabase/
+hive-app/tests/
+hive-app/.maestro/
+/tests/
+/scripts/
+MIGRATION.md
+.github/
+**/__tests__/
+*.test.ts
+*.test.tsx
+*.test.mjs
+
+# Kept, because the build genuinely needs them: hive-app/app.json,
+# eas.json, package.json, package-lock.json, tsconfig, babel/metro config,
+# src/, app/, plugins/, assets/, and hive-app/scripts/ (npm scripts).

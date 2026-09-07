@@ -1,0 +1,423 @@
+#!/usr/bin/env node
+/**
+ * bundle:inspect — exported-bundle inspection.
+ *
+ * Walks the Expo export (dist/) and fails on: private keys, Supabase
+ * secret/service-role keys, JWT secrets, OAuth credentials, and — outside
+ * the development profile — loopback endpoints, legacy anon keys, and
+ * development identifiers. Binary payloads (Hermes .hbc bundles, assets)
+ * are scanned through printable-string extraction, so the bytecode that
+ * actually ships is covered, not just the web text bundle (independent
+ * review P1-2).
+ *
+ * Approved-value contract, enforced in every profile:
+ * - any publishable-shaped key found must equal the approved client key;
+ * - any *.supabase.co endpoint must match the approved URL;
+ * - loopback endpoints must match the approved URL, and only in the
+ *   development profile.
+ *
+ * Release-profile inspection stays HOLD until approved public release
+ * configuration exists; the development profile is the Milestone 0 lane.
+ */
+import { execFileSync } from 'node:child_process';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+
+import {
+  RELEASE_ONLY_PATTERNS,
+  SECRET_PATTERNS,
+  looksBinary,
+  scanText,
+} from './lib/secret-patterns.mjs';
+import { originMatchesApproved } from './lib/origins.mjs';
+
+const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Well-known constants inside vendored libraries that are present in every
+ * bundle regardless of configuration. Each entry is an exact string with a
+ * documented origin; nothing pattern-shaped is ever allowed wholesale. */
+/** RETURN-4 P1-4: vendor constants are no longer deleted globally (that
+ * hid app-owned uses of the same endpoints). Each carries an exact
+ * occurrence budget per scanned file; exceeding it is a finding, and any
+ * use of these values in APP-OWNED sources (src/, app/) fails
+ * separately (checkAppOwnedConstants). */
+export const KNOWN_LIBRARY_CONSTANTS = [
+  {
+    // @supabase/auth-js GoTrueClient default placeholder URL; the client
+    // is always constructed with the validated environment URL.
+    value: 'http://localhost:9999',
+    maxOccurrences: 2,
+    source: '@supabase/auth-js GoTrueClient default',
+  },
+  {
+    // react-native Libraries/Core/Devtools/getDevServer.js fallback.
+    value: 'http://localhost:8081',
+    maxOccurrences: 2,
+    source: 'react-native getDevServer fallback',
+  },
+  {
+    // expo-router build/head/url.js default origin constant.
+    value: 'http://localhost:3000',
+    maxOccurrences: 2,
+    source: 'expo-router head url default',
+  },
+];
+
+/** App-owned sources must never use the vendored constants: their
+ * endpoints come only from validated configuration. */
+export function checkAppOwnedConstants(files, readFile) {
+  const failures = [];
+  for (const file of files) {
+    const content = readFile(file);
+    if (content === null) continue;
+    for (const constant of KNOWN_LIBRARY_CONSTANTS) {
+      if (content.includes(constant.value)) {
+        failures.push(
+          `app-owned source ${file} uses the vendor constant ${constant.value} — endpoints come only from validated configuration`,
+        );
+      }
+    }
+  }
+  return failures;
+}
+
+/** Count and neutralize vendor constants within budget; over-budget
+ * occurrences produce findings and are left in place for the endpoint
+ * checks to flag. */
+export function applyVendorConstantBudget(text, filePath) {
+  const findings = [];
+  let result = text;
+  for (const constant of KNOWN_LIBRARY_CONSTANTS) {
+    const count = text.split(constant.value).length - 1;
+    if (count === 0) continue;
+    if (count > constant.maxOccurrences) {
+      findings.push({
+        pattern: 'vendor-constant-count-exceeded',
+        file: filePath,
+        line: 0,
+        snippet: `[${constant.source}: ${count} occurrences exceed the recorded budget of ${constant.maxOccurrences}]`,
+      });
+      continue; // leave them in — the endpoint checks will flag each
+    }
+    result = result.split(constant.value).join('[known-library-default]');
+  }
+  return { text: result, findings };
+}
+
+export function collectFiles(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir)) {
+    const full = path.join(dir, entry);
+    const stats = statSync(full);
+    if (stats.isDirectory()) out.push(...collectFiles(full));
+    else out.push(full);
+  }
+  return out;
+}
+
+/** Printable-ASCII runs from a binary payload (Hermes string tables keep
+ * inlined literals intact, so extraction recovers them). */
+export function extractPrintableStrings(buffer, minLength = 6) {
+  const text = buffer.toString('latin1');
+  const runs = text.match(new RegExp(`[\\x20-\\x7e]{${minLength},}`, 'g'));
+  return runs ?? [];
+}
+
+const PUBLISHABLE_SHAPE = /sb_publishable_[A-Za-z0-9_-]{10,}/g;
+const SUPABASE_ENDPOINT = /https?:\/\/[A-Za-z0-9.-]+\.supabase\.(?:co|red)[^\s"'`]*/g;
+
+function findingAt(pattern, filePath, text, index, snippet) {
+  return {
+    pattern,
+    file: filePath,
+    line: text.slice(0, index).split('\n').length,
+    snippet,
+  };
+}
+
+/** The approved public URL/client key are the only such values allowed.
+ *
+ * `binary` relaxes the key comparison from equality to "starts with the
+ * approved key", and ONLY for the key. Hermes string tables store adjacent
+ * entries with no separator, so printable-string extraction fuses the
+ * approved key with whatever literal follows it: the approved key next to
+ * the copy string "No open requests" extracts as
+ * `sb_publishable_…0123456789No`, which is not equal to the approved key
+ * and would fail the gate for a bundle containing nothing wrong. A
+ * different key is a different random token, not the approved key plus a
+ * tail, so the prefix test still rejects every unapproved key. The URL
+ * deliberately gets NO such allowance: `https://approved.example.co` is a
+ * genuine prefix of the hostile `https://approved.example.co.evil.test`,
+ * so a prefix test there would reopen the suffix-host bypass. */
+export function checkApprovedValues(text, filePath, approved, { binary = false } = {}) {
+  const findings = [];
+  let match;
+  PUBLISHABLE_SHAPE.lastIndex = 0;
+  while ((match = PUBLISHABLE_SHAPE.exec(text)) !== null) {
+    const approvedKey = approved.clientKey;
+    const isApproved = approvedKey
+      ? binary
+        ? match[0].startsWith(approvedKey)
+        : match[0] === approvedKey
+      : false;
+    if (!isApproved) {
+      findings.push(
+        findingAt(
+          'unapproved-publishable-key',
+          filePath,
+          text,
+          match.index,
+          '[publishable-shaped key differing from the approved client key]',
+        ),
+      );
+    }
+  }
+  SUPABASE_ENDPOINT.lastIndex = 0;
+  while ((match = SUPABASE_ENDPOINT.exec(text)) !== null) {
+    if (!approved.url || !originMatchesApproved(match[0], approved.url)) {
+      findings.push(
+        findingAt(
+          'unapproved-supabase-endpoint',
+          filePath,
+          text,
+          match.index,
+          '[supabase endpoint differing from the approved URL]',
+        ),
+      );
+    }
+  }
+  return findings;
+}
+
+/** Which release-only patterns apply per profile (RETURN-3 area 7):
+ *  - development: none (the dev export legitimately carries loopback
+ *    endpoints and development identifiers);
+ *  - candidate: the AUTHORIZED SYNTHETIC candidate lane — a real
+ *    production-mode export built WITHOUT production identifiers or
+ *    credentials, so dev-config values are expected; what it must prove
+ *    is the absence of the dev-only QA hook (qa-hook-marker);
+ *  - release (and anything unknown): every release-only pattern. */
+export function patternsForProfile(profile) {
+  if (profile === 'development') return [];
+  if (profile === 'candidate') {
+    return RELEASE_ONLY_PATTERNS.filter((pattern) => pattern.name === 'qa-hook-marker');
+  }
+  return RELEASE_ONLY_PATTERNS;
+}
+
+export function inspectContent(rawText, filePath, profile, approved, options = {}) {
+  const budget = applyVendorConstantBudget(rawText, filePath);
+  const text = budget.text;
+  const findings = [...budget.findings];
+  findings.push(
+    ...scanText(text, SECRET_PATTERNS, filePath).filter((f) => f.pattern !== 'generic-secret-env'),
+  );
+  findings.push(...checkApprovedValues(text, filePath, approved, options));
+  findings.push(...scanText(text, patternsForProfile(profile), filePath));
+  if (profile !== 'release') {
+    // Development and the synthetic candidate legitimately carry loopback
+    // endpoints — but only the approved one. Any OTHER loopback endpoint
+    // is still a finding in every profile.
+    const urlPattern = /https?:\/\/(?:127\.0\.0\.1|localhost|10\.0\.2\.2)(?::\d+)?/g;
+    let match;
+    while ((match = urlPattern.exec(text)) !== null) {
+      if (approved.url && originMatchesApproved(match[0], approved.url)) continue;
+      findings.push(
+        findingAt(
+          'unapproved-loopback-endpoint',
+          filePath,
+          text,
+          match.index,
+          approved.url
+            ? '[loopback endpoint differing from the approved URL]'
+            : '[loopback endpoint with no approved configuration]',
+        ),
+      );
+    }
+  }
+  return findings;
+}
+
+/** Binary payloads: extract printable strings and run the same checks.
+ *
+ * Bytecode string tables store adjacent entries with no separator, so an
+ * extracted run can fuse a vendored detector prefix (supabase-js ships the
+ * literals `sb_publishable_`/`sb_secret_` for its own key-format checks)
+ * with an unrelated neighboring string. A real key always carries a long
+ * tail, so in binary mode a key prefix without at least 20 key characters
+ * behind it is recognized as such a constant; anything key-length still
+ * fails the gate. */
+export function inspectBinary(buffer, filePath, profile, approved) {
+  let text = extractPrintableStrings(buffer).join('\n');
+  text = text
+    // Caret-anchored occurrences are regex pattern sources (the app's own
+    // env validation ships /^sb_secret_/ etc.); a real key is never
+    // preceded by a caret.
+    .replace(/\^sb_secret_/g, '[app-pattern-source]')
+    .replace(/\^sb_publishable_/g, '[app-pattern-source]')
+    // Bare detector prefixes without a key-length tail (supabase-js ships
+    // them for its own key-format checks; adjacency can fuse them with a
+    // short unrelated neighbor).
+    .replace(/sb_secret_(?![A-Za-z0-9_-]{20})/g, '[library-detector-prefix]')
+    .replace(/sb_publishable_(?![A-Za-z0-9_-]{20})/g, '[library-detector-prefix]');
+  return inspectContent(text, filePath, profile, approved, { binary: true }).map((f) => ({
+    ...f,
+    // Line numbers are meaningless across extracted runs.
+    line: 0,
+  }));
+}
+
+/** Approved configuration comes from the independent reviewed manifest
+ * (security/approved-config.json), and the environment values that built
+ * the bundle must MATCH it — missing or partial configuration fails
+ * instead of silently passing (RETURN-4 P1-4). Returns
+ * { url, clientKey } or { problems }. */
+export function resolveApprovedConfig(profile, env, manifest) {
+  const problems = [];
+  const profileManifest = manifest?.profiles?.[profile];
+  if (!profileManifest) {
+    return { problems: [`no approved-config manifest entry for profile ${profile}`] };
+  }
+  const url = env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+  const clientKey = env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY ?? '';
+  if (url === '') problems.push('EXPO_PUBLIC_SUPABASE_URL is missing — configuration incomplete');
+  if (clientKey === '')
+    problems.push('EXPO_PUBLIC_SUPABASE_CLIENT_KEY is missing — configuration incomplete');
+  if (url !== '') {
+    const approvedList = profileManifest.approvedOrigins ?? [];
+    if (approvedList.length === 0) {
+      problems.push(`profile ${profile} has no approved origins in the manifest (HOLD)`);
+    } else if (!approvedList.some((origin) => originMatchesApproved(url, origin))) {
+      problems.push(
+        `configured URL is not an exact approved origin for profile ${profile} (custom domains require explicit manifest approval)`,
+      );
+    }
+  }
+  if (clientKey !== '') {
+    if (profileManifest.clientKeyPolicy === 'exact') {
+      if (!profileManifest.clientKey || clientKey !== profileManifest.clientKey) {
+        problems.push(
+          `configured client key is not the manifest-approved exact key for ${profile}`,
+        );
+      }
+    } else if (!/^sb_publishable_[A-Za-z0-9_-]{10,}$/.test(clientKey)) {
+      problems.push('configured client key is not publishable-shaped');
+    }
+  }
+  if (problems.length > 0) return { problems };
+  return { url, clientKey, problems: [] };
+}
+
+export function loadApproved(profile) {
+  const env = {};
+  try {
+    for (const line of readFileSync(path.join(appRoot, '.env.local'), 'utf8').split('\n')) {
+      const match = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim());
+      if (match) env[match[1]] = match[2];
+    }
+  } catch {
+    // fall through: env vars may still be present in process.env
+  }
+  const effective = {
+    EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? env.EXPO_PUBLIC_SUPABASE_URL,
+    EXPO_PUBLIC_SUPABASE_CLIENT_KEY:
+      process.env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY ?? env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY,
+  };
+  let manifest;
+  try {
+    manifest = JSON.parse(
+      readFileSync(path.join(appRoot, 'security', 'approved-config.json'), 'utf8'),
+    );
+  } catch {
+    return { problems: ['security/approved-config.json is unreadable'] };
+  }
+  return resolveApprovedConfig(profile, effective, manifest);
+}
+
+const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+if (isMain) {
+  const profile = process.argv.includes('--profile')
+    ? process.argv[process.argv.indexOf('--profile') + 1]
+    : 'development';
+  if (profile === 'release') {
+    // Release inspection needs the approved production configuration
+    // (identifiers, endpoints) that does not exist yet: explicit HOLD.
+    // The executable non-development lane is --profile candidate.
+    console.error(
+      'bundle:inspect: HOLD — release-profile inspection requires approved public configuration; run --profile candidate for the authorized synthetic lane (exit 3)',
+    );
+    process.exit(3);
+  }
+  if (profile !== 'development' && profile !== 'candidate') {
+    console.error(`bundle:inspect: unknown profile ${JSON.stringify(profile)}`);
+    process.exit(2);
+  }
+  const distDir = process.env.HIVE_BUNDLE_DIST ?? path.join(appRoot, 'dist');
+  let files;
+  try {
+    files = collectFiles(distDir);
+  } catch {
+    console.error('bundle:inspect: no export found at ' + distDir + ' — run expo export first');
+    process.exit(2);
+  }
+  if (files.length === 0) {
+    // Nothing scanned proves nothing: refuse to short-circuit to success.
+    console.error(`bundle:inspect ENGINE FAILURE: zero files found under ${distDir}`);
+    process.exit(2);
+  }
+  const approved = loadApproved(profile);
+  if (approved.problems.length > 0) {
+    for (const problem of approved.problems) console.error(`FAIL ${problem}`);
+    console.error('bundle:inspect FAILED (approved configuration)');
+    process.exit(1);
+  }
+  // App-owned sources must not use the vendored constants at all.
+  const appFiles = execFileSync('git', ['ls-files', 'src', 'app'], {
+    cwd: appRoot,
+    encoding: 'utf8',
+  })
+    .split('\n')
+    .filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
+  const appOwned = checkAppOwnedConstants(appFiles, (file) => {
+    try {
+      return readFileSync(path.join(appRoot, file), 'utf8');
+    } catch {
+      return null;
+    }
+  });
+  if (appOwned.length > 0) {
+    for (const failure of appOwned) console.error(`FAIL ${failure}`);
+    console.error('bundle:inspect FAILED (app-owned vendor constants)');
+    process.exit(1);
+  }
+  const findings = [];
+  let textCount = 0;
+  let binaryCount = 0;
+  for (const file of files) {
+    const buffer = readFileSync(file);
+    const relative = path.relative(appRoot, file);
+    if (looksBinary(buffer)) {
+      binaryCount += 1;
+      findings.push(...inspectBinary(buffer, relative, profile, approved));
+    } else {
+      textCount += 1;
+      findings.push(...inspectContent(buffer.toString('utf8'), relative, profile, approved));
+    }
+  }
+  console.log(
+    `bundle:inspect: ${textCount} text and ${binaryCount} binary files scanned in ${path.relative(appRoot, distDir) || distDir} (${profile} profile)`,
+  );
+  if (profile === 'candidate') {
+    console.log(
+      'bundle:inspect: candidate lane — synthetic candidate carries development config by design; enforcing zero QA-hook markers across all scanned output',
+    );
+  }
+  if (findings.length > 0) {
+    for (const f of findings) console.error(`FAIL ${f.file}:${f.line} ${f.pattern}`);
+    console.error('bundle:inspect FAILED');
+    process.exit(1);
+  }
+  console.log('bundle:inspect OK');
+}

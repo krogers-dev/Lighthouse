@@ -1,0 +1,538 @@
+#!/usr/bin/env node
+/**
+ * maestro:validate — structural validation of every Maestro flow before
+ * any hardware run is scheduled (RETURN-3 area 8: parsed with a real
+ * YAML parser — the pinned `yaml` dev dependency — so malformed YAML
+ * fails instead of slipping past a line scanner).
+ *
+ * Checks per flow file:
+ *  - the file parses as exactly two YAML documents (header, steps);
+ *  - the header carries the exact development appId;
+ *  - the steps document is a list where every step is a known Maestro
+ *    command (bare string or single-key map);
+ *  - every `id:` selector references a testID that exists in app/ or src/;
+ *  - every runScript target exists in .maestro/;
+ *  - no step is a FORBIDDEN command (hideKeyboard, find 37) — refused with
+ *    the reason, not merely unknown;
+ *  - banned patterns: any TOTP_SECRET channel, a secret in a URL query,
+ *    and the nondeterministic constant '000000' as an input.
+ * Helper .js files are checked for the URL-secret and TOTP_SECRET bans.
+ */
+import { readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
+
+import YAML from 'yaml';
+
+const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+export const KNOWN_COMMANDS = new Set([
+  'launchApp',
+  'stopApp',
+  'tapOn',
+  'inputText',
+  'eraseText',
+  'assertVisible',
+  'assertNotVisible',
+  'copyTextFrom',
+  'runScript',
+  'openLink',
+  'back',
+  'setAirplaneMode',
+  'extendedWaitUntil',
+  // Added 2026-09-03 (find 17): the flows had no scroll vocabulary, so an
+  // element below the fold — Help's content version — could not be asserted
+  // at all. assertVisible sees the viewport, not the document.
+  'scrollUntilVisible',
+  // hideKeyboard is deliberately ABSENT: see FORBIDDEN_COMMANDS (find 37).
+]);
+
+/** Commands a flow may never use, each with the reason the validator
+ * prints. hideKeyboard entered the vocabulary for find 30 (the soft
+ * keyboard covered the verify control); it left for find 37: Maestro's
+ * Android driver implements it as an unconditional BACK key press
+ * (AndroidDriver.hideKeyboard = `input keyevent 4`, unchanged from 1.40
+ * through 2.x). With no soft keyboard showing that BACK reaches the app,
+ * and this app's auth screens REPLACE one another (expo-router Redirect),
+ * so at the single-entry stack it exits the app — every later step fails
+ * "not found". Flows bring the control they need into view with
+ * scrollUntilVisible instead (find 47); tapping the field's label to blur it
+ * (find 37) stopped working once the taller 2026 design pushed the label out
+ * of the visible hierarchy under the keyboard. */
+export const FORBIDDEN_COMMANDS = new Map([
+  [
+    'hideKeyboard',
+    'on Android this is an unconditional BACK key press; with no soft keyboard up it exits the single-entry auth stack (find 37) — bring the control you need into view with scrollUntilVisible instead (find 47)',
+  ],
+]);
+
+const EXPECTED_APP_ID = 'com.myhbcfo.hive.development';
+
+/** RETURN-4 P2-1: per-command PAYLOAD schemas. Knowing a command's name
+ * is not validation — `tapOn: []` and a malformed `extendedWaitUntil`
+ * both parse as YAML and both name a real command, and both fail on the
+ * device. These schemas are matched to the pinned Maestro CLI recorded in
+ * docs/plans (hardware toolchain record); the pin is what makes them
+ * "version-matched" rather than guesswork. */
+const SELECTOR_FIELDS = new Set([
+  'id',
+  'text',
+  'index',
+  'enabled',
+  'checked',
+  'focused',
+  'selected',
+  'optional',
+  'label',
+  'below',
+  'above',
+  'leftOf',
+  'rightOf',
+  'containsChild',
+  'childOf',
+  'containsDescendants',
+  'width',
+  'height',
+  'tolerance',
+  'point',
+  'repeat',
+  'delay',
+  'longPress',
+  'retryTapIfNoChange',
+  'waitToSettleTimeoutMs',
+]);
+
+const SELECTOR_COMMANDS = new Set(['tapOn', 'assertVisible', 'assertNotVisible', 'copyTextFrom']);
+
+const SCROLL_FIELDS = new Set([
+  'element',
+  'direction',
+  'timeout',
+  'speed',
+  'visibilityPercentage',
+  'centerElement',
+]);
+
+const LAUNCH_FIELDS = new Set([
+  'appId',
+  'clearState',
+  'clearKeychain',
+  'stopApp',
+  'permissions',
+  'arguments',
+]);
+
+const BACKSLASH = String.fromCharCode(92);
+
+/** Maestro matches a text selector as a REGEX, so an unescaped parenthesis
+ * is a capture group rather than the character on screen: '(Synthetic)'
+ * asks for the literal text "Synthetic" with no brackets, which no screen
+ * renders. In `tapOn` that fails loudly. In `assertNotVisible` it can NEVER
+ * fail — two cross-entity leak assertions in scope-switch.yaml passed
+ * vacuously for exactly this reason until the first device run (find 13,
+ * 2026-09-03). Selectors in these flows carry literal on-screen labels, so
+ * a bare parenthesis is always the mistake; there is deliberately no
+ * opt-out, because adding one re-opens the same silent failure. */
+function unescapedParenProblems(where, what, value) {
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i];
+    if ((char === '(' || char === ')') && value[i - 1] !== BACKSLASH) {
+      return [
+        `${where}: ${what} text contains an unescaped "${char}" — Maestro matches text as a regex, ` +
+          `so write "${BACKSLASH}${char}" for the literal character. An unescaped group can make ` +
+          `an assertion that never fails.`,
+      ];
+    }
+  }
+  return [];
+}
+
+/** A selector is a non-empty string or a non-empty map of known selector
+ * fields — never a list, never empty, never a bare number. */
+function selectorProblems(where, payload, what = 'selector') {
+  if (typeof payload === 'string') {
+    if (payload.trim() === '') return [`${where}: ${what} is an empty string`];
+    return unescapedParenProblems(where, what, payload);
+  }
+  if (Array.isArray(payload)) {
+    return [`${where}: ${what} must be a string or a map, not a list`];
+  }
+  if (typeof payload !== 'object' || payload === null) {
+    return [`${where}: ${what} must be a string or a map (found ${typeof payload})`];
+  }
+  const keys = Object.keys(payload);
+  if (keys.length === 0) return [`${where}: ${what} map is empty — it matches nothing`];
+  const problems = [];
+  for (const key of keys) {
+    if (!SELECTOR_FIELDS.has(key)) {
+      problems.push(`${where}: unknown ${what} field "${key}"`);
+    }
+  }
+  if (typeof payload.id !== 'undefined' && typeof payload.id !== 'string') {
+    problems.push(`${where}: ${what} id must be a string`);
+  }
+  if (typeof payload.text !== 'undefined' && typeof payload.text !== 'string') {
+    problems.push(`${where}: ${what} text must be a string`);
+  } else if (typeof payload.text === 'string') {
+    problems.push(...unescapedParenProblems(where, what, payload.text));
+  }
+  if (typeof payload.index !== 'undefined' && !Number.isInteger(payload.index)) {
+    problems.push(`${where}: ${what} index must be an integer`);
+  }
+  return problems;
+}
+
+function envMapProblems(where, env) {
+  if (typeof env === 'undefined') return [];
+  if (typeof env !== 'object' || env === null || Array.isArray(env)) {
+    return [`${where}: env must be a map of string variables`];
+  }
+  const problems = [];
+  for (const [key, value] of Object.entries(env)) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      problems.push(`${where}: env variable name "${key}" is not a valid identifier`);
+    }
+    if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
+      problems.push(`${where}: env variable "${key}" must be a scalar value`);
+    }
+  }
+  return problems;
+}
+
+/** Validate one step's payload against its command's schema. */
+export function validateStepPayload(command, payload, where, scriptFiles) {
+  const problems = [];
+  if (SELECTOR_COMMANDS.has(command)) {
+    return selectorProblems(where, payload);
+  }
+  switch (command) {
+    case 'launchApp': {
+      if (payload === null || typeof payload === 'undefined') return [];
+      if (typeof payload !== 'object' || Array.isArray(payload)) {
+        problems.push(`${where}: launchApp payload must be a map`);
+        break;
+      }
+      for (const key of Object.keys(payload)) {
+        if (!LAUNCH_FIELDS.has(key)) problems.push(`${where}: unknown launchApp field "${key}"`);
+      }
+      for (const flag of ['clearState', 'clearKeychain', 'stopApp']) {
+        if (typeof payload[flag] !== 'undefined' && typeof payload[flag] !== 'boolean') {
+          problems.push(`${where}: launchApp ${flag} must be a boolean`);
+        }
+      }
+      break;
+    }
+    case 'inputText': {
+      if (typeof payload !== 'string') {
+        problems.push(
+          `${where}: inputText payload must be a string (a bare number is a YAML number and loses leading zeros)`,
+        );
+      } else if (payload === '') {
+        problems.push(`${where}: inputText payload is empty`);
+      }
+      break;
+    }
+    case 'eraseText': {
+      if (payload === null || typeof payload === 'undefined') return [];
+      if (!Number.isInteger(payload) || payload < 1) {
+        problems.push(`${where}: eraseText payload must be a positive integer character count`);
+      }
+      break;
+    }
+    case 'runScript': {
+      if (typeof payload === 'object' && payload !== null && !Array.isArray(payload)) {
+        for (const key of Object.keys(payload)) {
+          if (key !== 'file' && key !== 'env') {
+            problems.push(`${where}: unknown runScript field "${key}"`);
+          }
+        }
+        problems.push(...envMapProblems(where, payload.env));
+      }
+      const target = typeof payload === 'string' ? payload : payload?.file;
+      if (typeof target !== 'string' || target.trim() === '') {
+        problems.push(`${where}: runScript needs a script file name`);
+      } else if (!scriptFiles.has(target)) {
+        problems.push(`${where}: runScript target "${target}" does not exist in .maestro/`);
+      }
+      break;
+    }
+    case 'openLink': {
+      const link = typeof payload === 'string' ? payload : payload?.link;
+      if (typeof link !== 'string' || link.trim() === '') {
+        problems.push(`${where}: openLink needs a link string`);
+      }
+      break;
+    }
+    case 'stopApp':
+    case 'back': {
+      if (payload !== null && typeof payload !== 'undefined' && typeof payload !== 'string') {
+        problems.push(`${where}: ${command} takes no payload (or an appId string)`);
+      }
+      break;
+    }
+    case 'scrollUntilVisible': {
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+        problems.push(
+          `${where}: scrollUntilVisible payload must be a map with an element selector`,
+        );
+        break;
+      }
+      for (const key of Object.keys(payload)) {
+        if (!SCROLL_FIELDS.has(key)) {
+          problems.push(`${where}: unknown scrollUntilVisible field "${key}"`);
+        }
+      }
+      if (typeof payload.element === 'undefined') {
+        problems.push(`${where}: scrollUntilVisible needs an element selector to scroll toward`);
+      } else {
+        problems.push(...selectorProblems(where, payload.element, 'scrollUntilVisible element'));
+      }
+      if (
+        typeof payload.direction !== 'undefined' &&
+        !['UP', 'DOWN', 'LEFT', 'RIGHT'].includes(payload.direction)
+      ) {
+        problems.push(`${where}: scrollUntilVisible direction must be UP, DOWN, LEFT or RIGHT`);
+      }
+      for (const numeric of ['timeout', 'visibilityPercentage']) {
+        if (typeof payload[numeric] !== 'undefined' && !Number.isInteger(payload[numeric])) {
+          problems.push(`${where}: scrollUntilVisible ${numeric} must be an integer`);
+        }
+      }
+      break;
+    }
+    case 'setAirplaneMode': {
+      if (payload !== 'enabled' && payload !== 'disabled') {
+        problems.push(`${where}: setAirplaneMode must be exactly 'enabled' or 'disabled'`);
+      }
+      break;
+    }
+    case 'extendedWaitUntil': {
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+        problems.push(`${where}: extendedWaitUntil payload must be a map`);
+        break;
+      }
+      const hasVisible = typeof payload.visible !== 'undefined';
+      const hasNotVisible = typeof payload.notVisible !== 'undefined';
+      if (hasVisible === hasNotVisible) {
+        problems.push(`${where}: extendedWaitUntil requires exactly one of visible/notVisible`);
+      }
+      if (hasVisible)
+        problems.push(...selectorProblems(where, payload.visible, 'visible selector'));
+      if (hasNotVisible) {
+        problems.push(...selectorProblems(where, payload.notVisible, 'notVisible selector'));
+      }
+      if (!Number.isInteger(payload.timeout) || payload.timeout <= 0) {
+        problems.push(`${where}: extendedWaitUntil timeout must be a positive integer (ms)`);
+      }
+      for (const key of Object.keys(payload)) {
+        if (!['visible', 'notVisible', 'timeout'].includes(key)) {
+          problems.push(`${where}: unknown extendedWaitUntil field "${key}"`);
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return problems;
+}
+
+const HEADER_FIELDS = new Set(['appId', 'name', 'tags', 'env']);
+
+/** Validate the flow header document (RETURN-4 P2-1). */
+export function validateHeader(header, label) {
+  const problems = [];
+  if (typeof header !== 'object' || header === null || Array.isArray(header)) {
+    return [`${label}: the header document must be a map`];
+  }
+  if (header.appId !== EXPECTED_APP_ID) {
+    problems.push(`${label}: missing or wrong appId (expected ${EXPECTED_APP_ID})`);
+  }
+  for (const key of Object.keys(header)) {
+    if (!HEADER_FIELDS.has(key)) problems.push(`${label}: unknown header field "${key}"`);
+  }
+  if (typeof header.name !== 'undefined' && typeof header.name !== 'string') {
+    problems.push(`${label}: header name must be a string`);
+  }
+  if (typeof header.tags !== 'undefined') {
+    if (!Array.isArray(header.tags) || header.tags.some((tag) => typeof tag !== 'string')) {
+      problems.push(`${label}: header tags must be a list of strings`);
+    }
+  }
+  problems.push(...envMapProblems(`${label} header`, header.env));
+  return problems;
+}
+
+/** Collect every testID literal in the app sources. */
+export function collectTestIds(root = appRoot) {
+  const files = execFileSync('git', ['ls-files', 'app', 'src'], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+    .split('\n')
+    .filter((file) => /\.(tsx|ts)$/.test(file));
+  const ids = new Set();
+  for (const file of files) {
+    collectTestIdsFromText(readFileSync(path.join(root, file), 'utf8'), ids);
+  }
+  return ids;
+}
+
+/** Harvest every testID declared in one source file's text.
+ *
+ * Separate from the file walk so the three forms below can be exercised
+ * directly: a regression here silently WEAKENS the existence check rather
+ * than breaking it, so it has to be provable against text that names ids
+ * no screen renders. */
+export function collectTestIdsFromText(content, ids = new Set()) {
+  // Both the JSX attribute form (testID="x") and the object-property
+  // form (testID: 'x') used by declarative nav/menu tables. A testID
+  // declared in a table is still a testID; missing that form would make
+  // the existence check silently weaker for exactly the screens that
+  // list their destinations in one place. A prop that ENDS in TestID
+  // (TextField's labelTestID, find 37) declares a testID by the same
+  // convention, so it is harvested too — otherwise the flows' blur target
+  // would be refused as unknown by the very check that protects them.
+  for (const match of content.matchAll(/(?:testID|[A-Za-z]+TestID)\s*[=:]\s*["']([^"']+)["']/g)) {
+    ids.add(match[1]);
+  }
+  // Declared testID TABLES: `const SOMETHING_TEST_IDS = { ... } as const`.
+  // Shared state components render `testID={testIDs.offline}`, so the
+  // literal never sits next to the word testID and the forms above miss
+  // it — which would let a flow reference a state id no screen renders
+  // and still pass. The naming convention is what makes the block
+  // identifiable; every string literal inside one is a testID.
+  for (const block of content.matchAll(
+    /const\s+\w*TEST_IDS\b[^=]*=\s*\{([\s\S]*?)\n\}\s*as const;/g,
+  )) {
+    for (const literal of block[1].matchAll(/["']([^"'\s]+)["']/g)) {
+      ids.add(literal[1]);
+    }
+  }
+  return ids;
+}
+
+function walkSelectors(node, visit) {
+  if (Array.isArray(node)) {
+    for (const item of node) walkSelectors(item, visit);
+    return;
+  }
+  if (typeof node === 'object' && node !== null) {
+    for (const [key, value] of Object.entries(node)) {
+      visit(key, value);
+      walkSelectors(value, visit);
+    }
+  }
+}
+
+/** Validate one flow file's text with a real YAML parse. */
+export function validateFlowText(text, { fileName, knownTestIds, scriptFiles }) {
+  const problems = [];
+  const label = fileName;
+  const documents = YAML.parseAllDocuments(text, { prettyErrors: true });
+  for (const document of documents) {
+    for (const error of document.errors) {
+      problems.push(`${label}: YAML parse error — ${error.message.split('\n')[0]}`);
+    }
+  }
+  if (problems.length > 0) return problems;
+  if (documents.length !== 2) {
+    problems.push(
+      `${label}: expected exactly two YAML documents (header, steps); found ${documents.length}`,
+    );
+    return problems;
+  }
+  const header = documents[0].toJS();
+  const steps = documents[1].toJS();
+  problems.push(...validateHeader(header, label));
+  if (!Array.isArray(steps)) {
+    problems.push(`${label}: the steps document must be a list`);
+    return problems;
+  }
+  for (const [index, step] of steps.entries()) {
+    const where = `${label} step ${index + 1}`;
+    let command;
+    let payload;
+    if (typeof step === 'string') {
+      command = step;
+    } else if (typeof step === 'object' && step !== null && Object.keys(step).length === 1) {
+      [command] = Object.keys(step);
+      payload = step[command];
+    } else {
+      problems.push(`${where}: a step must be a bare command or a single-command map`);
+      continue;
+    }
+    if (FORBIDDEN_COMMANDS.has(command)) {
+      problems.push(`${where}: ${command} is forbidden — ${FORBIDDEN_COMMANDS.get(command)}`);
+      continue;
+    }
+    if (!KNOWN_COMMANDS.has(command)) {
+      problems.push(`${where}: unknown Maestro command "${command}"`);
+      continue;
+    }
+    // Version-matched payload schema (RETURN-4 P2-1): naming a real
+    // command is not enough — the payload must be one this Maestro
+    // version can actually execute.
+    problems.push(...validateStepPayload(command, payload, where, scriptFiles));
+    if (command === 'inputText' && payload === '000000') {
+      problems.push(
+        `${where}: '000000' is a nondeterministic wrong code — derive the wrong code from the real one`,
+      );
+    }
+    walkSelectors(payload, (key, value) => {
+      if (key === 'id' && typeof value === 'string' && !knownTestIds.has(value)) {
+        problems.push(`${where}: selector id "${value}" matches no testID in app/ or src/`);
+      }
+    });
+  }
+  if (/TOTP_SECRET/.test(text)) {
+    problems.push(`${label}: TOTP_SECRET channel is banned — secrets stay in the helper's memory`);
+  }
+  if (/secret=/.test(text)) {
+    problems.push(`${label}: a secret must never travel in a URL query`);
+  }
+  return problems;
+}
+
+/** Validate every flow and helper script under .maestro/. */
+export function validateAllFlows(root = appRoot) {
+  const maestroDir = path.join(root, '.maestro');
+  const entries = readdirSync(maestroDir);
+  const scriptFiles = new Set(entries.filter((entry) => entry.endsWith('.js')));
+  const knownTestIds = collectTestIds(root);
+  const problems = [];
+  let flowCount = 0;
+  for (const entry of entries) {
+    if (entry.endsWith('.yaml')) {
+      flowCount += 1;
+      const text = readFileSync(path.join(maestroDir, entry), 'utf8');
+      problems.push(...validateFlowText(text, { fileName: entry, knownTestIds, scriptFiles }));
+    }
+    if (entry.endsWith('.js')) {
+      const text = readFileSync(path.join(maestroDir, entry), 'utf8');
+      if (/TOTP_SECRET/.test(text)) {
+        problems.push(`${entry}: TOTP_SECRET channel is banned`);
+      }
+      if (/[?&]secret=/.test(text)) {
+        problems.push(`${entry}: a secret must never travel in a URL query`);
+      }
+    }
+  }
+  return { problems, flowCount, scriptCount: scriptFiles.size };
+}
+
+const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
+if (isMain) {
+  const { problems, flowCount, scriptCount } = validateAllFlows();
+  console.log(
+    `maestro:validate: ${flowCount} flows, ${scriptCount} helper scripts checked (real YAML parse)`,
+  );
+  if (problems.length > 0) {
+    for (const problem of problems) console.error(`FAIL ${problem}`);
+    console.error('maestro:validate FAILED');
+    process.exit(1);
+  }
+  console.log('maestro:validate OK');
+}

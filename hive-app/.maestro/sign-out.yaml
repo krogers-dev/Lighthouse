@@ -1,0 +1,43 @@
+appId: com.myhbcfo.hive.development
+name: Sign-out removes protected UI and survives relaunch signed out
+---
+- launchApp
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session re-asks client.owner — who holds two memberships — which
+# workspace to work in. Bounded wait, because a dev build fetches its
+# bundle on a cold start (find 31). The staff sequence signs out through
+# staff-sign-out.yaml instead: reviewer.rae holds one membership and never
+# sees this chooser (find 34).
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- tapOn:
+    id: 'nav-account'
+- assertVisible:
+    id: 'settings-screen'
+# At 200% text this control can sit below the fold, and tap-by-id does not
+# scroll (find 42, 2026-09-06 desktop run): bring it into view first. This
+# completes at once when the control is already visible.
+- scrollUntilVisible:
+    element:
+      id: 'settings-sign-out'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'settings-sign-out'
+- assertVisible:
+    id: 'sign-in-email'
+# The session must not survive a relaunch.
+- stopApp
+- launchApp
+- assertVisible:
+    id: 'sign-in-email'
+- assertNotVisible:
+    id: 'dashboard-workspace'

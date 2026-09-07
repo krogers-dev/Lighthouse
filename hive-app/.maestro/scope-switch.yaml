@@ -1,0 +1,46 @@
+appId: com.myhbcfo.hive.development
+name: Entity switch clears content and rebinds the dashboard
+---
+- launchApp
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session lands on the chooser rather than the last workspace.
+# Bounded wait, not a bare assertion: a dev build fetches its bundle on a
+# cold start (find 31), and the denied runner met exactly that race on the
+# 2026-09-06 desktop run (find 41).
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- tapOn:
+    id: 'nav-account'
+- assertVisible:
+    id: 'settings-screen'
+# At 200% text this control can sit below the fold, and tap-by-id does not
+# scroll (find 42, 2026-09-06 desktop run): bring it into view first. This
+# completes at once when the control is already visible.
+- scrollUntilVisible:
+    element:
+      id: 'settings-switch-scope'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'settings-switch-scope'
+- assertVisible: 'Choose a workspace'
+# Prior entity content must not be visible behind the chooser. Parentheses are
+# escaped because Maestro matches text as a REGEX: unescaped, '(Synthetic)' is
+# a capture group, so this assertion would look for "2025 books close Synthetic"
+# — text no screen renders — and could never fail.
+- assertNotVisible: '2025 books close \(Synthetic\)'
+# Full accessibility label: both rows carry the same client name in their
+# subtitle, so only "<client>, <entity>, <role>" names one row.
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Holdings LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- assertVisible: 'Nothing needs your attention'
+- assertNotVisible: '2025 books close \(Synthetic\)'
