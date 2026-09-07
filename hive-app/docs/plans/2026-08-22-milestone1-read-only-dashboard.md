@@ -3254,3 +3254,35 @@ verify control. Recorded as find 49, pending a measurement: a desktop
 probe on the sign-in screen (no secrets) records the root view and the
 control bounds before and after the keyboard opens, which settles resize
 versus overlay before any code changes.
+
+### Find 49, measured and fixed — the keyboard is an overlay under edge-to-edge
+
+The read-only desktop probe on the sign-in screen (no secret on it) took
+the node bounds before and after the keyboard opened, on the Pixel 8
+emulator at 1080 × 2400, 420 dpi. Nothing moved: the root content frame
+stayed `[0,0][1080,2400]`, the header band stayed at y 74–295, the scroll
+view at 295–2400, the email field at 742–889 and the "Send code" control
+at 952–1089, while the IME reported `mInputShown=true` with its inset
+frame at `[0,1517][1080,2400]` (883 px). The app window asks for
+`adjust=resize`, and under edge-to-edge the framework does not shrink the
+frame — OVERLAY, not resize and not pan. Sign-in works only because its
+control's bottom (1089) happens to sit above the keyboard's top (1517);
+on the enrollment screen the verify control sits below that line at
+maximum scroll, and a scroll view that never grew by the inset cannot
+bring it out. React Native 0.86's root view confirms the mechanism in
+source: it emits `keyboardDidShow` with the IME inset height and applies
+nothing.
+
+Fix, in the shell so every screen gets it: `Screen` wraps its content in
+a `KeyboardAvoidingView` in `padding` mode. That view measures its own
+frame and pads its bottom by the measured overlap with the keyboard, so
+the scroll view shrinks to the keyboard's top edge and any control can be
+scrolled above it; on a platform that does resize the window the overlap
+is zero and nothing doubles. The container starts below the header band
+at the window origin, so no vertical offset is needed. Structural jest
+test (the container measures itself and carries the padding channel; the
+scroll view sits inside it, the lockup outside). Gates at this head:
+typecheck 0, eslint 0, prettier clean, jest **485 across 38 suites**.
+Device proof owed: `maestro:enroll` (the verify tap under the keyboard,
+and with it mfa-login and staff-sign-out) and `sign-in.yaml`, at this
+head, on the desktop.

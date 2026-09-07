@@ -1,5 +1,11 @@
 import React from 'react';
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  ScrollView,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandHeader } from './BrandHeader';
@@ -90,17 +96,32 @@ export function Screen({
   return (
     <View testID={testID} style={[styles.outer, { backgroundColor: colors.canvas }]}>
       {headerBand}
-      {scroll ? (
-        <ScrollView
-          style={styles.scroller}
-          contentContainerStyle={column}
-          keyboardShouldPersistTaps="handled"
-        >
-          {children}
-        </ScrollView>
-      ) : (
-        <View style={[styles.scroller, ...column]}>{children}</View>
-      )}
+      {/* The content makes room for the soft keyboard itself. Under Android
+          edge-to-edge (this app targets Android 15) the window is NOT resized
+          for the keyboard: React Native's root view only reports the
+          keyboard's height, so without this a long screen's controls below
+          the focused field stay under the keyboard at maximum scroll and
+          cannot be reached — the enrollment screen's verify control was
+          exactly that (find 49, 2026-09-07). The padding is the measured
+          overlap between this container and the keyboard, so on a platform
+          that does resize the window it is zero and never doubles. */}
+      <KeyboardAvoidingView
+        behavior="padding"
+        style={styles.scroller}
+        testID="screen-keyboard-room"
+      >
+        {scroll ? (
+          <ScrollView
+            style={styles.scroller}
+            contentContainerStyle={column}
+            keyboardShouldPersistTaps="handled"
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={[styles.scroller, ...column]}>{children}</View>
+        )}
+      </KeyboardAvoidingView>
       {footerBand}
     </View>
   );
