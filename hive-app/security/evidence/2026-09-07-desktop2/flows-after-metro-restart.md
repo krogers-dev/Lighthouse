@@ -45,7 +45,7 @@ Android Bundled 839ms node_modules\expo-router\entry.js (1688 modules)
 ### 1. sign-in (first run) — PASS
 
 Command: `cmd /c "maestro test .maestro/sign-in.yaml 2>&1" | Tee-Object -FilePath "$env:TEMP\hive-signin-r.log"`
-`0` = **0**. Final line: `Assert that id: dashboard-workspace is visible... COMPLETED`
+`$LASTEXITCODE` = **0**. Final line: `Assert that id: dashboard-workspace is visible... COMPLETED`
 Last 30 lines (the log has 17):
 ```
 Running on Pixel_8
@@ -70,7 +70,7 @@ Assert that id: dashboard-workspace is visible... COMPLETED
 ### 2. denied — PASS (`maestro:denied OK`)
 
 Command: `cmd /c "npm run maestro:denied 2>&1" | Tee-Object -FilePath "$env:TEMP\hive-denied5.log"`
-`0` = **0**. Final line: `maestro:denied OK — signed in, requests listed, membership revoked MID-FLOW, refresh showed the access change with no stale row; membership restored and verified, artifacts confined and removed`
+`$LASTEXITCODE` = **0**. Final line: `maestro:denied OK — signed in, requests listed, membership revoked MID-FLOW, refresh showed the access change with no stale row; membership restored and verified, artifacts confined and removed`
 Last 30 lines:
 ```
 Run otp-snapshot.js... COMPLETED
@@ -108,7 +108,7 @@ maestro:denied OK — signed in, requests listed, membership revoked MID-FLOW, r
 ### 3. accessibility-smoke — FAIL (flow-ordering defect in the flow file, not an app regression; not retried)
 
 Command: `cmd /c "maestro test .maestro/accessibility-smoke.yaml 2>&1" | Tee-Object -FilePath "$env:TEMP\hive-a11y3.log"`
-`0` = **1**. Final line: `C:\Users\kodyr\.maestro\tests\2026-09-07_003517`
+`$LASTEXITCODE` = **1**. Final line: `C:\Users\kodyr\.maestro\tests\2026-09-07_003517`
 Failure was `Assert that "Email" is visible... FAILED` — not an `AndroidDriverTimeoutException`, so the single permitted retry did not apply.
 Last 40 lines (the log has 13):
 ```
@@ -136,7 +136,7 @@ Diagnosis (read-only): `accessibility-smoke.yaml` does `- launchApp` with no `cl
 ### 4a. sign-in (second run, ahead of quarantine-recovery) — PASS
 
 Command: `cmd /c "maestro test .maestro/sign-in.yaml 2>&1" | Tee-Object -FilePath "$env:TEMP\hive-signin-q2.log"`
-`0` = **0**. Final line: `Assert that id: dashboard-workspace is visible... COMPLETED`
+`$LASTEXITCODE` = **0**. Final line: `Assert that id: dashboard-workspace is visible... COMPLETED`
 Last 30 lines (the log has 17):
 ```
 Running on Pixel_8
@@ -161,7 +161,7 @@ Assert that id: dashboard-workspace is visible... COMPLETED
 ### 4b. quarantine-recovery — PASS
 
 Command: `cmd /c "maestro test .maestro/quarantine-recovery.yaml 2>&1" | Tee-Object -FilePath "$env:TEMP\hive-quarantine3.log"`
-`0` = **0**. Final line: `Assert that "Email" is visible... COMPLETED`
+`$LASTEXITCODE` = **0**. Final line: `Assert that "Email" is visible... COMPLETED`
 Every step COMPLETED, including `Scrolling DOWN until "Reset sign-in on this device" is visible …` and `Tap on "Reset sign-in on this device"`.
 Last 30 lines (the log has 18):
 ```
