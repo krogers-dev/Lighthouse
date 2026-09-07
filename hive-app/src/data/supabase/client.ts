@@ -25,6 +25,7 @@ import {
 } from '@/auth/client-lifecycle';
 import type { SessionStorage } from '@/auth/controller';
 import { decodeSupabaseTotpQr, flattenQrSvg, splitTotpFactors } from '@/auth/mfa-contract';
+import { QuarantineRequiredError } from '@/auth/secure-store-adapter';
 import type { EnvironmentConfig } from '@/core/env';
 import { SafeError } from '@/core/errors';
 import {
@@ -51,14 +52,65 @@ export interface SessionWriteGate {
   open: boolean;
 }
 
+export interface SessionBridgeEvents {
+  /** The first storage read or write that raised QuarantineRequiredError;
+   * called once per bridge, before the call that met it returns. */
+  onQuarantine?: (error: QuarantineRequiredError) => void;
+}
+
+/** The storage the auth library is given, plus the quarantine it has
+ * absorbed so the controller-facing gateway can re-raise it. */
+export interface SessionBridge {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
+  /** The first QuarantineRequiredError this bridge absorbed, or null. */
+  quarantine(): QuarantineRequiredError | null;
+  /** Throws the absorbed error, if any. */
+  throwIfQuarantined(): void;
+}
+
 /** Routes the session envelope to the secure adapter; any other key the
- * auth library uses (transient verifiers) stays memory-only. */
-export function bridgeStorage(storage: SessionStorage, gate: SessionWriteGate) {
+ * auth library uses (transient verifiers) stays memory-only.
+ *
+ * Storage quarantine is absorbed here rather than thrown into the library
+ * (find 46, 2026-09-07 desktop run): the library's own readers — its
+ * recovery read at construction, the initial-session emitter, the refresh
+ * tick, a data call's token lookup — cannot catch the adapter's error, and
+ * on the device it became logged tick failures and unhandled rejections.
+ * The first quarantine closes the gate (no further read or write reaches
+ * the adapter), is reported once, and the library is shown "no session".
+ * The controller never sees a false "no session": every controller-facing
+ * gateway call re-raises the absorbed error, so the existing quarantine
+ * catch sites fire exactly as they do for a failure met directly.
+ * Deletions still pass through unchanged, failure included — the
+ * controller's own read-back-verified deletion is the authority there. */
+export function bridgeStorage(
+  storage: SessionStorage,
+  gate: SessionWriteGate,
+  events: SessionBridgeEvents = {},
+): SessionBridge {
   const transient = new Map<string, string>();
+  let quarantine: QuarantineRequiredError | null = null;
+  const absorb = (error: unknown): error is QuarantineRequiredError => {
+    if (!(error instanceof QuarantineRequiredError)) return false;
+    if (quarantine === null) {
+      quarantine = error;
+      gate.open = false;
+      events.onQuarantine?.(error);
+    }
+    return true;
+  };
   return {
     getItem: async (key: string): Promise<string | null> => {
       if (key !== STORAGE_KEY) return transient.get(key) ?? null;
-      return gate.open ? storage.read() : null;
+      if (!gate.open) return null;
+      try {
+        return await storage.read();
+      } catch (error) {
+        if (absorb(error)) return null;
+        throw error;
+      }
     },
     setItem: async (key: string, value: string): Promise<void> => {
       if (key !== STORAGE_KEY) {
@@ -66,7 +118,12 @@ export function bridgeStorage(storage: SessionStorage, gate: SessionWriteGate) {
         return;
       }
       if (!gate.open) return;
-      await storage.write(value);
+      try {
+        await storage.write(value);
+      } catch (error) {
+        if (absorb(error)) return;
+        throw error;
+      }
     },
     removeItem: async (key: string): Promise<void> => {
       if (key === STORAGE_KEY) {
@@ -75,7 +132,28 @@ export function bridgeStorage(storage: SessionStorage, gate: SessionWriteGate) {
         transient.delete(key);
       }
     },
+    quarantine: () => quarantine,
+    throwIfQuarantined: () => {
+      if (quarantine) throw quarantine;
+    },
   };
+}
+
+/** Runs one library call for the controller and re-raises any quarantine
+ * the bridge has absorbed by the time it settles — whether the call
+ * succeeded on the library's "no session" view or failed for another
+ * reason, because storage trouble outranks every other classification
+ * (independent review P2-5: never misread as offline or signed out). */
+async function raisingQuarantine<T>(bridge: SessionBridge, call: () => Promise<T>): Promise<T> {
+  let result: T;
+  try {
+    result = await call();
+  } catch (error) {
+    bridge.throwIfQuarantined();
+    throw error;
+  }
+  bridge.throwIfQuarantined();
+  return result;
 }
 
 /** What a failed getSession() means (2026-09-06 review). The only server
@@ -127,69 +205,85 @@ function requireSessionInfo(info: SessionInfo | null): SessionInfo {
   return info;
 }
 
-function makeAuthGateway(client: HiveSupabaseClient): AuthGateway {
+function makeAuthGateway(client: HiveSupabaseClient, bridge: SessionBridge): AuthGateway {
   return {
-    async getSession(): Promise<SessionInfo | null> {
-      const { data, error } = await client.auth.getSession();
-      if (error) {
-        const kind = classifyGetSessionError(error);
-        if (kind === 'expired') throw new SessionExpiredError();
-        if (kind === 'offline') throw new SessionOfflineError();
-        throw error;
-      }
-      return toSessionInfo(client, data.session);
-    },
-    async requestOtp(email: string): Promise<void> {
-      // Invite-only: never create a user from the app.
-      const { error } = await client.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: false },
+    getSession(): Promise<SessionInfo | null> {
+      return raisingQuarantine(bridge, async () => {
+        const { data, error } = await client.auth.getSession();
+        if (error) {
+          const kind = classifyGetSessionError(error);
+          if (kind === 'expired') throw new SessionExpiredError();
+          if (kind === 'offline') throw new SessionOfflineError();
+          throw error;
+        }
+        return toSessionInfo(client, data.session);
       });
-      if (error) throw mapSignInRequestError(error);
     },
-    async verifyOtp(email: string, token: string): Promise<SessionInfo> {
-      const { data, error } = await client.auth.verifyOtp({ email, token, type: 'email' });
-      if (error) throw mapSignInRequestError(error);
-      return requireSessionInfo(await toSessionInfo(client, data.session));
+    requestOtp(email: string): Promise<void> {
+      return raisingQuarantine(bridge, async () => {
+        // Invite-only: never create a user from the app.
+        const { error } = await client.auth.signInWithOtp({
+          email,
+          options: { shouldCreateUser: false },
+        });
+        if (error) throw mapSignInRequestError(error);
+      });
     },
-    async listTotpFactors() {
-      const { data, error } = await client.auth.mfa.listFactors();
-      if (error) throw error;
-      // Contract note (area 2): data.totp holds VERIFIED totp factors
-      // only; unverified ones appear only in data.all.
-      return splitTotpFactors(data);
+    verifyOtp(email: string, token: string): Promise<SessionInfo> {
+      return raisingQuarantine(bridge, async () => {
+        const { data, error } = await client.auth.verifyOtp({ email, token, type: 'email' });
+        if (error) throw mapSignInRequestError(error);
+        return requireSessionInfo(await toSessionInfo(client, data.session));
+      });
     },
-    async enrollTotp() {
-      const { data, error } = await client.auth.mfa.enroll({ factorType: 'totp' });
-      if (error) throw error;
-      if (!data?.id || !data.totp?.secret) throw new SafeError('unknown');
-      // Memory-only setup material; never persisted, logged, or exported.
-      // qr_code arrives as a data:image/svg+xml;utf-8 URI — decoded and
-      // validated before any renderer sees it; null falls back to the
-      // manual setup key.
-      return {
-        factorId: data.id,
-        secret: data.totp.secret,
-        // Flattened to one path per colour before it reaches a renderer:
-        // a module-per-rect QR is thousands of native views (find 33).
-        qrSvg: flattenQrSvg(decodeSupabaseTotpQr(data.totp.qr_code)),
-        uri: data.totp.uri ?? null,
-      };
+    listTotpFactors() {
+      return raisingQuarantine(bridge, async () => {
+        const { data, error } = await client.auth.mfa.listFactors();
+        if (error) throw error;
+        // Contract note (area 2): data.totp holds VERIFIED totp factors
+        // only; unverified ones appear only in data.all.
+        return splitTotpFactors(data);
+      });
     },
-    async unenrollTotp(factorId: string): Promise<void> {
-      const { error } = await client.auth.mfa.unenroll({ factorId });
-      if (error) throw error;
+    enrollTotp() {
+      return raisingQuarantine(bridge, async () => {
+        const { data, error } = await client.auth.mfa.enroll({ factorType: 'totp' });
+        if (error) throw error;
+        if (!data?.id || !data.totp?.secret) throw new SafeError('unknown');
+        // Memory-only setup material; never persisted, logged, or exported.
+        // qr_code arrives as a data:image/svg+xml;utf-8 URI — decoded and
+        // validated before any renderer sees it; null falls back to the
+        // manual setup key.
+        return {
+          factorId: data.id,
+          secret: data.totp.secret,
+          // Flattened to one path per colour before it reaches a renderer:
+          // a module-per-rect QR is thousands of native views (find 33).
+          qrSvg: flattenQrSvg(decodeSupabaseTotpQr(data.totp.qr_code)),
+          uri: data.totp.uri ?? null,
+        };
+      });
     },
-    async verifyTotp(factorId: string, code: string): Promise<SessionInfo> {
-      const { error } = await client.auth.mfa.challengeAndVerify({ factorId, code });
-      if (error) throw error;
-      const { data, error: sessionError } = await client.auth.getSession();
-      if (sessionError) throw sessionError;
-      return requireSessionInfo(await toSessionInfo(client, data.session));
+    unenrollTotp(factorId: string): Promise<void> {
+      return raisingQuarantine(bridge, async () => {
+        const { error } = await client.auth.mfa.unenroll({ factorId });
+        if (error) throw error;
+      });
     },
-    async signOutRemote(): Promise<void> {
-      const { error } = await client.auth.signOut();
-      if (error) throw error;
+    verifyTotp(factorId: string, code: string): Promise<SessionInfo> {
+      return raisingQuarantine(bridge, async () => {
+        const { error } = await client.auth.mfa.challengeAndVerify({ factorId, code });
+        if (error) throw error;
+        const { data, error: sessionError } = await client.auth.getSession();
+        if (sessionError) throw sessionError;
+        return requireSessionInfo(await toSessionInfo(client, data.session));
+      });
+    },
+    signOutRemote(): Promise<void> {
+      return raisingQuarantine(bridge, async () => {
+        const { error } = await client.auth.signOut();
+        if (error) throw error;
+      });
     },
     startAutoRefresh(): void {
       void client.auth.startAutoRefresh();
@@ -252,10 +346,12 @@ export function createSupabaseBundle(
   env: EnvironmentConfig,
   storage: SessionStorage,
   gate: SessionWriteGate = { open: true },
+  events: SessionBridgeEvents = {},
 ): SupabaseBundle {
+  const bridge = bridgeStorage(storage, gate, events);
   const client = createClient<Database>(env.supabaseUrl, env.supabaseClientKey, {
     auth: {
-      storage: bridgeStorage(storage, gate),
+      storage: bridge,
       storageKey: STORAGE_KEY,
       autoRefreshToken: false,
       persistSession: true,
@@ -265,7 +361,7 @@ export function createSupabaseBundle(
   });
   return {
     client,
-    auth: makeAuthGateway(client),
+    auth: makeAuthGateway(client, bridge),
     memberships: makeMembershipGateway(client),
     dispose(): void {
       void client.auth.stopAutoRefresh();

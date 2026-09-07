@@ -66,10 +66,12 @@ export function buildApp() {
   let currentGate: SessionWriteGate = { open: true };
 
   const controller = new AuthController({
-    createBundle: () => {
+    createBundle: (events) => {
       const gate: SessionWriteGate = { open: true };
       currentGate = gate;
-      const bundle = createSupabaseBundle(env, storage, gate);
+      const bundle = createSupabaseBundle(env, storage, gate, {
+        onQuarantine: events.onStorageQuarantine,
+      });
       currentClient = bundle.client;
       return {
         auth: bundle.auth,

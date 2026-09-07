@@ -3317,3 +3317,81 @@ listeners and the layout and checks the padding appears and clears.
 Gates: typecheck 0, eslint 0, prettier clean, jest **490 across 38
 suites**, node:test 369. Device proof owed again: `maestro:enroll` and
 `sign-in.yaml` at this head.
+
+## 2026-09-07 — find 46 closed: the storage bridge absorbs a quarantine the auth library meets on its own
+
+Find 46 (recorded after the Metro-restart run) was owed as a red-green
+change in the auth path: while `quarantine-recovery` ran, Metro logged
+`Auto refresh tick failed … QuarantineRequiredError` and three
+`Uncaught (in promise) QuarantineRequiredError` rejections raised from
+`SessionStorageAdapter#readInternal`. The UI did what it must; the log did
+not. The readers that met the error are the auth library's own — its
+recovery read at construction, the initial-session emitter behind
+`onAuthStateChange`, the refresh tick, and the token lookup inside every
+data call — and none of them can be taught to catch it: the tick logs and
+continues, the emitter is never awaited, and the library's process-lock
+chain carries each rejection until the next lock acquisition attaches a
+handler (the "one later reported handled" in the log). The one seam we
+own between those readers and the adapter is the storage bridge in
+`src/data/supabase/client.ts`, so that is where it is handled.
+
+**Red first.** A new suite drives the REAL pinned library
+(`src/data/supabase/__tests__/quarantine-bridge.test.ts`, no network: a
+stored session an hour from expiry is never refreshed). Before the change
+it reproduced the device symptom inside jest: constructing the client over
+a corrupt store surfaced an unhandled `QuarantineRequiredError` from the
+library's own initialization, and the refresh tick meeting a fresh
+corruption went to `console.error` with nothing reaching the controller.
+The bridge and controller suites gained their cases the same way (13 new
+tests red, then green).
+
+**The change.** The bridge absorbs the first `QuarantineRequiredError` a
+session read or write raises: it closes the bundle's write gate (no later
+read or write reaches the adapter), reports the error once through the
+bundle's new `BundleEvents.onStorageQuarantine`, and shows the library "no
+session" — so the library's readers see nothing to log or reject. The
+controller never sees that false "no session": every controller-facing
+gateway call (`getSession`, `requestOtp`, `verifyOtp`, the TOTP calls,
+`signOutRemote`) re-raises the absorbed error when it settles, whether the
+library call succeeded or failed for another reason, because storage
+trouble outranks every other classification (review P2-5). The existing
+quarantine catch sites therefore fire exactly as before. The reported
+event takes the same `STORAGE_FAILURE` transition from whatever state the
+controller is in — clearing actor-bound state with reason `quarantine`,
+dropping any pending email or factor — serialized behind the in-flight
+operation (so a controller call that meets the same failure wins and the
+report becomes a no-op), and discarded with `auth_epoch_stale_event` when
+it carries the epoch of a bundle a sign-out or scrub has since disposed.
+Deletions are not absorbed: the controller's own read-back-verified
+deletion is the authority there, and a failed library-side removal still
+reaches it as the revocation failure it always was. `ClientLifecycle`
+hands the events to the bundle factory at creation because the library
+reads the store the moment it is constructed; the runtime and the
+live-bridge lane wire `onQuarantine` through, and any factory that never
+reports may ignore the argument.
+
+One deliberate behavioural consequence: a store that turns unverifiable
+while the app is signed in (the QA hook's corruption, or a keystore going
+bad under a running app) now moves the app to the quarantine screen at the
+next library read — the refresh tick within 30 s — instead of serving
+protected UI over a corrupt store until the next launch. The
+`quarantine-recovery` flow is unaffected: it asserts after `stopApp` and
+relaunch, and boot lands on quarantine either way.
+
+Files: `src/data/supabase/client.ts` (bridge, `raisingQuarantine`,
+bundle events), `src/auth/client-lifecycle.ts` (`BundleEvents`),
+`src/auth/controller.ts` (`reportStorageQuarantine`),
+`src/app-runtime.ts`, `tests/live/journeys.ts`,
+`docs/auth-state-machine.md`; tests in `bridge.test.ts` (six cases:
+absorb on read, never touch the adapter again, re-raise, absorb on write,
+other errors untouched, deletion passes through),
+`quarantine-bridge.test.ts` (two cases against the real library),
+`controller.test.ts` (five cases: from authorized with refresh stopped and
+scoped data cleared, from a pending sign-in, a second report absorbed, a
+stale-epoch report ignored, scrub still lands on signed_out(scrubbed) with
+a fresh client). Gates at this head: typecheck 0, eslint 0, prettier
+clean, jest **503 across 39 suites**, node:test 369.
+
+Device proof owed: `quarantine-recovery.yaml` at this head with Metro's
+log clean of `Auto refresh tick failed` and `Uncaught (in promise)`; it
+joins the enrollment rerun on the desktop's list.

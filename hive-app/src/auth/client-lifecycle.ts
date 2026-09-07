@@ -7,6 +7,8 @@
 import type { UserId } from '@/core/ids';
 import type { AuthenticatorAssuranceLevel, Membership } from '@/tenancy/types';
 
+import type { QuarantineRequiredError } from './secure-store-adapter';
+
 export interface SessionInfo {
   readonly userId: UserId;
   readonly aal: AuthenticatorAssuranceLevel;
@@ -68,6 +70,20 @@ export interface ClientBundle {
   dispose(): void;
 }
 
+/** What a bundle can tell the controller on its own initiative. Handed to
+ * the factory at creation because the auth library reads the store the
+ * moment it is constructed, before any controller call. */
+export interface BundleEvents {
+  /** The auth library's own reader (its recovery read at construction,
+   * the initial-session emitter, the refresh tick, a data call's token
+   * lookup) met a storage failure the controller has not seen through a
+   * call of its own. The bundle's storage bridge has already closed that
+   * bundle's gate and shown the library "no session"; the controller takes
+   * the quarantine transition from here (find 46). Called at most once per
+   * bundle. */
+  onStorageQuarantine(error: QuarantineRequiredError): void;
+}
+
 /** The stored session exists but the auth server definitively REJECTED its
  * refresh (revoked, rotated, or expired refresh token): a dead session.
  * Boot takes the expiry branch — local cleanup, then signed_out with the
@@ -102,18 +118,18 @@ export class ClientLifecycle {
   private bundle: ClientBundle | null = null;
   private phase: LifecyclePhase = 'empty';
 
-  constructor(private readonly factory: () => ClientBundle) {}
+  constructor(private readonly factory: (events: BundleEvents) => ClientBundle) {}
 
   get currentPhase(): LifecyclePhase {
     return this.phase;
   }
 
   /** Constructs the single client. Illegal while one is active or frozen. */
-  create(): ClientBundle {
+  create(events: BundleEvents): ClientBundle {
     if (this.phase === 'active' || this.phase === 'frozen') {
       throw new Error('Auth client already exists');
     }
-    this.bundle = this.factory();
+    this.bundle = this.factory(events);
     this.phase = 'active';
     return this.bundle;
   }

@@ -75,10 +75,14 @@ export function getRuntime(): RuntimeResult {
   let currentGate: SessionWriteGate = { open: true };
 
   const controller = new AuthController({
-    createBundle: () => {
+    createBundle: (events) => {
       const gate: SessionWriteGate = { open: true };
       currentGate = gate;
-      const bundle = createSupabaseBundle(env, storage, gate);
+      // The bridge reports a quarantine the auth library met on its own
+      // (find 46); the controller takes the transition.
+      const bundle = createSupabaseBundle(env, storage, gate, {
+        onQuarantine: events.onStorageQuarantine,
+      });
       currentClient = bundle.client;
       return {
         auth: bundle.auth,

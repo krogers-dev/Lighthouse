@@ -14,6 +14,7 @@ import type { ClearReason, ScopedRegistry } from '@/tenancy/clearing';
 import { membershipsRequireAal2, type Membership } from '@/tenancy/types';
 
 import {
+  type BundleEvents,
   ClientLifecycle,
   type ClientBundle,
   type SessionInfo,
@@ -41,7 +42,10 @@ export interface SessionStorage {
 }
 
 export interface AuthControllerDeps {
-  createBundle: () => ClientBundle;
+  /** Builds the single client bundle. The events are the bundle's channel
+   * back to the controller for what its library meets on its own
+   * (find 46); a factory that never reports may ignore them. */
+  createBundle: (events: BundleEvents) => ClientBundle;
   storage: SessionStorage;
   marker: InstallMarker;
   registry: ScopedRegistry;
@@ -159,10 +163,40 @@ export class AuthController {
   }
 
   private createClient(): ClientBundle {
-    const bundle = this.lifecycle.create();
+    // A report from this bundle carries the epoch it was created under, so
+    // one arriving after a sign-out or scrub has disposed the bundle is
+    // discarded exactly like a stale listener event.
+    const createdEpoch = this.epoch.current();
+    const bundle = this.lifecycle.create({
+      onStorageQuarantine: (error) => {
+        void this.reportStorageQuarantine(error, createdEpoch);
+      },
+    });
     this.heldBundle = bundle;
     this.attachListener(bundle);
     return bundle;
+  }
+
+  /** A storage failure the auth library's own reader met — the refresh
+   * tick, the initial-session emitter, a data call's token lookup — rather
+   * than one of the controller's calls (find 46). The bridge has already
+   * closed that bundle's gate; here the controller takes the same
+   * transition it takes when its own read fails, from whatever state it is
+   * in, clearing actor-bound state on the way. Serialized behind the
+   * in-flight operation, so a controller call that meets the same failure
+   * through the gateway wins and this becomes a no-op. */
+  private reportStorageQuarantine(error: QuarantineRequiredError, epoch: number): Promise<void> {
+    return this.enqueue(async () => {
+      if (!this.epoch.isCurrent(epoch)) {
+        this.deps.diagnostics.record('auth_epoch_stale_event', { event: 'STORAGE_QUARANTINE' });
+        return;
+      }
+      if (this.state.name === 'storage_quarantined' || this.state.name === 'fatal') return;
+      this.pendingEmail = null;
+      this.pendingFactorId = null;
+      this.deps.registry.clearAll('quarantine');
+      this.handleStorageOrFatal(error);
+    });
   }
 
   private attachListener(bundle: ClientBundle): void {

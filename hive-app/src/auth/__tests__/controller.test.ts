@@ -7,6 +7,7 @@ import type { Membership } from '@/tenancy/types';
 import {
   type AuthGateway,
   type AuthListenerEvent,
+  type BundleEvents,
   type ClientBundle,
   type SessionInfo,
   SessionExpiredError,
@@ -172,6 +173,10 @@ interface Harness {
   diagnosticsLog: { name: DiagnosticEventName; fields: Record<string, unknown> }[];
   log: string[];
   factoryCalls: () => number;
+  /** The events the controller handed each bundle at creation, oldest
+   * first; a test raises a library-met storage quarantine through the
+   * bundle's own channel, as the storage bridge does (find 46). */
+  bundleEvents: BundleEvents[];
   /** Server-side membership changes after sign-in (find 38). */
   setMemberships: (list: Membership[]) => void;
   setMembershipError: (error: Error | null) => void;
@@ -196,9 +201,11 @@ function makeHarness(options?: {
   membershipsByUser.set(USER_CLIENT, options?.memberships ?? [membershipA1]);
   membershipsByUser.set(USER_STAFF, [membershipB1Staff]);
   let membershipError: Error | null = options?.membershipError ?? null;
+  const bundleEvents: BundleEvents[] = [];
   const controller = new AuthController({
-    createBundle: (): ClientBundle => {
+    createBundle: (events): ClientBundle => {
       factoryCalls += 1;
+      bundleEvents.push(events);
       log.push('factory.create');
       return {
         auth: gateway,
@@ -232,6 +239,7 @@ function makeHarness(options?: {
     diagnosticsLog,
     log,
     factoryCalls: () => factoryCalls,
+    bundleEvents,
     setMemberships: (list) => {
       membershipsByUser.set(USER_CLIENT, list);
     },
@@ -628,6 +636,109 @@ describe('storage failures via the data path (review P2-5)', () => {
     h.gateway.session = clientSession;
     await h.controller.boot();
     expect(h.controller.getState().name).toBe('storage_quarantined');
+  });
+});
+
+/** Find 46 (2026-09-07 desktop run): the auth library's own readers (the
+ * refresh tick, the initial-session emitter, a data call's token lookup)
+ * can meet the storage failure before any controller call does. The
+ * storage bridge absorbs it and reports it through the bundle's events;
+ * the controller then takes the same transition it takes for its own
+ * reads — from any state, clearing actor-bound state, once. */
+describe('quarantine met by a library-internal reader (find 46)', () => {
+  function latestBundleEvents(h: Harness): BundleEvents {
+    const events = h.bundleEvents[h.bundleEvents.length - 1];
+    if (!events) throw new Error('no bundle created yet');
+    return events;
+  }
+
+  it('enters quarantine from authorized: refresh stopped, scoped data cleared as quarantine, one diagnostic', async () => {
+    const h = makeHarness({ initialAppStatus: 'active' });
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    expect(h.controller.getState().name).toBe('authorized');
+    expect(h.log).toContain('auth.startAutoRefresh');
+    h.log.length = 0;
+
+    latestBundleEvents(h).onStorageQuarantine(new QuarantineRequiredError('corrupt'));
+    await h.controller.settle();
+
+    expect(h.controller.getState()).toMatchObject({
+      name: 'storage_quarantined',
+      scrubInProgress: false,
+      lastAttemptFailed: false,
+    });
+    expect(h.log).toContain('auth.stopAutoRefresh');
+    expect(h.clearLog).toEqual(['quarantine']);
+    expect(h.diagnosticsLog.filter((d) => d.name === 'storage_quarantine_entered')).toEqual([
+      { name: 'storage_quarantine_entered', fields: { code: 'corrupt' } },
+    ]);
+  });
+
+  it('enters quarantine from a pending sign-in too, discarding the pending email', async () => {
+    const h = makeHarness();
+    await h.controller.boot();
+    await h.controller.startSignIn('client@example.invalid');
+    await h.controller.requestOtp();
+    expect(h.controller.getState()).toMatchObject({ name: 'first_factor', otpSent: true });
+
+    latestBundleEvents(h).onStorageQuarantine(new QuarantineRequiredError('write_unverified'));
+    await h.controller.settle();
+
+    expect(h.controller.getState().name).toBe('storage_quarantined');
+    // A later OTP submission has nothing to act on: quarantine absorbs it.
+    await h.controller.submitOtp('123456');
+    expect(h.controller.getState().name).toBe('storage_quarantined');
+    expect(h.log).not.toContain('auth.verifyOtp');
+  });
+
+  it('a second report while quarantined changes nothing and records nothing more', async () => {
+    const h = makeHarness();
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    latestBundleEvents(h).onStorageQuarantine(new QuarantineRequiredError('corrupt'));
+    await h.controller.settle();
+    const transitions = h.diagnosticsLog.length;
+
+    latestBundleEvents(h).onStorageQuarantine(new QuarantineRequiredError('partial'));
+    await h.controller.settle();
+
+    expect(h.controller.getState().name).toBe('storage_quarantined');
+    expect(h.diagnosticsLog).toHaveLength(transitions);
+  });
+
+  it('ignores a report from the bundle a completed sign-out disposed (stale epoch)', async () => {
+    const h = makeHarness();
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    const disposedBundle = latestBundleEvents(h);
+    await h.controller.signOut();
+    expect(h.controller.getState()).toMatchObject({ name: 'signed_out', reason: 'signed_out' });
+    expect(h.bundleEvents).toHaveLength(2);
+
+    disposedBundle.onStorageQuarantine(new QuarantineRequiredError('corrupt'));
+    await h.controller.settle();
+
+    expect(h.controller.getState()).toMatchObject({ name: 'signed_out', reason: 'signed_out' });
+    expect(h.diagnosticsLog).toContainEqual({
+      name: 'auth_epoch_stale_event',
+      fields: { event: 'STORAGE_QUARANTINE' },
+    });
+  });
+
+  it('the scrub after a reported quarantine still lands on signed_out(scrubbed) with a fresh client', async () => {
+    const h = makeHarness();
+    h.gateway.session = clientSession;
+    await h.controller.boot();
+    latestBundleEvents(h).onStorageQuarantine(new QuarantineRequiredError('corrupt'));
+    await h.controller.settle();
+    h.gateway.session = null;
+
+    await h.controller.scrubQuarantine();
+
+    expect(h.controller.getState()).toMatchObject({ name: 'signed_out', reason: 'scrubbed' });
+    expect(h.storage.scrubbed).toBe(1);
+    expect(h.factoryCalls()).toBe(2);
   });
 });
 

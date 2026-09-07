@@ -177,6 +177,24 @@ that closes permanently the moment sign-out, quarantine, or fatal begins —
 so a refresh completing late can neither dispatch state nor re-persist or
 re-read the session, regardless of library internals.
 
+The same bridge is where a storage failure met by the library's OWN
+readers is handled (find 46, 2026-09-07). The library reads the store on
+its own initiative — at construction, from the initial-session emitter
+behind its listener, on every refresh tick, and inside every data call's
+token lookup — and none of those readers can catch the adapter's
+`QuarantineRequiredError`; on the device they turned it into logged tick
+failures and unhandled rejections. So the bridge absorbs the first
+quarantine it meets on a read or write: it closes the gate, reports the
+error once through the bundle's events, and shows the library "no
+session". The controller never sees that false "no session": every
+controller-facing gateway call re-raises the absorbed error when it
+settles, so the existing catch sites fire exactly as they do for a failure
+met directly, and the reported event takes the same `STORAGE_FAILURE`
+transition from whatever state the controller is in (clearing actor-bound
+state with reason `quarantine`), serialized behind the in-flight operation
+and discarded when it carries a stale epoch. Deletions are not absorbed:
+the controller's own read-back-verified deletion is the authority there.
+
 ### Expiry
 
 Detected at boot (clock), from the auth listener, or from a 401 during a
