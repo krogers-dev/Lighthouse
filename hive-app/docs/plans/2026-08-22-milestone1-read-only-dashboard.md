@@ -3395,3 +3395,76 @@ clean, jest **503 across 39 suites**, node:test 369.
 Device proof owed: `quarantine-recovery.yaml` at this head with Metro's
 log clean of `Auto refresh tick failed` and `Uncaught (in promise)`; it
 joins the enrollment rerun on the desktop's list.
+
+## 2026-09-07 — desktop 2, run 8: find 49's second iteration measured at zero; the third iteration observes first
+
+Run 8 at `4c6c625` (evidence `b6cc9ea`,
+`security/evidence/2026-09-07-desktop2/enroll-at-find-49b.md`), on the
+warm bundle with `keyboardRoomFor` confirmed in the served source.
+
+**The measurement.** On the sign-in screen (window 1080×2400 px at
+density 2.625), the window manager put the keyboard at `frame=[0,1517]
+[1080,2400]`, inset `bottom=883` — 336 dp, exactly the figure the fix was
+derived from. With it shown, and again 20 s later, the shell's scroll view
+still spanned `[0,295][1080,2400]` and `sign-in-submit` stayed at
+`[63,952][1017,1089]`: the second iteration produced **zero** room on the
+device, like the first. The keyboard-room wrapper is a plain view and does
+not appear in the accessibility dump, so only the scroll view it wraps is
+observable; it did not shrink.
+
+**The lane.** `maestro:enroll` FAIL (exit 1) at the same step as runs 6
+and 7 — `scrollUntilVisible id: mfa-submit` after the wrong code, the
+first 14 steps of `mfa-enroll` COMPLETED — with the runner's exit path
+whole (clipboard scrubbed 3/3, factor revoked and verified clean, artifact
+tree scrubbed) and the crash buffer empty. `sign-in.yaml` FAIL twice for
+an infrastructure reason: the emulator's low-memory killer (2.4 GB) killed
+Maestro's on-device driver mid-flow (`DeviceServerDiedException`, the
+first such death in nine runs on this desktop); the same first 14 steps
+passed inside the runner minutes later. The session's bounded attempt to
+attach to the Hermes inspector to read the event from outside failed on
+the dev-middleware origin check and an immediate close. It changed no
+file.
+
+**Why a third derivation is not the next step.** Both iterations rest on
+the same premise — that `keyboardDidShow` reaches JavaScript on this
+edge-to-edge window with a usable height — and no run has observed that
+event; the shell's math is unit-tested against the numbers the source
+promises, and the device disagrees with the outcome. Reading React
+Native 0.86.3 again: the root view emits the event from its global-layout
+listener using the IME inset less the bar inset, a bridgeless surface view
+registers that listener when attached, and the Android framework requests
+a layout on every inset change — so the event should fire. Nothing in the
+core applies the IME inset itself under edge-to-edge (its Android
+`SafeAreaView` is a plain view in JavaScript, and `react-native-safe-area-
+context` 5.7.0 excludes the keyboard), so the shell's own room is still
+the right shape of fix; what is missing is the observation.
+
+**Find 49, third iteration — the observation.** A production-inert seam
+in the shell (`src/ui/primitives/keyboard-room-probe.ts`) receives every
+input of the computation — platform, window height, measured container
+bottom, keyboard height, bottom inset, and the room — and a QA-build hook
+(`src/dev/qa-keyboard-hook.ts`, marker `HIVE_QA_KEYBOARD_HOOK`) logs those
+samples and every `keyboardWillShow`/`DidShow`/`WillHide`/`DidHide` event's
+end coordinates with the window and screen sizes, geometry only, to the
+console — which a development build forwards to logcat under
+`ReactNativeJS`. The hook follows the other two exactly: behind the
+`__DEV__` + `EXPO_PUBLIC_QA_HOOKS` guard in `app/_layout.tsx`, resolved to
+an inert stub by `metro.config.js` in any non-QA graph, its marker added
+to `bundle:inspect`'s qa-hook-marker pattern and to that pattern's test.
+Tests: the hook's line formats and its install/remove behaviour (three
+cases), the shell's reporting through the seam (one case). No behaviour
+of the shell changed. Gates at this head: typecheck 0, eslint 0, prettier clean, jest **507 across 40 suites**, node:test 369, `maestro:validate` OK (18 flows).
+
+**Next desktop run (no rebuild; the bundle reload is enough):** pull,
+restart the app, wait for the sign-in screen, tap `sign-in-email`, wait,
+`adb logcat -d -s ReactNativeJS` filtered on the marker, dismiss the
+keyboard, report the lines verbatim (they carry numbers only). The lines
+decide the third iteration: no event at all points to a native inset
+listener; an event with a sane height and a nonzero room points at the
+render of the padding; a zero or absent height points at the root view.
+
+Also owed on that desktop: `quarantine-recovery.yaml` at a head carrying
+find 46, with Metro's log clean of `Auto refresh tick failed` and
+`Uncaught (in promise)`. The emulator's RAM allocation is Kody's call; the
+lane will keep meeting the low-memory killer at 2.4 GB on clear-state
+launches.

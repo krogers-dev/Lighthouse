@@ -60,10 +60,11 @@ export const RELEASE_ONLY_PATTERNS = [
   {
     // The dev-only QA hooks embed these markers exactly so their absence
     // from any non-development export is provable: HIVE_QA_CORRUPT_HOOK
-    // (session corruption -> quarantine) and HIVE_QA_EXPIRE_HOOK (session
-    // expiry -> signed_out, find 20).
+    // (session corruption -> quarantine), HIVE_QA_EXPIRE_HOOK (session
+    // expiry -> signed_out, find 20) and HIVE_QA_KEYBOARD_HOOK (keyboard
+    // geometry log, find 49).
     name: 'qa-hook-marker',
-    regex: /HIVE_QA_(?:CORRUPT|EXPIRE)_HOOK/g,
+    regex: /HIVE_QA_(?:CORRUPT|EXPIRE|KEYBOARD)_HOOK/g,
   },
 ];
 

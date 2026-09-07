@@ -18,8 +18,8 @@ const defaultResolveRequest = config.resolver.resolveRequest;
 
 // Each dev-only QA hook resolves to its inert, marker-free stub unless QA
 // hooks are enabled at build time (find 20 added the session-expiry hook
-// alongside the storage-corruption one).
-const QA_HOOK_STUBS = ['qa-corrupt-storage', 'qa-expire-session'];
+// alongside the storage-corruption one; find 49 the keyboard geometry log).
+const QA_HOOK_STUBS = ['qa-corrupt-storage', 'qa-expire-session', 'qa-keyboard-hook'];
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (!qaHooksEnabled) {

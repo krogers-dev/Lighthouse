@@ -159,9 +159,26 @@ function useQaLogBoxSuppression(): void {
   }, []);
 }
 
+/** QA-build only (find 49, third iteration): writes the soft keyboard's
+ * reported geometry and every input of the screen shell's keyboard-room
+ * computation to the console, which a development build forwards to
+ * logcat. Two derived fixes produced zero room on the device; this is the
+ * observation that decides the third. Same `__DEV__` + QA-flag guard and
+ * stub resolution as the other hooks; geometry only, never content. */
+function useQaKeyboardHook(): void {
+  React.useEffect(() => {
+    if (!(__DEV__ && process.env.EXPO_PUBLIC_QA_HOOKS === '1')) return undefined;
+    /* eslint-disable @typescript-eslint/no-require-imports */
+    const keyboard = require('@/dev/qa-keyboard-hook') as typeof import('@/dev/qa-keyboard-hook');
+    /* eslint-enable @typescript-eslint/no-require-imports */
+    return keyboard.installQaKeyboardHook();
+  }, []);
+}
+
 export default function RootLayout(): React.JSX.Element {
   const qa = useDevQaHooks();
   useQaLogBoxSuppression();
+  useQaKeyboardHook();
   const fontStatus = useHiveFonts();
   useSplashRelease(fontStatus);
   const runtime = getRuntime();

@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandHeader } from './BrandHeader';
+import { reportKeyboardRoom } from './keyboard-room-probe';
 import { useThemeColors } from '../theme';
 import { appChrome, layout, spacing } from '../tokens';
 
@@ -127,6 +128,18 @@ export function Screen({
     bottomInset: insets.bottom,
     platform: Platform.OS,
   });
+  // Every input of the computation, for the QA build's keyboard hook to
+  // read on the device (find 49, third iteration); inert otherwise.
+  useEffect(() => {
+    reportKeyboardRoom({
+      platform: Platform.OS,
+      windowHeight,
+      containerBottom,
+      keyboardHeight,
+      bottomInset: insets.bottom,
+      room: keyboardRoom,
+    });
+  }, [windowHeight, containerBottom, keyboardHeight, insets.bottom, keyboardRoom]);
   // The header band owns the top inset and the footer band the bottom
   // one, so the column reserves neither twice.
   const padding = {

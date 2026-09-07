@@ -4,6 +4,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppText } from '../primitives/AppText';
 import { Screen, keyboardRoomFor } from '../primitives/Screen';
+import {
+  type KeyboardRoomSample,
+  setKeyboardRoomObserver,
+} from '../primitives/keyboard-room-probe';
 
 const INSETS = {
   frame: { x: 0, y: 0, width: 390, height: 844 },
@@ -179,6 +183,71 @@ describe('Screen', () => {
       });
       expect(flatten(screen.getByTestId('screen-keyboard-room').props.style).paddingBottom).toBe(0);
     } finally {
+      addListener.mockRestore();
+    }
+  });
+
+  it('reports every input of the computation through the observation seam (find 49, third iteration)', async () => {
+    const listeners: Record<string, (event: KeyboardEvent) => void> = {};
+    const addListener = jest
+      .spyOn(Keyboard, 'addListener')
+      .mockImplementation((name: string, handler: (event: KeyboardEvent) => void) => {
+        listeners[name] = handler;
+        return { remove: jest.fn() } as unknown as ReturnType<typeof Keyboard.addListener>;
+      });
+    const samples: KeyboardRoomSample[] = [];
+    setKeyboardRoomObserver((sample) => samples.push(sample));
+    try {
+      await render(
+        <SafeAreaProvider initialMetrics={INSETS}>
+          <Screen testID="s">
+            <AppText>content</AppText>
+          </Screen>
+        </SafeAreaProvider>,
+      );
+      // Mounted: nothing measured, no keyboard, zero room.
+      expect(samples[samples.length - 1]).toMatchObject({
+        platform: Platform.OS,
+        containerBottom: null,
+        keyboardHeight: 0,
+        bottomInset: INSETS.insets.bottom,
+        room: 0,
+      });
+      await act(async () => {
+        fireEvent(screen.getByTestId('screen-keyboard-room'), 'layout', {
+          nativeEvent: { layout: { x: 0, y: 100, width: 750, height: 1234 } },
+        });
+      });
+      const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+      await act(async () => {
+        listeners[showEvent]!({
+          endCoordinates: { height: 312, screenY: 1334, screenX: 0, width: 750 },
+          startCoordinates: { height: 0, screenY: 1334, screenX: 0, width: 750 },
+          duration: 0,
+          easing: 'keyboard',
+          isEventFromThisApp: true,
+        } as KeyboardEvent);
+      });
+      const last = samples[samples.length - 1];
+      expect(last).toMatchObject({
+        platform: Platform.OS,
+        windowHeight: 1334,
+        containerBottom: 1334,
+        keyboardHeight: 312,
+        bottomInset: INSETS.insets.bottom,
+      });
+      expect(last?.room).toBe(
+        keyboardRoomFor({
+          containerBottom: 1334,
+          windowHeight: 1334,
+          keyboardHeight: 312,
+          bottomInset: INSETS.insets.bottom,
+          platform: Platform.OS,
+        }),
+      );
+      expect(last?.room).toBeGreaterThan(0);
+    } finally {
+      setKeyboardRoomObserver(null);
       addListener.mockRestore();
     }
   });

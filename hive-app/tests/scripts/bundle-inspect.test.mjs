@@ -162,12 +162,13 @@ test('binary mode: caret-anchored pattern sources are recognized (regex shipping
 test('the QA-hook marker is flagged in non-development profiles only (RETURN-2)', async () => {
   const { inspectContent } = await import('../../scripts/bundle-inspect.mjs');
   const approved = { url: 'https://approved.supabase.co', clientKey: 'sb_publishable_synthetic' };
-  // Both dev-only QA hooks embed a provable marker: corruption (RETURN-2)
-  // and expiry (find 20). Each must be flagged in a non-development export
-  // and ignored in a development one.
+  // Every dev-only QA hook embeds a provable marker: corruption (RETURN-2),
+  // expiry (find 20) and the keyboard geometry log (find 49). Each must be
+  // flagged in a non-development export and ignored in a development one.
   for (const marker of [
     ['HIVE_QA', 'CORRUPT_HOOK'].join('_'),
     ['HIVE_QA', 'EXPIRE_HOOK'].join('_'),
+    ['HIVE_QA', 'KEYBOARD_HOOK'].join('_'),
   ]) {
     const dev = inspectContent(`var x="${marker}"`, 'bundle.js', 'development', approved);
     assert.ok(!dev.some((f) => f.pattern === 'qa-hook-marker'));
