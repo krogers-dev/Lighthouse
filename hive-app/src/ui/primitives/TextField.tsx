@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { StyleSheet, TextInput, View, type KeyboardTypeOptions } from 'react-native';
 
 import { AppText } from './AppText';
+import { fontStyleFor, useFontStatus } from '../fonts';
 import { useThemeColors } from '../theme';
-import { radii, spacing, touchTarget, typeScale } from '../tokens';
+import { inputType, layout, spacing } from '../tokens';
 
 export interface TextFieldProps {
   /** Persistent visible label; also the accessibility label. */
@@ -31,16 +32,27 @@ export interface TextFieldProps {
 }
 
 const styles = StyleSheet.create({
-  container: { gap: spacing.xs },
+  container: { gap: spacing.sm },
   input: {
-    minHeight: touchTarget.minHeight,
+    minHeight: layout.fieldMinHeight,
     borderWidth: 2,
-    borderRadius: radii.md,
+    borderRadius: layout.fieldRadius,
     paddingHorizontal: spacing.md,
-    fontSize: typeScale.body.fontSize,
+    paddingVertical: spacing.sm,
+    fontSize: inputType.fontSize,
+    lineHeight: inputType.lineHeight,
+  },
+  focused: {
+    outlineStyle: 'solid',
+    outlineWidth: layout.focusRingWidth,
+    outlineOffset: layout.focusRingOffset,
   },
 });
 
+/** Square-cornered field with a persistent label above it. The boundary is
+ * Muted Copy by day and Sage by night — a real boundary, never a decorative
+ * rule — and the native input itself renders in Manrope Medium once the
+ * faces are registered. */
 export function TextField({
   label,
   value,
@@ -58,11 +70,12 @@ export function TextField({
   labelTestID,
 }: TextFieldProps): React.JSX.Element {
   const colors = useThemeColors();
+  const fontStatus = useFontStatus();
   const [focused, setFocused] = useState(false);
   const hasError = Boolean(errorText);
   return (
     <View style={styles.container}>
-      <AppText variant="label" testID={labelTestID}>
+      <AppText variant="labelSmall" testID={labelTestID}>
         {label}
       </AppText>
       <TextInput
@@ -71,7 +84,7 @@ export function TextField({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={colors.textDisabled}
+        placeholderTextColor={colors.textSecondary}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         autoComplete={autoComplete}
@@ -85,12 +98,14 @@ export function TextField({
         testID={testID}
         style={[
           styles.input,
+          fontStyleFor(inputType, fontStatus),
           {
             color: colors.textPrimary,
             backgroundColor: colors.surface,
             borderColor: hasError ? colors.dangerText : focused ? colors.focusRing : colors.border,
             opacity: editable ? 1 : 0.6,
           },
+          focused && [styles.focused, { outlineColor: colors.focusRing }],
         ]}
       />
       {hasError ? (

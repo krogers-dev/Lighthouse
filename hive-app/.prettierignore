@@ -11,3 +11,5 @@ src/data/supabase/database.types.ts
 security/evidence/
 # GoTrue mail template: functional config artifact, kept as authored.
 supabase/templates/
+# Received design handoff documents are kept byte-for-byte (their hashes are the provenance record).
+docs/design/2026-09-07-hive-2026-design-package/

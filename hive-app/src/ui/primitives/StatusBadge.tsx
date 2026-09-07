@@ -32,28 +32,32 @@ const KIND_GLYPH: Record<StatusKind, string> = {
 const styles = StyleSheet.create({
   badge: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: spacing.xs,
     borderRadius: radii.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm + spacing.xs,
+    paddingVertical: spacing.xs + 1,
     alignSelf: 'flex-start',
   },
 });
 
+/** Attention sits on Soft Honey in Honey Ink; settled and neutral states on
+ * the quiet moss and canvas panels; a paused state on the derived blocked
+ * pair. The word carries the meaning; the panel only agrees with it. */
 export function StatusBadge({ kind, label, testID }: StatusBadgeProps): React.JSX.Element {
   const colors = useThemeColors();
   const backgrounds: Record<StatusKind, string> = {
     neutral: colors.panelInfoBackground,
     stable: colors.panelStableBackground,
     attention: colors.panelAttentionBackground,
-    blocked: colors.dangerPanelBackground,
+    blocked: colors.panelBlockedBackground,
   };
   const textColors: Record<StatusKind, string> = {
     neutral: colors.panelInfoText,
     stable: colors.panelStableText,
     attention: colors.panelAttentionText,
-    blocked: colors.dangerPanelText,
+    blocked: colors.panelBlockedText,
   };
   return (
     <View
@@ -63,8 +67,8 @@ export function StatusBadge({ kind, label, testID }: StatusBadgeProps): React.JS
       style={[styles.badge, { backgroundColor: backgrounds[kind] }]}
     >
       <AppText
-        variant="caption"
-        style={{ color: textColors[kind], fontWeight: '700' }}
+        variant="labelSmall"
+        style={{ color: textColors[kind] }}
         importantForAccessibility="no"
       >
         {`${KIND_GLYPH[kind]} ${KIND_WORD[kind]}`}

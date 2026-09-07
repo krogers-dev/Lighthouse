@@ -1,9 +1,10 @@
 import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { BrandHeader } from './BrandHeader';
 import { useThemeColors } from '../theme';
-import { spacing } from '../tokens';
+import { appChrome, layout, spacing } from '../tokens';
 
 export interface ScreenProps {
   children: React.ReactNode;
@@ -17,24 +18,31 @@ export interface ScreenProps {
    * long screen (find 18, 2026-09-03). "Persistent labels" cannot mean
    * "labels you can scroll away from". */
   footer?: React.ReactNode;
+  /** Chrome pinned ABOVE the scroll area on the Deep Black band. Every
+   * screen carries the HIVE lockup unless it explicitly passes null. */
+  header?: React.ReactNode | null;
 }
 
 const styles = StyleSheet.create({
   outer: { flex: 1 },
   scroller: { flex: 1 },
-  content: {
-    flexGrow: 1,
-    padding: spacing.md,
+  /** The chrome bands span the full window; their content keeps the same
+   * readable measure as the column they frame. */
+  chrome: {
     width: '100%',
-    // Readable measure on tablets without a separate layout system.
-    maxWidth: 720,
+    backgroundColor: appChrome.background,
+  },
+  chromeInner: {
+    width: '100%',
+    maxWidth: layout.contentMaxWidth,
     alignSelf: 'center',
   },
-  footer: {
+  content: {
+    flexGrow: 1,
     width: '100%',
-    // The pinned chrome keeps the content's readable measure so the nav
-    // lines up with what it navigates.
-    maxWidth: 720,
+    // Readable measure on tablets without a separate layout system; the
+    // canvas shows either side of the column.
+    maxWidth: layout.contentMaxWidth,
     alignSelf: 'center',
   },
 });
@@ -44,52 +52,56 @@ export function Screen({
   scroll = true,
   testID,
   footer,
+  header = <BrandHeader />,
 }: ScreenProps): React.JSX.Element {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
-  // With pinned chrome the footer owns the bottom safe area, so the scroll
-  // content stops short of it instead of reserving the inset twice.
+  const { width } = useWindowDimensions();
+  const gutter = width < layout.compactWidth ? layout.compactGutter : layout.screenGutter;
+  // The header band owns the top inset and the footer band the bottom
+  // one, so the column reserves neither twice.
   const padding = {
-    paddingTop: insets.top + spacing.md,
-    paddingBottom: footer ? spacing.md : insets.bottom + spacing.md,
-    paddingLeft: insets.left + spacing.md,
-    paddingRight: insets.right + spacing.md,
+    paddingTop: header ? spacing.lg : insets.top + spacing.lg,
+    paddingBottom: footer ? spacing.lg : insets.bottom + spacing.lg,
+    paddingLeft: insets.left + gutter,
+    paddingRight: insets.right + gutter,
+  };
+  const headerPadding = {
+    paddingTop: insets.top,
+    paddingLeft: insets.left + gutter,
+    paddingRight: insets.right + gutter,
   };
   const footerPadding = {
-    paddingBottom: insets.bottom + spacing.md,
-    paddingLeft: insets.left + spacing.md,
-    paddingRight: insets.right + spacing.md,
+    paddingBottom: insets.bottom,
+    paddingLeft: insets.left + gutter,
+    paddingRight: insets.right + gutter,
   };
-  if (!scroll) {
-    return (
-      <View testID={testID} style={[styles.outer, { backgroundColor: colors.background }]}>
-        <View style={[styles.content, padding]}>{children}</View>
-        {footer ? <View style={[styles.footer, footerPadding]}>{footer}</View> : null}
-      </View>
-    );
-  }
-  if (!footer) {
-    return (
-      <ScrollView
-        testID={testID}
-        style={[styles.outer, { backgroundColor: colors.background }]}
-        contentContainerStyle={[styles.content, padding]}
-        keyboardShouldPersistTaps="handled"
-      >
-        {children}
-      </ScrollView>
-    );
-  }
+  const column = [styles.content, padding, { backgroundColor: colors.background }];
+  const headerBand = header ? (
+    <View style={[styles.chrome, headerPadding]}>
+      <View style={styles.chromeInner}>{header}</View>
+    </View>
+  ) : null;
+  const footerBand = footer ? (
+    <View style={[styles.chrome, footerPadding]}>
+      <View style={styles.chromeInner}>{footer}</View>
+    </View>
+  ) : null;
   return (
-    <View testID={testID} style={[styles.outer, { backgroundColor: colors.background }]}>
-      <ScrollView
-        style={styles.scroller}
-        contentContainerStyle={[styles.content, padding]}
-        keyboardShouldPersistTaps="handled"
-      >
-        {children}
-      </ScrollView>
-      <View style={[styles.footer, footerPadding]}>{footer}</View>
+    <View testID={testID} style={[styles.outer, { backgroundColor: colors.canvas }]}>
+      {headerBand}
+      {scroll ? (
+        <ScrollView
+          style={styles.scroller}
+          contentContainerStyle={column}
+          keyboardShouldPersistTaps="handled"
+        >
+          {children}
+        </ScrollView>
+      ) : (
+        <View style={[styles.scroller, ...column]}>{children}</View>
+      )}
+      {footerBand}
     </View>
   );
 }

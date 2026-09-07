@@ -30,10 +30,12 @@ describe('PrimaryNav', () => {
       expect(style.minHeight as number).toBeGreaterThanOrEqual(48);
       expect(style.minWidth as number).toBeGreaterThanOrEqual(48);
     }
-    // The current destination is marked by a visible underline, not by
-    // color alone, so it survives greyscale and high-contrast modes.
-    const underlined = resolved.filter((style) => style.borderBottomColor !== 'transparent');
-    expect(underlined).toHaveLength(1);
+    // The current destination is marked by a filled pill on the dark bar —
+    // a change of shape and value, not color alone — so it survives
+    // greyscale and high-contrast modes. Exactly one destination is filled.
+    const filled = resolved.filter((style) => style.backgroundColor !== 'transparent');
+    expect(filled).toHaveLength(1);
+    expect(screen.getByTestId('nav-home').props.accessibilityState.selected).toBe(true);
   });
 
   it('marks the current destination as selected for assistive tech', async () => {

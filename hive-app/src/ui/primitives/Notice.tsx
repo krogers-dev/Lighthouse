@@ -23,13 +23,15 @@ const TONE_WORD: Record<NoticeTone, string> = {
 
 const styles = StyleSheet.create({
   notice: {
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     padding: spacing.md,
     gap: spacing.xs,
-    borderLeftWidth: 4,
   },
 });
 
+/** A filled panel, reserved for a warning or a protected state. Tone is
+ * spoken and printed as a word before the title, so the panel's color is
+ * never the only carrier of meaning. */
 export function Notice({ tone, title, body, testID }: NoticeProps): React.JSX.Element {
   const colors = useThemeColors();
   const background: Record<NoticeTone, string> = {
@@ -51,7 +53,7 @@ export function Notice({ tone, title, body, testID }: NoticeProps): React.JSX.El
       accessible
       accessibilityRole={urgent ? 'alert' : undefined}
       accessibilityLabel={`${TONE_WORD[tone]}: ${title}${body ? `. ${body}` : ''}`}
-      style={[styles.notice, { backgroundColor: background[tone], borderLeftColor: colors.accent }]}
+      style={[styles.notice, { backgroundColor: background[tone] }]}
     >
       <AppText variant="label" style={{ color: textColor[tone] }} importantForAccessibility="no">
         {`${TONE_WORD[tone]}: ${title}`}

@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { Linking } from 'react-native';
@@ -6,7 +7,29 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { getRuntime } from '@/app-runtime';
 import { AuthProvider } from '@/auth/provider';
-import { AppText, Notice, Screen } from '@/ui';
+import { AppText, FontProvider, Notice, Screen, useHiveFonts, type FontStatus } from '@/ui';
+
+/** The splash stays up while the bundled faces register, and not one
+ * moment longer than the font budget: the release below is bounded on its
+ * own timer as well, so a failure anywhere in font loading can never leave
+ * the app behind its splash. Auth boots underneath regardless. */
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+const SPLASH_RELEASE_CEILING_MS = 4000;
+
+function useSplashRelease(fontStatus: FontStatus): void {
+  React.useEffect(() => {
+    const release = (): void => {
+      SplashScreen.hideAsync().catch(() => undefined);
+    };
+    if (fontStatus !== 'loading') {
+      release();
+      return undefined;
+    }
+    const ceiling = setTimeout(release, SPLASH_RELEASE_CEILING_MS);
+    return () => clearTimeout(ceiling);
+  }, [fontStatus]);
+}
 
 interface QaHookState {
   /** The corruption write completed (-> storage_quarantined next boot). */
@@ -86,9 +109,6 @@ export function ErrorBoundary(): React.JSX.Element {
   return (
     <SafeAreaProvider>
       <Screen testID="fatal-boundary">
-        <AppText variant="title" accessibilityRole="header">
-          HIVE
-        </AppText>
         <Notice
           tone="danger"
           title="HIVE stopped to keep your information safe"
@@ -103,9 +123,6 @@ function ConfigurationFatal({ problems }: { problems: readonly string[] }): Reac
   return (
     <SafeAreaProvider>
       <Screen testID="config-fatal">
-        <AppText variant="title" accessibilityRole="header">
-          HIVE
-        </AppText>
         <Notice
           tone="danger"
           title="This build is not configured"
@@ -145,33 +162,51 @@ function useQaLogBoxSuppression(): void {
 export default function RootLayout(): React.JSX.Element {
   const qa = useDevQaHooks();
   useQaLogBoxSuppression();
+  const fontStatus = useHiveFonts();
+  useSplashRelease(fontStatus);
   const runtime = getRuntime();
   if (!runtime.ok) {
-    return <ConfigurationFatal problems={runtime.problems} />;
+    return (
+      <FontProvider status={fontStatus}>
+        <ConfigurationFatal problems={runtime.problems} />
+      </FontProvider>
+    );
   }
   const qaBuild = __DEV__ && process.env.EXPO_PUBLIC_QA_HOOKS === '1';
   return (
-    <SafeAreaProvider>
-      <AuthProvider controller={runtime.services.controller}>
-        <StatusBar style="auto" />
-        {/* Frequent navigation is not animated (motion contract). */}
-        <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
-        {/* QA-only completion acknowledgments (RETURN-3 area 8; find 20):
+    <FontProvider status={fontStatus}>
+      <SafeAreaProvider>
+        <AuthProvider controller={runtime.services.controller}>
+          {/* The header band is Deep Black in both themes, so the status
+              bar icons are always light. */}
+          <StatusBar style="light" />
+          {/* Frequent navigation is not animated (motion contract). */}
+          <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
+          {/* QA-only completion acknowledgments (RETURN-3 area 8; find 20):
             rendered only in QA dev builds after the respective write
             completes, so the Maestro flow waits for the ack before
             stopping the app. Both expressions are dead code in release
             bundles (__DEV__). */}
-        {qaBuild && qa.corrupted ? (
-          <AppText variant="caption" testID="qa-corrupt-ack" accessibilityLabel="QA acknowledgment">
-            QA: stored session corrupted
-          </AppText>
-        ) : null}
-        {qaBuild && qa.expired ? (
-          <AppText variant="caption" testID="qa-expired-ack" accessibilityLabel="QA acknowledgment">
-            QA: stored session expired
-          </AppText>
-        ) : null}
-      </AuthProvider>
-    </SafeAreaProvider>
+          {qaBuild && qa.corrupted ? (
+            <AppText
+              variant="caption"
+              testID="qa-corrupt-ack"
+              accessibilityLabel="QA acknowledgment"
+            >
+              QA: stored session corrupted
+            </AppText>
+          ) : null}
+          {qaBuild && qa.expired ? (
+            <AppText
+              variant="caption"
+              testID="qa-expired-ack"
+              accessibilityLabel="QA acknowledgment"
+            >
+              QA: stored session expired
+            </AppText>
+          ) : null}
+        </AuthProvider>
+      </SafeAreaProvider>
+    </FontProvider>
   );
 }

@@ -28,6 +28,12 @@ stack, scoped to the selected workspace.
 Milestone 1 is **read-only**. There is no respond, upload, or edit control
 anywhere in the binary — absent, not disabled or hidden.
 
+The look is the HIVE 2026 design (Honeybee Brand Kit v3.0, the approved
+honeycomb mark, bundled Manrope): a Deep Black header and navigation in
+both themes, Warm Paper content by day and Soft Black by night. The system
+is documented in [DESIGN.md](DESIGN.md); the handoff it came from, byte for
+byte, is under `docs/design/`.
+
 ## Prerequisites
 
 The toolchain is pinned, and `npm run verify:toolchain` enforces it.

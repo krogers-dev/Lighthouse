@@ -4,14 +4,15 @@
  * Labels are persistent text, never icon-only: an icon row is unusable
  * with a screen reader unless every icon carries a label anyway, and it
  * reads as a generic finance app rather than a calm working view. The
- * current destination is marked by an accessibility state AND a visible
- * underline, never by color alone (WCAG 1.4.1).
+ * current destination is marked by an accessibility state AND a filled
+ * Honey Gold pill with Soft Black text on the Deep Black bar — a change of
+ * shape and value that survives greyscale, never color alone (WCAG 1.4.1).
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { AppText, useThemeColors } from '@/ui';
-import { spacing } from '@/ui/tokens';
+import { AppText } from '@/ui';
+import { appChrome, layout, radii, spacing, touchTarget } from '@/ui/tokens';
 
 export type NavDestination = 'home' | 'requests' | 'activity' | 'help' | 'account';
 
@@ -35,41 +36,42 @@ export interface PrimaryNavProps {
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
+    // At large text the five labels wrap into a second row rather than
+    // truncating; the bar grows and the content above it scrolls.
     flexWrap: 'wrap',
     gap: spacing.xs,
-    // No marginTop: the bar is pinned chrome below the scroll area now, so
-    // it sits against the content edge rather than being pushed away from
-    // the last element it used to follow (find 18).
-    paddingTop: spacing.sm,
-    borderTopWidth: 1,
+    paddingVertical: spacing.sm,
   },
   item: {
-    // 44pt iOS / 48dp Android minimum target.
-    minHeight: 48,
-    minWidth: 48,
+    minHeight: touchTarget.minHeight,
+    minWidth: touchTarget.minWidth,
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
-    borderBottomWidth: 2,
+    borderRadius: radii.md,
+  },
+  focused: {
+    outlineStyle: 'solid',
+    outlineWidth: layout.focusRingWidth,
+    outlineOffset: layout.focusRingOffset,
+    outlineColor: appChrome.focusRing,
   },
 });
 
 export function PrimaryNav({ current, onNavigate }: PrimaryNavProps): React.JSX.Element {
-  const colors = useThemeColors();
+  const [focusedId, setFocusedId] = useState<NavDestination | null>(null);
   return (
-    <View
-      style={[styles.bar, { borderTopColor: colors.divider }]}
-      accessibilityRole="tablist"
-      testID="primary-nav"
-    >
+    <View style={styles.bar} accessibilityRole="tablist" testID="primary-nav">
       {DESTINATIONS.map((destination) => {
         const isCurrent = destination.id === current;
         return (
           <Pressable
             key={destination.id}
             onPress={() => onNavigate(destination.id)}
+            onFocus={() => setFocusedId(destination.id)}
+            onBlur={() => setFocusedId((id) => (id === destination.id ? null : id))}
             accessibilityRole="tab"
             accessibilityState={{ selected: isCurrent }}
             accessibilityLabel={destination.label}
@@ -77,14 +79,16 @@ export function PrimaryNav({ current, onNavigate }: PrimaryNavProps): React.JSX.
             style={({ pressed }) => [
               styles.item,
               {
-                // The underline carries the current state visually, so it
-                // survives greyscale and high-contrast modes.
-                borderBottomColor: isCurrent ? colors.accent : 'transparent',
+                backgroundColor: isCurrent ? appChrome.selectedBackground : 'transparent',
                 opacity: pressed ? 0.85 : 1,
               },
+              focusedId === destination.id && styles.focused,
             ]}
           >
-            <AppText variant="label" tone={isCurrent ? 'primary' : 'secondary'}>
+            <AppText
+              variant="nav"
+              style={{ color: isCurrent ? appChrome.selectedText : appChrome.secondaryText }}
+            >
               {destination.label}
             </AppText>
           </Pressable>

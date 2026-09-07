@@ -1,0 +1,5 @@
+Copyright 2019 The Manrope Project Authors (https://github.com/sharanda/manrope)
+
+http://scripts.sil.org/OFL
+
+Static instances generated September 7, 2026 from the supplied variable WOFF2 with fontTools. Weight axis fixed at 400, 500, 600, 700, 800; format converted to TTF; internal family and PostScript names made distinct per weight to prevent aliasing. No outlines redrawn. Retain OFL.txt with fonts.
