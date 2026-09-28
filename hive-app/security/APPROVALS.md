@@ -63,6 +63,27 @@ be able to point at material the implementer controls. A surviving
   archive — any material change invalidates it.
 - A ratification dated in the future, or after the entry's expiry.
 
+## Provisional decisions awaiting Kody's one-line ratification
+
+Under Kody's standing instruction of 2026-09-18 ("just RUN"), each
+milestone records the product decisions it had to make. None is a HOLD
+item; each is reversible by changing one value and re-running the gates.
+A one-line reply ("I ratify the Milestone 2 decisions" or "change X to Y")
+settles them. Until then they stand as built.
+
+### Milestone 2 — controlled document request (WO-003, 2026-09-28)
+
+| Decision                   | As built                                                                                                     | Where it lives                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Per-file size limit        | 20 MB                                                                                                        | bucket `file_size_limit`; `begin_document_upload`; the table constraint; `DOCUMENT_LIMITS.maxBytes`            |
+| Accepted types             | PDF, PNG, JPEG, CSV                                                                                          | bucket `allowed_mime_types`; the function; the constraint; `ALLOWED_MIME_TYPES`                                |
+| Documents per request      | 10, counting received, checked, and live reservations; refused and expired do not count                      | `begin_document_upload`; `DOCUMENT_LIMITS.maxPerRequest`                                                       |
+| Quarantine retention       | 30 days from receipt; a transfer window of 24 hours before it                                                | `complete_document_upload`; `begin_document_upload`; the sweep                                                 |
+| Malware scanning           | **HOLD** for a real scanner. Locally, `HiveSyntheticScanner` recomputes size and digest and refuses a marker | `scripts/lib/synthetic-scanner.mjs`; the server-role scan interface is what any approved scanner will speak to |
+| The document's name        | Shown on its request, bounded to 120 printable characters, never in activity, audit details, or logs         | the constraint; `sanitizeDisplayName`                                                                          |
+| What a checked document is | A HIVE evidence reference: "Checked", never approved, filed, or final; Drive stays the record, filing manual | `DOCUMENT_STATUS_PRESENTATION`; PRODUCT.md                                                                     |
+| Who uploads                | Client users only, on OPEN requests; staff never (the control is absent and the server refuses)              | `client_user_for_scope`; the storage policy; `canAddDocumentTo`                                                |
+
 ## Current state
 
 **Ratified.** On 2026-09-07 Kody ratified the four history exceptions in

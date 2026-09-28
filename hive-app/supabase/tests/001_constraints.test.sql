@@ -39,9 +39,15 @@ select throws_ok(
   'P0001', 'scope columns are immutable', 'case scope cannot change');
 
 select throws_ok(
+  -- By natural key, not by the fixed membership id: only the SQL-only
+  -- lane seeds fixed ids; the full stack's seed generates them, and there
+  -- the fixed id matched no row, so this assertion passed vacuously the
+  -- first time pgTAP ran on the CLI stack (2026-09-28, Kody's desktop).
   $$update public.memberships
       set entity_id = 'aaaaaaaa-2222-4000-8000-000000000002'::uuid
-    where id = 'dddddddd-0000-4000-8000-000000000001'$$,
+    where user_id = (select id from auth.users where email = 'client.owner@example.invalid')
+      and entity_id = 'aaaaaaaa-1111-4000-8000-000000000001'::uuid
+      and role = 'client_user'$$,
   'P0001', 'scope columns are immutable', 'membership scope cannot change');
 
 -- 6-7. Audit receipts are append-only.

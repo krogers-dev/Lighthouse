@@ -94,7 +94,13 @@ describe('the real screens over the live composition', () => {
   test("a cross-scope request id renders 'not found here' — no existence signal reaches the glass", async () => {
     await render(
       <AuthProvider controller={app.controller}>
-        <RequestDetailScreen repository={app.requests} requestId={B1_REQUEST} onBack={() => {}} />
+        <RequestDetailScreen
+          repository={app.requests}
+          documentsRepository={app.documents}
+          onAddDocument={() => undefined}
+          requestId={B1_REQUEST}
+          onBack={() => {}}
+        />
       </AuthProvider>,
     );
     await waitFor(() => expect(screen.getByText('Request not found here')).toBeTruthy(), {

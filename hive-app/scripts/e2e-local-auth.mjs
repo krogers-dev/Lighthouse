@@ -31,6 +31,7 @@
  *
  * Usage: node scripts/local-supabase.mjs e2e  (wires env in memory).
  */
+import { createHash, randomBytes } from 'node:crypto';
 import process from 'node:process';
 
 import { requireFactorsClean } from './lib/admin-factors.mjs';
@@ -353,6 +354,16 @@ const ACTIVITY = {
   a3: 'cccccccc-1111-4000-8000-0000000000a3',
   b1: 'cccccccc-1111-4000-8000-0000000000b1',
 };
+/** Milestone 2 fixture ids (WO-003): the seeded, settled documents. The
+ * B1 document appears in the aOnly set never. Reach is asserted by exact
+ * id sets, so a document reserved by THIS harness run (step 7 below) is
+ * added to the expected sets before the AAL2 reach checks run. */
+const DOCUMENTS = {
+  a1Accepted: 'd0c0d0c0-0000-4000-8000-0000000000a1',
+  a1Rejected: 'd0c0d0c0-0000-4000-8000-0000000000a2',
+  a2Accepted: 'd0c0d0c0-0000-4000-8000-0000000000a3',
+  b1Accepted: 'd0c0d0c0-0000-4000-8000-0000000000b1',
+};
 const REACH = {
   aOnly: {
     environments: [SCOPE.environmentId],
@@ -363,6 +374,7 @@ const REACH = {
     case_next_actions: [NEXT_ACTIONS.a1],
     requests: [REQUESTS.a1, REQUESTS.a2],
     activity_events: [ACTIVITY.a1, ACTIVITY.a2, ACTIVITY.a3],
+    document_uploads: [DOCUMENTS.a1Accepted, DOCUMENTS.a1Rejected, DOCUMENTS.a2Accepted],
   },
   aAndB1: {
     environments: [SCOPE.environmentId],
@@ -373,6 +385,12 @@ const REACH = {
     case_next_actions: [NEXT_ACTIONS.a1, NEXT_ACTIONS.b1],
     requests: [REQUESTS.a1, REQUESTS.a2, REQUESTS.b1],
     activity_events: [ACTIVITY.a1, ACTIVITY.a2, ACTIVITY.a3, ACTIVITY.b1],
+    document_uploads: [
+      DOCUMENTS.a1Accepted,
+      DOCUMENTS.a1Rejected,
+      DOCUMENTS.a2Accepted,
+      DOCUMENTS.b1Accepted,
+    ],
   },
 };
 const PROTECTED_TABLES = [
@@ -385,6 +403,8 @@ const PROTECTED_TABLES = [
   // Milestone 1 read surfaces, held to the same reach proofs.
   'requests',
   'activity_events',
+  // Milestone 2 (WO-003): the documents on a request, same shape, same proofs.
+  'document_uploads',
 ];
 
 function idsOf(rows) {
@@ -425,15 +445,214 @@ async function assertStaffAal1(identity, session) {
   );
 }
 
-/** Exact ID sets across ALL SIX protected tables with the given token. */
+/** Exact ID sets across ALL protected tables with the given token. Rows
+ * the activity trail and the document table gained from THIS harness run
+ * (step 7) are counted through `extraReach`, so the sets stay exact
+ * rather than becoming floors. */
+const extraReach = { activity_events: [], document_uploads: [] };
+
 async function assertExactReach(identity, accessToken, reach, label) {
   for (const table of PROTECTED_TABLES) {
     const result = await rest(`/${table}?select=id`, accessToken);
+    const expected = [...reach[table], ...(extraReach[table] ?? [])];
     check(
-      result.status === 200 && sameSet(idsOf(result.body), reach[table]),
-      `${identity.email} ${label}: ${table} ids are exactly {${reach[table].join(', ')}}`,
+      result.status === 200 && sameSet(idsOf(result.body), expected),
+      `${identity.email} ${label}: ${table} ids are exactly {${expected.join(', ')}}`,
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Milestone 2 (WO-003): the document path over raw HTTP, with real JWTs.
+// ---------------------------------------------------------------------------
+
+async function rpc(name, args, accessToken) {
+  const response = await fetch(`${url}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: {
+      apikey: clientKey,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(args),
+  });
+  return { status: response.status, body: await response.json().catch(() => null) };
+}
+
+async function storagePut(bucket, objectPath, bytes, contentType, accessToken) {
+  const response = await fetch(`${url}/storage/v1/object/${bucket}/${objectPath}`, {
+    method: 'POST',
+    headers: {
+      apikey: clientKey,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': contentType,
+      'x-upsert': 'false',
+    },
+    body: bytes,
+  });
+  return { status: response.status, body: await response.json().catch(() => null) };
+}
+
+async function storageGet(bucket, objectPath, accessToken) {
+  const response = await fetch(`${url}/storage/v1/object/${bucket}/${objectPath}`, {
+    headers: { apikey: clientKey, Authorization: `Bearer ${accessToken}` },
+  });
+  return { status: response.status };
+}
+
+function uuidV4() {
+  const bytes = randomBytes(16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/** A clearly synthetic PDF, unique per run. */
+function syntheticPdf() {
+  return Buffer.from(
+    `%PDF-1.4\n% HIVE black-box synthetic document (Synthetic) ${Date.now()}\n%%EOF\n`,
+    'latin1',
+  );
+}
+
+/** The whole path as a client user, plus the refusals: staff cannot
+ * reserve, another client cannot write under the reserving scope, nobody
+ * can read the object back, and no client can reach the scan interface. */
+async function assertDocumentPath(owner, ownerSession, other, otherSession, staff, staffSession) {
+  const bytes = syntheticPdf();
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  const args = {
+    p_environment_id: SCOPE.environmentId,
+    p_client_id: SCOPE.clientA,
+    p_entity_id: SCOPE.entityA1,
+    p_request_id: REQUESTS.a1,
+    p_request_version: 1,
+    p_idempotency_key: uuidV4(),
+    p_display_name: 'black-box (Synthetic).pdf',
+    p_mime_type: 'application/pdf',
+    p_byte_size: bytes.length,
+    p_client_digest: digest,
+  };
+  const token = ownerSession.access_token;
+
+  const reserved = await rpc('begin_document_upload', args, token);
+  if (
+    !check(
+      reserved.status === 200 && typeof reserved.body?.storage_path === 'string',
+      `${owner.email}: begin_document_upload reserves a quarantine path`,
+    )
+  ) {
+    return;
+  }
+  const uploadId = reserved.body.upload_id;
+  const objectPath = reserved.body.storage_path;
+  extraReach.document_uploads.push(uploadId);
+
+  const replay = await rpc('begin_document_upload', args, token);
+  check(
+    replay.status === 200 && replay.body?.upload_id === uploadId,
+    `${owner.email}: the same idempotency key returns the same reservation`,
+  );
+
+  const early = await rpc('complete_document_upload', { p_upload_id: uploadId }, token);
+  check(
+    early.status === 400 && early.body?.message === 'transfer_incomplete',
+    `${owner.email}: completion before the object exists is refused (transfer_incomplete)`,
+  );
+
+  const staffReserve = await rpc(
+    'begin_document_upload',
+    { ...args, p_idempotency_key: uuidV4() },
+    staffSession.access_token,
+  );
+  check(
+    staffReserve.status === 403,
+    `${staff.email}: staff cannot reserve a document upload (403)`,
+  );
+
+  const foreignPut = await storagePut(
+    'hive-quarantine',
+    objectPath,
+    bytes,
+    'application/pdf',
+    otherSession.access_token,
+  );
+  check(
+    foreignPut.status >= 400,
+    `${other.email}: cannot write under another client's reserved path (${foreignPut.status})`,
+  );
+
+  const wrongPath = await storagePut(
+    'hive-quarantine',
+    `${objectPath}-not-reserved`,
+    bytes,
+    'application/pdf',
+    token,
+  );
+  check(
+    wrongPath.status >= 400,
+    `${owner.email}: cannot write at an unreserved path (${wrongPath.status})`,
+  );
+
+  const put = await storagePut('hive-quarantine', objectPath, bytes, 'application/pdf', token);
+  check(put.status === 200, `${owner.email}: the object lands at the reserved path (200)`);
+
+  const readBack = await storageGet('hive-quarantine', objectPath, token);
+  check(
+    readBack.status >= 400,
+    `${owner.email}: the uploader cannot read the quarantined object back (${readBack.status})`,
+  );
+
+  const overwrite = await storagePut(
+    'hive-quarantine',
+    objectPath,
+    bytes,
+    'application/pdf',
+    token,
+  );
+  check(
+    overwrite.status >= 400,
+    `${owner.email}: a second write at the same path is refused (${overwrite.status})`,
+  );
+
+  const completed = await rpc('complete_document_upload', { p_upload_id: uploadId }, token);
+  check(
+    completed.status === 200 && completed.body?.status === 'QUARANTINED',
+    `${owner.email}: completion verifies the object and quarantines the document`,
+  );
+
+  const row = await rest(`/document_uploads?select=id,status&id=eq.${uploadId}`, token);
+  check(
+    row.status === 200 && row.body?.[0]?.status === 'QUARANTINED',
+    `${owner.email}: the document reads back as QUARANTINED through PostgREST`,
+  );
+
+  const trail = await rest(
+    `/activity_events?select=id,event_kind,actor_role&case_id=eq.${CASES.a1}&event_kind=eq.document.received`,
+    token,
+  );
+  const receivedEvents = (trail.body ?? []).filter((event) => event.actor_role === 'client_user');
+  check(
+    trail.status === 200 && receivedEvents.length >= 1,
+    `${owner.email}: the activity trail carries "document received" (no free text)`,
+  );
+  for (const event of trail.body ?? []) extraReach.activity_events.push(event.id);
+
+  const scan = await rpc('begin_document_scan', { p_upload_id: uploadId }, token);
+  check(
+    scan.status === 403 || scan.status === 401,
+    `${owner.email}: a client cannot begin a scan (${scan.status})`,
+  );
+
+  const foreignRow = await rest(
+    `/document_uploads?select=id&id=eq.${uploadId}`,
+    otherSession.access_token,
+  );
+  check(
+    foreignRow.status === 200 && (foreignRow.body ?? []).length === 0,
+    `${other.email}: the new document is invisible to another client (zero rows)`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -474,6 +693,22 @@ for (const identity of SYNTHETIC_IDENTITIES) {
     if (users.length < 100) break;
   }
   check(!found, 'unknown email did not create an account');
+}
+
+// 3b. Milestone 2 (WO-003): the document path with real JWTs, BEFORE the
+//     AAL2 reach checks so the rows it adds are in the exact sets.
+{
+  const owner = byEmail.get('client.owner@example.invalid');
+  const other = byEmail.get('client.second@example.invalid');
+  const staff = byEmail.get('reviewer.rae@example.invalid');
+  const ownerSession = sessions.get(owner.email);
+  const otherSession = sessions.get(other.email);
+  const staffSession = sessions.get(staff.email);
+  if (ownerSession && otherSession && staffSession) {
+    await assertDocumentPath(owner, ownerSession, other, otherSession, staff, staffSession);
+  } else {
+    check(false, 'document path: the three sessions it needs are not all available');
+  }
 }
 
 // 4. Full staff path (preparer.pat): enroll, AAL2, MANDATORY refresh, and

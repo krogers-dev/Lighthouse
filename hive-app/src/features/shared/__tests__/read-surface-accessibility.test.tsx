@@ -17,6 +17,7 @@
 import { render, screen } from '@testing-library/react-native';
 
 import { SafeError } from '@/core/errors';
+import type { DocumentSummary } from '@/data/supabase/documents';
 import type {
   ActivityEntry,
   CaseSummary,
@@ -25,6 +26,9 @@ import type {
   ScopedList,
 } from '@/data/supabase/repositories';
 import { ActivityView } from '@/features/activity/ActivityView';
+import { initialAddDocumentState } from '@/features/documents/add-document-flow';
+import { AddDocumentView } from '@/features/documents/AddDocumentView';
+import type { CheckedDocument } from '@/features/documents/document-rules';
 import { DashboardView } from '@/features/dashboard/DashboardView';
 import { HelpView } from '@/features/help/HelpView';
 import { RequestDetailView } from '@/features/requests/RequestDetailView';
@@ -71,6 +75,29 @@ const REQUEST_DETAIL: RequestDetail = {
   requestedOn: '2026-08-01',
   dueOn: '2026-08-30',
   detail: 'Please provide the June statement for the operating account (Synthetic).',
+  version: 1,
+};
+
+const DOCUMENTS: ScopedList<DocumentSummary> = {
+  items: [
+    {
+      id: 'doc-a',
+      displayName: 'bank-statement-2026-07 (Synthetic).pdf',
+      mimeType: 'application/pdf',
+      byteSize: 184320,
+      status: 'ACCEPTED',
+      receivedAt: '2026-08-11T10:00:00Z',
+      checkedAt: '2026-08-11T10:05:00Z',
+    },
+  ],
+  recordedThrough: '2026-08-11T10:05:00Z',
+};
+
+const CHECKED_DOCUMENT: CheckedDocument = {
+  uri: 'file:///cache/statement.pdf',
+  displayName: 'statement (Synthetic).pdf',
+  byteSize: 184320,
+  mimeType: 'application/pdf',
 };
 
 const ACTIVITY: ScopedList<ActivityEntry> = {
@@ -194,6 +221,58 @@ const SCREENS: readonly ScreenCase[] = [
         onRetry={noop}
         onSwitchScope={noop}
         onOpenRequest={noop}
+      />
+    ),
+  },
+  // Milestone 2 (WO-003): the request with its documents and its one write
+  // control, and the add-document screen in its two content-bearing states.
+  {
+    name: 'Request detail (client, open request)',
+    header: 'Request',
+    controls: true,
+    render: () => (
+      <RequestDetailView
+        state="ready"
+        request={REQUEST_DETAIL}
+        documents={DOCUMENTS}
+        canAddDocument
+        onAddDocument={noop}
+        onRetry={noop}
+        onBack={noop}
+      />
+    ),
+  },
+  {
+    name: 'Add a document',
+    header: 'Add a document',
+    controls: true,
+    render: () => (
+      <AddDocumentView
+        state="ready"
+        request={REQUEST_DETAIL}
+        canAdd
+        flow={initialAddDocumentState}
+        onRetry={noop}
+        onChoose={noop}
+        onSend={noop}
+        onBack={noop}
+      />
+    ),
+  },
+  {
+    name: 'Add a document (checked)',
+    header: 'Add a document',
+    controls: true,
+    render: () => (
+      <AddDocumentView
+        state="ready"
+        request={REQUEST_DETAIL}
+        canAdd
+        flow={{ name: 'checked', document: CHECKED_DOCUMENT, digest: 'ab'.repeat(32) }}
+        onRetry={noop}
+        onChoose={noop}
+        onSend={noop}
+        onBack={noop}
       />
     ),
   },

@@ -30,17 +30,19 @@ flowchart TD
 
 ## Module ownership
 
-| Path                      | Owns                                                                                                | May depend on                                                   |
-| ------------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `app/`                    | Thin Expo Router routes: navigation and state→screen mapping only                                   | `src/*`                                                         |
-| `src/core/`               | Environment validation, clock, opaque IDs, safe error mapping, diagnostics interface, SHA-256       | nothing app-internal                                            |
-| `src/ui/`                 | Semantic tokens, contrast math, accessible primitives                                               | `src/core`                                                      |
-| `src/auth/`               | Auth reducer/state machine, lifecycle controller, SecureStore adapter, install marker, epoch, views | `src/core`, `src/ui`, `src/data/supabase` (client factory only) |
-| `src/tenancy/`            | Membership types, ScopeKey, scope chooser, clearing rules                                           | `src/core`, `src/ui`                                            |
-| `src/data/supabase/`      | The one client factory, generated database types, typed scoped repositories                         | `src/core`, `src/tenancy` (types)                               |
-| `src/features/dashboard/` | The scoped empty dashboard and synthetic cards                                                      | everything above                                                |
-| `supabase/`               | Migrations, grants, RLS, pgTAP tests, config                                                        | —                                                               |
-| `scripts/`                | Toolchain, local-Supabase, secret-scan, type-drift, config, bundle-inspection commands              | node stdlib only                                                |
+| Path                      | Owns                                                                                                          | May depend on                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `app/`                    | Thin Expo Router routes: navigation and state→screen mapping only                                             | `src/*`                                                         |
+| `src/core/`               | Environment validation, clock, opaque IDs, safe error mapping, diagnostics interface, SHA-256                 | nothing app-internal                                            |
+| `src/ui/`                 | Semantic tokens, contrast math, accessible primitives                                                         | `src/core`                                                      |
+| `src/auth/`               | Auth reducer/state machine, lifecycle controller, SecureStore adapter, install marker, epoch, views           | `src/core`, `src/ui`, `src/data/supabase` (client factory only) |
+| `src/tenancy/`            | Membership types, ScopeKey, scope chooser, clearing rules                                                     | `src/core`, `src/ui`                                            |
+| `src/data/supabase/`      | The one client factory, generated database types, typed scoped repositories                                   | `src/core`, `src/tenancy` (types)                               |
+| `src/features/dashboard/` | The scoped empty dashboard and synthetic cards                                                                | everything above                                                |
+| `src/features/documents/` | The document rules, the three device ports and their Expo bindings, the add-document flow and screen (WO-003) | everything above                                                |
+| `src/dev/`                | QA-build-only hooks with inert stubs resolved by Metro outside QA builds                                      | `src/auth`, `src/features` (types)                              |
+| `supabase/`               | Migrations, grants, RLS, pgTAP tests, config                                                                  | —                                                               |
+| `scripts/`                | Toolchain, local-Supabase, secret-scan, type-drift, config, bundle-inspection commands                        | node stdlib only                                                |
 
 Dependency direction is strictly downward in that table; `src/core` imports
 nothing app-internal, and only `src/data/supabase/client.ts` constructs a
@@ -54,10 +56,15 @@ Supabase client.
 2. All reads: repository bound to an immutable ScopeKey → PostgREST with the
    user JWT → RLS membership filter → rows already scoped; the repository
    also filters by the same scope as defense in depth.
-3. Writes: none from the client in Milestone 0 (dashboard is read-only; the
-   only mutations are auth-lifecycle local effects). The protected-mutation
-   contract (idempotency key, object version, exact scope, server time,
-   atomic audit receipt) binds every later milestone.
+3. Writes: none from the client in Milestones 0 and 1. Milestone 2 adds
+   the first, the document transfer, and it follows the protected-mutation
+   contract exactly: `begin_document_upload` takes an idempotency key the
+   phone made, the request's object version, the exact scope triple, uses
+   server time, and writes an atomic audit receipt; the object then lands
+   at the reserved path through one storage INSERT the bucket policy
+   admits; `complete_document_upload` verifies it and quarantines the row.
+   Every later transition (scan verdicts, expiry) is a server-role
+   function; the client never updates a row.
 
 ## Dependency policy
 

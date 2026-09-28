@@ -18,6 +18,7 @@ import { useAuthController, useAuthState } from '@/auth/provider';
 import { SafeError } from '@/core/errors';
 import type { ScopeKey } from '@/tenancy/scope-key';
 import { scopeKeyToken } from '@/tenancy/scope-key';
+import type { MembershipRole } from '@/tenancy/types';
 
 export type ScopedLoadStateName =
   'loading' | 'ready' | 'empty' | 'offline' | 'expired' | 'denied' | 'stale_scope' | 'error';
@@ -29,6 +30,10 @@ export interface ScopedLoad<T> {
   data?: T;
   error?: SafeError;
   workspaceName: string;
+  /** The role of the membership the scope was bound from (WO-003): a
+   * screen shows a client-only control when this is client_user and
+   * never otherwise. Server-confirmed, like everything about the scope. */
+  role: MembershipRole | null;
   canSwitchScope: boolean;
   retry: () => void;
   switchScope: () => void;
@@ -105,11 +110,9 @@ export function useScopedLoad<T>(
   }, [controller]);
   const switchScope = useCallback(() => void controller.switchScope(), [controller]);
 
-  const workspaceName =
-    (authorized &&
-      authorized.memberships.find((m) => m.membershipId === authorized.scope.membershipId)
-        ?.entityName) ||
-    'Workspace';
+  const boundMembership =
+    authorized?.memberships.find((m) => m.membershipId === authorized.scope.membershipId) ?? null;
+  const workspaceName = boundMembership?.entityName || 'Workspace';
 
   return {
     scope,
@@ -117,6 +120,7 @@ export function useScopedLoad<T>(
     data: result.data,
     error: result.error,
     workspaceName,
+    role: boundMembership?.role ?? null,
     canSwitchScope: (authorized?.memberships.length ?? 0) > 1,
     retry,
     switchScope,

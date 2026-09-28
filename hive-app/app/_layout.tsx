@@ -36,6 +36,8 @@ interface QaHookState {
   corrupted: boolean;
   /** The expiry write completed (-> signed_out, reason 'expired', find 20). */
   expired: boolean;
+  /** The synthetic document source is armed for the next pick (WO-003). */
+  syntheticArmed: boolean;
 }
 
 /** Development-only QA hooks (RETURN-2 area 7; RETURN-3 area 8; find 20): a
@@ -53,13 +55,19 @@ interface QaHookState {
  * non-development exports and config:check rejects the env flag for
  * candidate/release profiles. */
 function useDevQaHooks(): QaHookState {
-  const [state, setState] = React.useState<QaHookState>({ corrupted: false, expired: false });
+  const [state, setState] = React.useState<QaHookState>({
+    corrupted: false,
+    expired: false,
+    syntheticArmed: false,
+  });
   React.useEffect(() => {
     if (!(__DEV__ && process.env.EXPO_PUBLIC_QA_HOOKS === '1')) return undefined;
     /* eslint-disable @typescript-eslint/no-require-imports */
     const corrupt =
       require('@/dev/qa-corrupt-storage') as typeof import('@/dev/qa-corrupt-storage');
     const expire = require('@/dev/qa-expire-session') as typeof import('@/dev/qa-expire-session');
+    const synthetic =
+      require('@/dev/qa-synthetic-document') as typeof import('@/dev/qa-synthetic-document');
     const secureStore = require('expo-secure-store') as typeof import('expo-secure-store');
     /* eslint-enable @typescript-eslint/no-require-imports */
     const backend = {
@@ -92,6 +100,12 @@ function useDevQaHooks(): QaHookState {
         void expire.expireStoredSessionForQa(backend, quiesce).then((ok) => {
           if (ok) setState((s) => ({ ...s, expired: true }));
         });
+      } else if (synthetic.isQaSyntheticDocumentUrl(url)) {
+        // WO-003: the next "Choose a file" resolves to the synthetic PDF
+        // instead of the platform picker, once. Memory-only; nothing is
+        // written until that pick happens.
+        synthetic.armSyntheticDocument();
+        setState((s) => ({ ...s, syntheticArmed: true }));
       }
     };
     void Linking.getInitialURL().then(handle);
@@ -220,6 +234,15 @@ export default function RootLayout(): React.JSX.Element {
               accessibilityLabel="QA acknowledgment"
             >
               QA: stored session expired
+            </AppText>
+          ) : null}
+          {qaBuild && qa.syntheticArmed ? (
+            <AppText
+              variant="caption"
+              testID="qa-synthetic-document-ack"
+              accessibilityLabel="QA acknowledgment"
+            >
+              QA: synthetic document armed
             </AppText>
           ) : null}
         </AuthProvider>

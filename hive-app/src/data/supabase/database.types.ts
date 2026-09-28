@@ -199,6 +199,81 @@ export interface Database {
         };
         Relationships: [];
       };
+      document_uploads: {
+        Row: {
+          id: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          request_id: string;
+          created_by: string;
+          idempotency_key: string;
+          status: string;
+          display_name: string;
+          mime_type: string;
+          byte_size: number;
+          client_digest: string;
+          storage_bucket: string;
+          storage_path: string;
+          version: number;
+          received_at: string | null;
+          checked_at: string | null;
+          expires_at: string;
+          rejection_reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          request_id: string;
+          created_by: string;
+          idempotency_key: string;
+          status?: string;
+          display_name: string;
+          mime_type: string;
+          byte_size: number;
+          client_digest: string;
+          storage_bucket?: string;
+          storage_path: string;
+          version?: number;
+          received_at?: string | null;
+          checked_at?: string | null;
+          expires_at: string;
+          rejection_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          environment_id?: string;
+          client_id?: string;
+          entity_id?: string;
+          case_id?: string;
+          request_id?: string;
+          created_by?: string;
+          idempotency_key?: string;
+          status?: string;
+          display_name?: string;
+          mime_type?: string;
+          byte_size?: number;
+          client_digest?: string;
+          storage_bucket?: string;
+          storage_path?: string;
+          version?: number;
+          received_at?: string | null;
+          checked_at?: string | null;
+          expires_at?: string;
+          rejection_reason?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       entities: {
         Row: {
           id: string;
@@ -288,6 +363,7 @@ export interface Database {
           requested_on: string;
           due_on: string | null;
           created_at: string;
+          version: number;
         };
         Insert: {
           id?: string;
@@ -302,6 +378,7 @@ export interface Database {
           requested_on: string;
           due_on?: string | null;
           created_at?: string;
+          version?: number;
         };
         Update: {
           id?: string;
@@ -316,12 +393,53 @@ export interface Database {
           requested_on?: string;
           due_on?: string | null;
           created_at?: string;
+          version?: number;
         };
         Relationships: [];
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      begin_document_scan: {
+        Args: {
+          p_upload_id: string;
+        };
+        Returns: Json;
+      };
+      begin_document_upload: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_request_id: string;
+          p_request_version: number;
+          p_idempotency_key: string;
+          p_display_name: string;
+          p_mime_type: string;
+          p_byte_size: number;
+          p_client_digest: string;
+        };
+        Returns: Json;
+      };
+      complete_document_upload: {
+        Args: {
+          p_upload_id: string;
+        };
+        Returns: Json;
+      };
+      expire_stale_document_uploads: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      record_document_scan: {
+        Args: {
+          p_upload_id: string;
+          p_verdict: string;
+          p_reason?: string;
+        };
+        Returns: Json;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

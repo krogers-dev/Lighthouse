@@ -40,12 +40,13 @@ select is(
     'case_next_actions',
     'cases',
     'clients',
+    'document_uploads',
     'entities',
     'environments',
     'memberships',
     'requests'
   ],
-  'authenticated can select exactly the nine granted tables, by name');
+  'authenticated can select exactly the ten granted tables, by name');
 
 -- 4. audit receipts accept no client read at all.
 select ok(

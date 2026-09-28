@@ -24,11 +24,20 @@ import {
   type HiveSupabaseClient,
   type SessionWriteGate,
 } from '@/data/supabase/client';
+import { DocumentsRepository } from '@/data/supabase/documents';
 import {
   ActivityRepository,
   DashboardRepository,
   RequestsRepository,
 } from '@/data/supabase/repositories';
+import { withSyntheticDocumentSource } from '@/dev/qa-synthetic-document';
+import type { AddDocumentPorts } from '@/features/documents/AddDocumentScreen';
+import {
+  expoDigester,
+  expoDocumentReader,
+  expoDocumentSource,
+  writeSyntheticDocumentToCache,
+} from '@/features/documents/expo-adapters';
 import { ScopedRegistry } from '@/tenancy/clearing';
 
 export interface AppServices {
@@ -36,6 +45,9 @@ export interface AppServices {
   dashboardRepository: DashboardRepository;
   requestsRepository: RequestsRepository;
   activityRepository: ActivityRepository;
+  documentsRepository: DocumentsRepository;
+  /** The device bindings the add-document flow runs on (WO-003). */
+  documentPorts: AddDocumentPorts;
   env: EnvironmentConfig;
 }
 
@@ -134,10 +146,29 @@ export function getRuntime(): RuntimeResult {
   const dashboardRepository = new DashboardRepository(clientAccessor, registry);
   const requestsRepository = new RequestsRepository(clientAccessor, registry);
   const activityRepository = new ActivityRepository(clientAccessor, registry);
+  const documentsRepository = new DocumentsRepository(clientAccessor, registry);
+  const documentPorts: AddDocumentPorts = {
+    // In a QA build the picker can be armed by the synthetic-document deep
+    // link for one pick (a device flow cannot drive the platform's file
+    // picker); everywhere else the wrapper is the inert stub and this IS
+    // the system picker.
+    source: withSyntheticDocumentSource(expoDocumentSource, writeSyntheticDocumentToCache),
+    reader: expoDocumentReader,
+    digester: expoDigester,
+    random: expoCryptoRandomSource,
+  };
 
   cached = {
     ok: true,
-    services: { controller, dashboardRepository, requestsRepository, activityRepository, env },
+    services: {
+      controller,
+      dashboardRepository,
+      requestsRepository,
+      activityRepository,
+      documentsRepository,
+      documentPorts,
+      env,
+    },
   };
   return cached;
 }

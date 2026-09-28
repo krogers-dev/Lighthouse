@@ -322,6 +322,62 @@ async function restoreMembership(email, entityKey) {
   });
 }
 
+/** The live bridge on the CLI stack (WO-003): the app's own composition
+ * (tests/live, jest.live.config.js) against THIS stack, storage service
+ * included. The binary stack (scripts/e2e-binary-stack.mjs bridge) runs
+ * the same suites on Linux without Docker; on a Windows desktop the CLI
+ * stack is the only lane, and it is the one with a storage service, so
+ * the document journeys can only be proven here. The app's environment is
+ * the two public values .env.local carries plus the Mailpit URL. */
+async function bridge() {
+  const { parsed } = readStatus();
+  // The staff journey enrolls reviewer.rae's TOTP factor and expects to
+  // be OFFERED enrollment. The binary stack starts from an empty database
+  // every run; this stack persists between runs, so the factor left by the
+  // previous bridge would send the journey to the existing-factor path
+  // and it would wait for an enrollment that never comes (first CLI-stack
+  // bridge, 2026-09-28). Reset through the checked loopback command.
+  await resetTotp('reviewer.rae@example.invalid');
+  const child = spawnSync(
+    'npx',
+    ['--no-install', 'jest', '--config', 'jest.live.config.js', '--colors=false'],
+    {
+      cwd: appRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: isWindows,
+      env: {
+        ...process.env,
+        HIVE_LIVE_BRIDGE: '1',
+        EXPO_PUBLIC_SUPABASE_URL: parsed.url,
+        EXPO_PUBLIC_SUPABASE_CLIENT_KEY: parsed.clientKey,
+        HIVE_LOCAL_MAILPIT_URL: process.env.HIVE_LOCAL_MAILPIT_URL ?? 'http://127.0.0.1:54324',
+      },
+    },
+  );
+  const output = `${child.stdout ?? ''}\n${child.stderr ?? ''}`;
+  process.stdout.write(redactSecrets(output));
+  if ((child.status ?? 1) !== 0) {
+    fail(`live bridge FAILED (jest exit ${child.status})`);
+  }
+  const counts = output.match(/Tests:\s+(\d+) passed, (\d+) total/);
+  console.log(
+    `local-supabase: live bridge on the CLI stack passed${counts ? ` (${counts[1]} of ${counts[2]})` : ''}`,
+  );
+}
+
+/** The local quarantine tooling (WO-003): the named synthetic scan over
+ * every quarantined document, and the sweep that expires stale rows and
+ * empties quarantine of what it has judged. Loopback only, privileged
+ * bearer in memory, through the server-role scan interface. */
+async function scanQuarantine() {
+  await runHarness('quarantine-scan.mjs', { HIVE_QUARANTINE_MODE: 'scan' });
+}
+
+async function sweepUploads() {
+  await runHarness('quarantine-scan.mjs', { HIVE_QUARANTINE_MODE: 'sweep' });
+}
+
 function stop() {
   const result = runCli(['stop']);
   if (result.status !== 0) {
@@ -354,12 +410,21 @@ if (isMain) {
     case 'restore-membership':
       await restoreMembership(process.argv[3], process.argv[4]);
       break;
+    case 'bridge':
+      await bridge();
+      break;
+    case 'scan-quarantine':
+      await scanQuarantine();
+      break;
+    case 'sweep-uploads':
+      await sweepUploads();
+      break;
     case 'stop':
       stop();
       break;
     default:
       fail(
-        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|reset-totp|restore-membership <email> <entityKey>|stop>',
+        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|scan-quarantine|sweep-uploads|stop>',
       );
   }
 }

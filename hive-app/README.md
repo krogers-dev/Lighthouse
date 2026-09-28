@@ -12,21 +12,29 @@ Production data, integrations, signing, submission, and release are HOLD.
 
 ## Where the work stands
 
-| Milestone                      | State                                                                       |
-| ------------------------------ | --------------------------------------------------------------------------- |
-| 0 — Identity and isolation     | Implemented; **RETURN** — corrective work reviewed, device evidence pending |
-| 1 — Read-only client dashboard | **In progress** — Requests, Activity, Help, and navigation are built        |
-| 2+                             | Not started                                                                 |
+| Milestone                       | State                                                                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 0 — Identity and isolation      | Implemented; **RETURN** — corrective work reviewed, device evidence pending                                                 |
+| 1 — Read-only client dashboard  | Built; 18 of 18 device flows on Android; iOS compiles (tier 1)                                                              |
+| 2 — Controlled document request | **Built, gated locally 2026-09-28** — device run pending ("Milestone 2 on the desktop" below); provisional decisions listed |
+| 3+                              | Not started on this branch (a 2026-09-18 cloud build of 3 and 4 was lost unpushed; see docs/plans WO-003 "Provenance")      |
 
 ### What you can see today
 
 Sign in with a synthetic account, pick a workspace, and move between the
 five destinations: **Home**, **Requests**, **Activity**, **Help**,
 **Account**. Requests and Activity read live from the local Supabase
-stack, scoped to the selected workspace.
+stack, scoped to the selected workspace. A request shows the documents on
+it with their true status.
 
-Milestone 1 is **read-only**. There is no respond, upload, or edit control
-anywhere in the binary — absent, not disabled or hidden.
+Milestone 2 adds the first write: on an open request, a client user can
+**Add a document** — pick it with the system picker, have it checked and
+digested on the phone, transfer it into a private quarantine bucket, and
+see it as "Received, being checked" until Honeybee's check settles it.
+Staff see the documents and never the control. Nothing is filed anywhere;
+a checked document is a HIVE evidence reference and Google Drive stays the
+permanent record. There is still no respond or edit control anywhere in
+the binary — absent, not disabled or hidden.
 
 The look is the HIVE 2026 design (Honeybee Brand Kit v3.0, the approved
 honeycomb mark, bundled Manrope): a Deep Black header and navigation in
@@ -146,6 +154,44 @@ export-compliance declaration is Kody's, made in App Store Connect or in
 for a release build); the `NSFaceIDUsageDescription` string is
 expo-secure-store's template text and the app never requests biometric
 gating.
+
+### Milestone 2 on the desktop
+
+The document transfer needs the storage service, which exists only in
+the Docker stack, so this run is the one piece of Milestone 2 evidence
+that could not be produced on a Linux build container. Everything else
+(pgTAP, jest, the black-box harness, the live bridge) ran green on this
+desktop on 2026-09-28; the record is in
+`docs/plans/2026-09-28-wo-003-controlled-document-request.md`. Seven
+numbered steps, each with its ✅/❌ gate:
+
+1. `node scripts/local-supabase.mjs up --android-emulator` then `seed`.
+   ✅ the seed line ends "4 documents in place, all ids canonical".
+2. `npx supabase test db`. ✅ "Result: PASS", 8 files.
+3. A **QA build** on the emulator: `EXPO_PUBLIC_QA_HOOKS=1 npx expo
+run:android` (after `npx expo prebuild --platform android --clean` if
+   `app.json` or `plugins/` changed since the last build). ✅ the app
+   reaches the sign-in screen.
+4. `maestro test .maestro/sign-in.yaml` then
+   `maestro test .maestro/request-add-document.yaml`. ✅ the flow ends
+   with "Received, being checked" beside `hive-qa-document (Synthetic).pdf`
+   on the request.
+5. `node scripts/local-supabase.mjs scan-quarantine`. ✅ one line per
+   quarantined document ending `-> accepted`, and the request now shows
+   the document as "Checked" after a refresh.
+6. `node scripts/local-supabase.mjs sweep-uploads`. ✅ "0 expired; 0
+   settled object(s) removed" on a fresh stack (nothing is stale yet).
+7. `node scripts/local-supabase.mjs bridge`. ✅ "live bridge on the CLI
+   stack passed (8 of 8)".
+
+Reply "✅ M2" or "❌ M2 step N" with the line that differed.
+
+What the desktop run proves that the build container could not: the
+platform's file picker copies a file the app can read (step 4 uses the
+QA synthetic source, which writes the same kind of cache copy and hands
+it to the same reader); the storage service's policy admits exactly the
+reserved path from the phone's real session; and `expo-crypto`'s digest
+on the device matches what the server's scanner recomputes.
 
 ### The Android lane, end to end
 

@@ -53,6 +53,14 @@ export const SCOPED_STATE_TEST_IDS = {
     stale: 'activity-stale',
     error: 'activity-error',
   },
+  'add-document': {
+    loading: 'add-document-loading',
+    offline: 'add-document-offline',
+    expired: 'add-document-expired',
+    denied: 'add-document-denied',
+    stale: 'add-document-stale',
+    error: 'add-document-error',
+  },
 } as const;
 
 export type ScopedStatesSurface = keyof typeof SCOPED_STATE_TEST_IDS;

@@ -142,7 +142,9 @@ function reset() {
   // SQL-only lane: fixed-UUID identity placeholders (cannot sign in; the
   // full Supabase lane creates real users via the Auth Admin API instead).
   psql(['-d', DB, '-f', path.join(appRoot, 'supabase', 'seeds', 'pgtap-identities.sql')]);
-  console.log('seed applied (domain + pgTAP identities)');
+  // Document rows reference the identities above, so they come last.
+  psql(['-d', DB, '-f', path.join(appRoot, 'supabase', 'seeds', 'synthetic-documents.sql')]);
+  console.log('seed applied (domain + pgTAP identities + synthetic documents)');
   console.log(`db-local reset OK on ${DB_URL}`);
 }
 

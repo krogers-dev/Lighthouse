@@ -7,12 +7,14 @@
  * activity is stored as enumerated kinds rather than sentences: changing
  * the words below changes the app, and nothing else.
  */
+import type { DocumentStatus } from '@/data/supabase/documents';
 import type {
   ActivityActorRole,
   ActivityEventKind,
   CaseStatus,
   RequestStatus,
 } from '@/data/supabase/repositories';
+import type { AddDocumentRefusal } from '@/features/documents/add-document-flow';
 import type { MembershipRole } from '@/tenancy/types';
 import type { StatusKind } from '@/ui/primitives/StatusBadge';
 
@@ -64,6 +66,83 @@ export const ACTIVITY_KIND_LABEL: Record<ActivityEventKind, string> = {
   'request.answered': 'Request answered',
   'request.closed': 'Request closed',
   'request.expired': 'Request expired',
+  'document.received': 'Document received',
+  'document.checked': 'Document checked',
+  'document.not_accepted': 'Document not accepted',
+  'document.expired': 'Document expired',
+};
+
+/** Why a document was not taken, in client language (WO-003). Every
+ * server refusal token has an entry, so no refusal ever reaches a person
+ * as a code. What to do next is part of each one. */
+export const DOCUMENT_REFUSAL_WORDING: Record<AddDocumentRefusal, { title: string; body: string }> =
+  {
+    unsupported_type: {
+      title: 'That file type is not accepted',
+      body: 'HIVE takes PDF, PNG, JPEG and CSV files. Choose a different file.',
+    },
+    file_too_large: {
+      title: 'That file is too large',
+      body: 'Each file can be up to 20 MB. Choose a smaller file.',
+    },
+    empty_file: {
+      title: 'That file is empty',
+      body: 'Choose a file that has content.',
+    },
+    request_not_found: {
+      title: 'Request not found here',
+      body: 'This request is not part of the workspace you are viewing.',
+    },
+    request_closed: {
+      title: 'This request is no longer taking documents',
+      body: 'It has been answered or closed. Go back to the request to see its current status.',
+    },
+    request_changed: {
+      title: 'This request changed while you were here',
+      body: 'Go back to the request, refresh it, and try again.',
+    },
+    invalid_digest: {
+      title: 'The file could not be prepared',
+      body: 'Choose the file again.',
+    },
+    invalid_name: {
+      title: 'The file name could not be used',
+      body: 'Choose the file again.',
+    },
+    invalid_idempotency_key: {
+      title: 'The file could not be prepared',
+      body: 'Choose the file again.',
+    },
+    too_many_documents: {
+      title: 'This request has all the documents it can take',
+      body: 'Up to ten documents can be added to one request. Contact your Honeybee team if more are needed.',
+    },
+    transfer_incomplete: {
+      title: 'The transfer did not complete',
+      body: 'Nothing was received yet. Send it again.',
+    },
+    transfer_expired: {
+      title: 'The transfer took too long',
+      body: 'Choose the file again and send it.',
+    },
+    size_mismatch: {
+      title: 'The file did not transfer completely',
+      body: 'Choose the file again and send it.',
+    },
+  };
+
+/** A document's state on its request, in client language (WO-003).
+ * Nothing here says approved, filed, or final: a checked document is a
+ * HIVE evidence reference, and Google Drive stays the permanent record. */
+export const DOCUMENT_STATUS_PRESENTATION: Record<
+  DocumentStatus,
+  { kind: StatusKind; label: string }
+> = {
+  QUARANTINED: { kind: 'neutral', label: 'Received, being checked' },
+  VALIDATING: { kind: 'neutral', label: 'Received, being checked' },
+  ACCEPTED: { kind: 'stable', label: 'Checked' },
+  REJECTED: { kind: 'attention', label: 'Not accepted' },
+  EXPIRED: { kind: 'neutral', label: 'Expired' },
 };
 
 const MONTHS = [

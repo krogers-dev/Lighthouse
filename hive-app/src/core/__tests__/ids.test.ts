@@ -1,4 +1,11 @@
-import { InvalidIdError, asClientId, asEnvironmentId, isUuid, newOpaqueToken } from '../ids';
+import {
+  InvalidIdError,
+  asClientId,
+  asEnvironmentId,
+  isUuid,
+  newOpaqueToken,
+  newUuid,
+} from '../ids';
 
 describe('id validation', () => {
   it('accepts and lowercases valid UUIDs', () => {
@@ -54,5 +61,21 @@ describe('newOpaqueToken', () => {
       if (original) Object.defineProperty(globalThis, 'crypto', original);
       else delete (globalThis as { crypto?: unknown }).crypto;
     }
+  });
+});
+
+describe('newUuid', () => {
+  it('shapes 16 random bytes into a version-4, variant-1 UUID', () => {
+    const fixed = { fill: (bytes: Uint8Array) => bytes.fill(0xff) };
+    const uuid = newUuid(fixed);
+    expect(uuid).toBe('ffffffff-ffff-4fff-bfff-ffffffffffff');
+    expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+
+  it('differs per call with a real source, and is a valid identifier shape', () => {
+    const a = newUuid();
+    const b = newUuid();
+    expect(a).not.toBe(b);
+    expect(isUuid(a)).toBe(true);
   });
 });

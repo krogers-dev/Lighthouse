@@ -18,7 +18,7 @@
  *    and the nondeterministic constant '000000' as an input.
  * Helper .js files are checked for the URL-secret and TOTP_SECRET bans.
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -365,17 +365,27 @@ export function validateHeader(header, label) {
   return problems;
 }
 
-/** Collect every testID literal in the app sources. */
+/** Collect every testID literal in the app sources.
+ *
+ * Tracked AND untracked (not ignored) sources: a screen written since the
+ * last commit declares testIDs too, and a flow that names them must
+ * validate before the commit that carries both. A tracked file deleted in
+ * the working tree is skipped rather than crashing the gate (the first
+ * Milestone 2 validation met exactly that, with a route moved into a
+ * folder: find 55, 2026-09-28). */
 export function collectTestIds(root = appRoot) {
-  const files = execFileSync('git', ['ls-files', 'app', 'src'], {
-    cwd: root,
-    encoding: 'utf8',
-  })
+  const files = execFileSync(
+    'git',
+    ['ls-files', '--cached', '--others', '--exclude-standard', 'app', 'src'],
+    { cwd: root, encoding: 'utf8' },
+  )
     .split('\n')
-    .filter((file) => /\.(tsx|ts)$/.test(file));
+    .filter((file) => /\.(tsx|ts)$/.test(file))
+    .map((file) => path.join(root, file))
+    .filter((file) => existsSync(file));
   const ids = new Set();
-  for (const file of files) {
-    collectTestIdsFromText(readFileSync(path.join(root, file), 'utf8'), ids);
+  for (const file of new Set(files)) {
+    collectTestIdsFromText(readFileSync(file, 'utf8'), ids);
   }
   return ids;
 }

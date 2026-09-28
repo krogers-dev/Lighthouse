@@ -17,6 +17,7 @@ import {
   membershipMixedReviewer,
 } from '@/auth/__tests__/fixtures';
 import { AuthProvider } from '@/auth/provider';
+import type { DocumentsLoader } from '@/data/supabase/documents';
 import type {
   ActivityEntry,
   ActivityLoader,
@@ -31,6 +32,12 @@ import { RequestsScreen } from '@/features/requests/RequestsScreen';
 import type { ScopeKey } from '@/tenancy/scope-key';
 
 import { makeContractHarness } from './helpers/auth-harness';
+
+/** The detail screen now also reads the request's documents (WO-003); this
+ * contract is about the request read, so the documents read is empty. */
+const noDocuments: DocumentsLoader = {
+  list: async () => ({ items: [], recordedThrough: null }),
+};
 
 function requestNamed(title: string): RequestSummary {
   return {
@@ -106,6 +113,7 @@ class ScopedDetailLoader implements RequestsLoader {
       ownerRole: 'client_user',
       requestedOn: '2026-08-10',
       dueOn: null,
+      version: 1,
     };
   }
 }
@@ -207,6 +215,8 @@ describe('request detail scope contract', () => {
       <AuthProvider controller={harness.controller}>
         <RequestDetailScreen
           repository={loader}
+          documentsRepository={noDocuments}
+          onAddDocument={() => undefined}
           requestId="reachable-id"
           onBack={() => undefined}
         />
@@ -233,6 +243,8 @@ describe('request detail scope contract', () => {
       <AuthProvider controller={harness.controller}>
         <RequestDetailScreen
           repository={loader}
+          documentsRepository={noDocuments}
+          onAddDocument={() => undefined}
           requestId="another-workspaces-id"
           onBack={() => undefined}
         />

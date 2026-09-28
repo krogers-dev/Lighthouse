@@ -13,6 +13,7 @@ const request: RequestDetail = {
   ownerRole: 'client_user',
   requestedOn: '2026-08-10',
   dueOn: '2026-09-10',
+  version: 1,
 };
 
 const baseProps = { onRetry: jest.fn(), onSwitchScope: jest.fn(), onBack: jest.fn() };
@@ -69,5 +70,97 @@ describe('RequestDetailView', () => {
       <RequestDetailView {...baseProps} state="error" error={new SafeError('unknown')} />,
     );
     expect(screen.getByTestId('request-detail-error')).toBeTruthy();
+  });
+});
+
+describe('RequestDetailView documents (WO-003)', () => {
+  const documents = {
+    items: [
+      {
+        id: 'd0c0d0c0-0000-4000-8000-0000000000a1',
+        displayName: 'bank-statement-2026-07 (Synthetic).pdf',
+        mimeType: 'application/pdf',
+        byteSize: 184320,
+        status: 'ACCEPTED' as const,
+        receivedAt: '2026-08-11T10:00:00Z',
+        checkedAt: '2026-08-11T10:05:00Z',
+      },
+      {
+        id: 'd0c0d0c0-0000-4000-8000-0000000000a2',
+        displayName: 'receipt-photo (Synthetic).jpeg',
+        mimeType: 'image/jpeg',
+        byteSize: 2411520,
+        status: 'REJECTED' as const,
+        receivedAt: '2026-08-12T09:30:00Z',
+        checkedAt: '2026-08-12T09:34:00Z',
+      },
+      {
+        id: 'd0c0d0c0-0000-4000-8000-0000000000a9',
+        displayName: 'new-upload (Synthetic).pdf',
+        mimeType: 'application/pdf',
+        byteSize: 1234,
+        status: 'QUARANTINED' as const,
+        receivedAt: '2026-09-28T15:00:00Z',
+        checkedAt: null,
+      },
+    ],
+    recordedThrough: '2026-09-28T15:00:00Z',
+  };
+
+  it('lists every document with its true status and never a word like approved or filed', async () => {
+    await render(
+      <RequestDetailView {...baseProps} state="ready" request={request} documents={documents} />,
+    );
+    expect(screen.getByText('bank-statement-2026-07 (Synthetic).pdf')).toBeTruthy();
+    expect(screen.getByLabelText('Done: Checked')).toBeTruthy();
+    expect(screen.getByLabelText('Needs attention: Not accepted')).toBeTruthy();
+    expect(screen.getByLabelText('Status: Received, being checked')).toBeTruthy();
+    expect(screen.getByText('180 KB · Checked August 11, 2026')).toBeTruthy();
+    expect(screen.getByText('1.2 KB · Received September 28, 2026')).toBeTruthy();
+    for (const forbidden of ['Approved', 'Filed', 'Final', 'Upload', 'Attach']) {
+      expect(screen.queryByText(new RegExp(`\b${forbidden}\b`))).toBeNull();
+    }
+  });
+
+  it('says plainly when the request has no documents yet', async () => {
+    await render(
+      <RequestDetailView
+        {...baseProps}
+        state="ready"
+        request={request}
+        documents={{ items: [], recordedThrough: null }}
+      />,
+    );
+    expect(screen.getByTestId('request-detail-documents-empty')).toBeTruthy();
+  });
+
+  it('shows the one write control only when the screen decided a document may be added', async () => {
+    const onAddDocument = jest.fn();
+    await render(
+      <RequestDetailView
+        {...baseProps}
+        state="ready"
+        request={request}
+        documents={documents}
+        canAddDocument
+        onAddDocument={onAddDocument}
+      />,
+    );
+    fireEvent.press(screen.getByTestId('request-detail-add-document'));
+    expect(onAddDocument).toHaveBeenCalledTimes(1);
+
+    // Absent, not disabled, when the decision is no, even with a handler.
+    const staff = await render(
+      <RequestDetailView
+        {...baseProps}
+        state="ready"
+        request={request}
+        documents={documents}
+        canAddDocument={false}
+        onAddDocument={onAddDocument}
+      />,
+    );
+    expect(staff.queryByTestId('request-detail-add-document')).toBeNull();
+    expect(staff.queryByText('Add a document')).toBeNull();
   });
 });

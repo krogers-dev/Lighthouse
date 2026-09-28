@@ -143,8 +143,11 @@ test('EVERY real flow in .maestro/ validates cleanly', () => {
   // resume differently: client.owner is re-asked which workspace,
   // reviewer.rae goes straight to Home (find 34).
   //
+  // Plus the Milestone 2 add-document flow (WO-003): the client adds a
+  // document to an open request through the checked, quarantined transfer.
+  //
   // Exact, not a floor: an accidental extra flow should be noticed.
-  assert.equal(flowCount, 18);
+  assert.equal(flowCount, 19);
   assert.ok(scriptCount >= 4);
 });
 

@@ -28,6 +28,7 @@
 import process from 'node:process';
 
 import { verifyCanonicalUser } from './lib/auth-verify.mjs';
+import { SYNTHETIC_DOCUMENTS } from './lib/synthetic-documents.mjs';
 import { SYNTHETIC_IDENTITIES, membershipRows } from './lib/synthetic-identities.mjs';
 
 const url = process.env.HIVE_LOCAL_SUPABASE_URL;
@@ -99,6 +100,20 @@ async function listUsersByEmail() {
   return byEmail;
 }
 
+/** One user with its identities. The paged listing omits `identities` on
+ * the pinned GoTrue (v2.195.0), so verifying a user found by email through
+ * the listing alone reported "found 0 identities" for every correctly
+ * seeded account, and a second `seed` on an already seeded stack always
+ * failed with the drift message (find 54, 2026-09-28, Kody's desktop).
+ * The single-user endpoint carries the identities the verifier needs. */
+async function fetchUser(id) {
+  const result = await adminRequest(`/admin/users/${id}`);
+  if (!result.ok) {
+    throw new Error(`admin user fetch failed with status ${result.status}`);
+  }
+  return result.body;
+}
+
 function failVerification(email, problems) {
   console.error(`seed-local: verification FAILED for ${email}:`);
   for (const problem of problems) console.error(`  - ${problem}`);
@@ -155,7 +170,8 @@ for (const identity of SYNTHETIC_IDENTITIES) {
     );
     process.exit(1);
   }
-  const problems = verifyCanonicalUser(found, identity);
+  // Verify the full user object, never the listing's summary (find 54).
+  const problems = verifyCanonicalUser(await fetchUser(found.id), identity);
   if (problems.length > 0) {
     if (found.id !== identity.id) {
       console.error(
@@ -211,6 +227,34 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
+// Synthetic documents (WO-003): settled evidence references on the seeded
+// requests, bound to the canonical user ids verified above. Idempotent on
+// the primary key; an existing row is never rewritten (a device run may
+// have moved nothing here, but the rule costs nothing).
+const documents = await restRequest('/document_uploads?on_conflict=id', {
+  method: 'POST',
+  headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
+  body: JSON.stringify(SYNTHETIC_DOCUMENTS),
+});
+if (!documents.ok) {
+  console.error(`seed-local: document insert failed with status ${documents.status}`);
+  process.exit(1);
+}
+const documentCheck = await restRequest('/document_uploads?select=id', { method: 'GET' });
+if (!documentCheck.ok) {
+  console.error(`seed-local: document read-back failed with status ${documentCheck.status}`);
+  process.exit(1);
+}
+const presentIds = new Set(JSON.parse(documentCheck.text).map((r) => r.id));
+const missingDocuments = SYNTHETIC_DOCUMENTS.filter((d) => !presentIds.has(d.id));
+if (missingDocuments.length > 0) {
+  console.error(
+    `seed-local: ${missingDocuments.length} seeded document rows are missing after upsert`,
+  );
+  for (const d of missingDocuments) console.error(`  - ${d.id}`);
+  process.exit(1);
+}
+
 console.log(
-  `seed-local: ${created} created, ${existing} verified existing, ${rows.length} memberships in place, all ids canonical`,
+  `seed-local: ${created} created, ${existing} verified existing, ${rows.length} memberships in place, ${SYNTHETIC_DOCUMENTS.length} documents in place, all ids canonical`,
 );

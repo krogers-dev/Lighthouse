@@ -88,7 +88,8 @@ describe('live bridge: the shipped composition against the real stack', () => {
     // entry can carry a name, filename, or amount — only enumerated kinds.
     for (const entry of activity.items) {
       expect(typeof entry.kind).toBe('string');
-      expect(entry.kind).toMatch(/^(case|request)\./);
+      // The three enumerated families: case, request, and (WO-003) document.
+      expect(entry.kind).toMatch(/^(case|request|document)\./);
     }
 
     // Cross-scope: a REAL request id belonging to client B, asked for in

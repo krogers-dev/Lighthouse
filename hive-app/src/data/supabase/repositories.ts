@@ -163,6 +163,9 @@ export interface RequestSummary {
 
 export interface RequestDetail extends RequestSummary {
   detail: string;
+  /** The request's object version (WO-003): a document reservation names
+   * the version the screen read, and the server refuses a stale one. */
+  version: number;
 }
 
 /** Activity is an enumerated vocabulary, never free text: the database
@@ -173,7 +176,11 @@ export type ActivityEventKind =
   | 'request.opened'
   | 'request.answered'
   | 'request.closed'
-  | 'request.expired';
+  | 'request.expired'
+  | 'document.received'
+  | 'document.checked'
+  | 'document.not_accepted'
+  | 'document.expired';
 
 export type ActivityActorRole = MembershipRole | 'system';
 
@@ -209,7 +216,7 @@ export interface ActivityLoader {
 /** Bounded activity read (R3): a fixed window, never an unbounded scan. */
 export const ACTIVITY_WINDOW = 50;
 
-function newest(values: readonly (string | null)[]): string | null {
+export function newest(values: readonly (string | null)[]): string | null {
   let latest: string | null = null;
   for (const value of values) {
     if (typeof value === 'string' && (latest === null || value > latest)) latest = value;
@@ -269,7 +276,7 @@ export class RequestsRepository implements ScopedResource, RequestsLoader {
     try {
       const result = await client
         .from('requests')
-        .select('id, title, detail, status, owner_role, requested_on, due_on')
+        .select('id, title, detail, status, owner_role, requested_on, due_on, version')
         .eq('environment_id', scope.environmentId)
         .eq('client_id', scope.clientId)
         .eq('entity_id', scope.entityId)
@@ -286,6 +293,7 @@ export class RequestsRepository implements ScopedResource, RequestsLoader {
         ownerRole: row.owner_role as MembershipRole,
         requestedOn: row.requested_on,
         dueOn: row.due_on,
+        version: row.version,
       };
     } catch (error) {
       throw mapDbError(error);
