@@ -184,7 +184,15 @@ export type ActivityEventKind =
   | 'document.received'
   | 'document.checked'
   | 'document.not_accepted'
-  | 'document.expired';
+  | 'document.expired'
+  | 'case.package_frozen'
+  | 'case.review_started'
+  | 'case.review_passed'
+  | 'case.returned'
+  | 'case.held'
+  | 'case.approved'
+  | 'case.resumed'
+  | 'case.approval_expired';
 
 export type ActivityActorRole = MembershipRole | 'system';
 

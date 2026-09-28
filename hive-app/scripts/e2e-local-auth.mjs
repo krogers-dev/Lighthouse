@@ -37,6 +37,8 @@ import process from 'node:process';
 import { requireFactorsClean } from './lib/admin-factors.mjs';
 import { assertAnswerPath } from './lib/answer-path.mjs';
 import { performAnswerReset } from './lib/answer-reset.mjs';
+import { performCaseReset } from './lib/case-reset.mjs';
+import { assertReviewPath } from './lib/review-path.mjs';
 import { msUntilIatAdvance, verifyRefreshedSession } from './lib/refresh-verify.mjs';
 import { SCOPE, SYNTHETIC_IDENTITIES } from './lib/synthetic-identities.mjs';
 import { totpCode } from './lib/totp.mjs';
@@ -388,6 +390,9 @@ const REACH = {
     ],
     request_answers: [],
     request_answer_citations: [],
+    case_review_packages: [],
+    case_reviews: [],
+    case_approvals: [],
   },
   aAndB1: {
     environments: [SCOPE.environmentId],
@@ -407,6 +412,9 @@ const REACH = {
     ],
     request_answers: [],
     request_answer_citations: [],
+    case_review_packages: [],
+    case_reviews: [],
+    case_approvals: [],
   },
 };
 const PROTECTED_TABLES = [
@@ -425,6 +433,13 @@ const PROTECTED_TABLES = [
   // seed holds none; the rows step 3c creates are counted through extraReach.
   'request_answers',
   'request_answer_citations',
+  // Milestone 4 (WO-005): the review workflow, staff of the scope at AAL2
+  // only. The seed holds none; the rows step 4b creates are counted per
+  // identity through extraReachByEmail (a client of A1 who is staff
+  // elsewhere sees none of them).
+  'case_review_packages',
+  'case_reviews',
+  'case_approvals',
 ];
 
 function idsOf(rows) {
@@ -475,11 +490,19 @@ const extraReach = {
   request_answers: [],
   request_answer_citations: [],
 };
+/** Rows only SOME identities can see (the review workflow's, staff of the
+ * scope at AAL2): expected per email, so mixed.cross's zero rows in A1
+ * stay a real negative. */
+const extraReachByEmail = {};
 
 async function assertExactReach(identity, accessToken, reach, label) {
   for (const table of PROTECTED_TABLES) {
     const result = await rest(`/${table}?select=id`, accessToken);
-    const expected = [...reach[table], ...(extraReach[table] ?? [])];
+    const expected = [
+      ...reach[table],
+      ...(extraReach[table] ?? []),
+      ...(extraReachByEmail[identity.email]?.[table] ?? []),
+    ];
     check(
       result.status === 200 && sameSet(idsOf(result.body), expected),
       `${identity.email} ${label}: ${table} ids are exactly {${expected.join(', ')}}`,
@@ -680,6 +703,26 @@ async function assertDocumentPath(owner, ownerSession, other, otherSession, staf
   );
 }
 
+/** A staff identity at AAL2 with a refreshed token, for the review path
+ * (WO-005): the same clean -> OTP -> enroll -> refresh the staff steps
+ * prove, reused for the roles the path needs. */
+async function staffAal2Token(email, label) {
+  const identity = byEmail.get(email);
+  await adminCleanFactors(identity);
+  await sleep(1100); // the address's previous code was step 1's (find 60)
+  const aal1 = await signInWithOtp(identity);
+  if (!aal1) return null;
+  const enrolled = await enrollAndVerifyTotp(identity, aal1, `${identity.email} ${label}`);
+  if (!enrolled) return null;
+  const refreshed = await mandatoryRefresh(
+    enrolled.session,
+    identity,
+    'aal2',
+    `${identity.email} ${label}`,
+  );
+  return refreshed?.access_token ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Run.
 // ---------------------------------------------------------------------------
@@ -790,6 +833,42 @@ for (const identity of SYNTHETIC_IDENTITIES) {
         `${identity.email} AAL2`,
       );
       if (refreshed) {
+        // 4b. Milestone 4 (WO-005): the review and approval path with real
+        //     AAL2 JWTs, BEFORE the reach checks so the rows it adds are in
+        //     the exact sets of the identities that may see them.
+        const reviewerToken = await staffAal2Token('reviewer.rae@example.invalid', 'review path');
+        const approverToken = await staffAal2Token('approver.avery@example.invalid', 'review path');
+        const clientSession = sessions.get('client.owner@example.invalid');
+        const otherSession = sessions.get('client.second@example.invalid');
+        const intakeSession = sessions.get('intake.beth@example.invalid');
+        if (reviewerToken && approverToken && clientSession && otherSession && intakeSession) {
+          await assertReviewPath(
+            {
+              rest,
+              rpc,
+              check,
+              uuidV4,
+              extraReach,
+              extraReachByEmail,
+              SCOPE,
+              CASES,
+              reset: (caseKey) => performCaseReset({ url, serviceKey, gatewayKey, caseKey }),
+            },
+            {
+              preparer: { email: identity.email, token: refreshed.access_token },
+              reviewer: { email: 'reviewer.rae@example.invalid', token: reviewerToken },
+              approver: { email: 'approver.avery@example.invalid', token: approverToken },
+              client: { email: 'client.owner@example.invalid', token: clientSession.access_token },
+              other: { email: 'client.second@example.invalid', token: otherSession.access_token },
+              staffAal1: {
+                email: 'intake.beth@example.invalid',
+                token: intakeSession.access_token,
+              },
+            },
+          );
+        } else {
+          check(false, 'review path: the sessions it needs are not all available');
+        }
         await assertExactReach(
           identity,
           refreshed.access_token,

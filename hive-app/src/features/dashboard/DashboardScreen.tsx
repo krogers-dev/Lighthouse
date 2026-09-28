@@ -10,18 +10,25 @@ import React, { useCallback } from 'react';
 import type { CaseSummary, DashboardLoader, ScopedList } from '@/data/supabase/repositories';
 import { useScopedLoad } from '@/features/shared/useScopedLoad';
 import type { ScopeKey } from '@/tenancy/scope-key';
+import { isStaffRole } from '@/tenancy/types';
 
 import { DashboardView } from './DashboardView';
 
 export interface DashboardScreenProps {
   repository: DashboardLoader;
+  /** Staff open a case for review (WO-005); offered only when the
+   * server-confirmed role is a staff role, absent for clients. */
+  onOpenCase?: (caseId: string) => void;
 }
 
 const isEmpty = (list: ScopedList<CaseSummary>): boolean => list.items.length === 0;
 
-export function DashboardScreen({ repository }: DashboardScreenProps): React.JSX.Element | null {
+export function DashboardScreen({
+  repository,
+  onOpenCase,
+}: DashboardScreenProps): React.JSX.Element | null {
   const load = useCallback((scope: ScopeKey) => repository.load(scope), [repository]);
-  const { scope, state, data, error, workspaceName, retry, switchScope } = useScopedLoad(
+  const { scope, state, data, error, workspaceName, role, retry, switchScope } = useScopedLoad(
     load,
     isEmpty,
   );
@@ -36,6 +43,7 @@ export function DashboardScreen({ repository }: DashboardScreenProps): React.JSX
       error={error}
       onRetry={retry}
       onSwitchScope={switchScope}
+      onOpenCase={onOpenCase && role && isStaffRole(role) ? onOpenCase : undefined}
     />
   );
 }

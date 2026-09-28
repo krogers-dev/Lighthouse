@@ -26,6 +26,7 @@ import {
   type SessionWriteGate,
 } from '@/data/supabase/client';
 import { AnswersRepository } from '@/data/supabase/answers';
+import { ReviewRepository } from '@/data/supabase/reviews';
 import { DocumentsRepository } from '@/data/supabase/documents';
 import {
   ActivityRepository,
@@ -49,6 +50,7 @@ export interface AppServices {
   activityRepository: ActivityRepository;
   documentsRepository: DocumentsRepository;
   answersRepository: AnswersRepository;
+  reviewRepository: ReviewRepository;
   /** The device bindings the add-document flow runs on (WO-003). */
   documentPorts: AddDocumentPorts;
   /** The device's random source, for the keys a write makes (WO-004). */
@@ -153,6 +155,7 @@ export function getRuntime(): RuntimeResult {
   const activityRepository = new ActivityRepository(clientAccessor, registry);
   const documentsRepository = new DocumentsRepository(clientAccessor, registry);
   const answersRepository = new AnswersRepository(clientAccessor, registry);
+  const reviewRepository = new ReviewRepository(clientAccessor, registry);
   const documentPorts: AddDocumentPorts = {
     // In a QA build the picker can be armed by the synthetic-document deep
     // link for one pick (a device flow cannot drive the platform's file
@@ -173,6 +176,7 @@ export function getRuntime(): RuntimeResult {
       activityRepository,
       documentsRepository,
       answersRepository,
+      reviewRepository,
       documentPorts,
       random: expoCryptoRandomSource,
       env,

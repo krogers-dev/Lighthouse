@@ -82,6 +82,78 @@ export interface Database {
         };
         Relationships: [];
       };
+      case_approvals: {
+        Row: {
+          id: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          package_id: string;
+          approver_user_id: string;
+          approver_role: string;
+          package_number: number;
+          package_digest: string;
+          case_version: number;
+          destination: string;
+          status: string;
+          approved_at: string;
+          expires_at: string;
+          ended_at: string | null;
+          end_reason: string | null;
+          idempotency_key: string;
+          version: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          package_id: string;
+          approver_user_id: string;
+          approver_role?: string;
+          package_number: number;
+          package_digest: string;
+          case_version: number;
+          destination: string;
+          status?: string;
+          approved_at?: string;
+          expires_at: string;
+          ended_at?: string | null;
+          end_reason?: string | null;
+          idempotency_key: string;
+          version?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          environment_id?: string;
+          client_id?: string;
+          entity_id?: string;
+          case_id?: string;
+          package_id?: string;
+          approver_user_id?: string;
+          approver_role?: string;
+          package_number?: number;
+          package_digest?: string;
+          case_version?: number;
+          destination?: string;
+          status?: string;
+          approved_at?: string;
+          expires_at?: string;
+          ended_at?: string | null;
+          end_reason?: string | null;
+          idempotency_key?: string;
+          version?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       case_attention_items: {
         Row: {
           id: string;
@@ -145,6 +217,123 @@ export interface Database {
         };
         Relationships: [];
       };
+      case_review_packages: {
+        Row: {
+          id: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          package_number: number;
+          manifest: Json;
+          manifest_digest: string;
+          case_version: number;
+          frozen_by: string;
+          frozen_role: string;
+          frozen_at: string;
+          superseded_at: string | null;
+          idempotency_key: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          package_number: number;
+          manifest: Json;
+          manifest_digest: string;
+          case_version: number;
+          frozen_by: string;
+          frozen_role: string;
+          frozen_at?: string;
+          superseded_at?: string | null;
+          idempotency_key: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          environment_id?: string;
+          client_id?: string;
+          entity_id?: string;
+          case_id?: string;
+          package_number?: number;
+          manifest?: Json;
+          manifest_digest?: string;
+          case_version?: number;
+          frozen_by?: string;
+          frozen_role?: string;
+          frozen_at?: string;
+          superseded_at?: string | null;
+          idempotency_key?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      case_reviews: {
+        Row: {
+          id: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          package_id: string;
+          reviewer_user_id: string;
+          reviewer_role: string;
+          status: string;
+          verdict: string | null;
+          note: string;
+          started_at: string;
+          recorded_at: string | null;
+          start_key: string;
+          idempotency_key: string | null;
+          version: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          package_id: string;
+          reviewer_user_id: string;
+          reviewer_role: string;
+          status?: string;
+          verdict?: string | null;
+          note?: string;
+          started_at?: string;
+          recorded_at?: string | null;
+          start_key: string;
+          idempotency_key?: string | null;
+          version?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          environment_id?: string;
+          client_id?: string;
+          entity_id?: string;
+          case_id?: string;
+          package_id?: string;
+          reviewer_user_id?: string;
+          reviewer_role?: string;
+          status?: string;
+          verdict?: string | null;
+          note?: string;
+          started_at?: string;
+          recorded_at?: string | null;
+          start_key?: string;
+          idempotency_key?: string | null;
+          version?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       cases: {
         Row: {
           id: string;
@@ -155,6 +344,7 @@ export interface Database {
           status: string;
           status_changed_at: string;
           created_at: string;
+          version: number;
         };
         Insert: {
           id?: string;
@@ -165,6 +355,7 @@ export interface Database {
           status?: string;
           status_changed_at?: string;
           created_at?: string;
+          version?: number;
         };
         Update: {
           id?: string;
@@ -175,6 +366,7 @@ export interface Database {
           status?: string;
           status_changed_at?: string;
           created_at?: string;
+          version?: number;
         };
         Relationships: [];
       };
@@ -484,6 +676,20 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      approve_case_package: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_case_id: string;
+          p_case_version: number;
+          p_package_id: string;
+          p_package_digest: string;
+          p_destination: string;
+          p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
       begin_document_scan: {
         Args: {
           p_upload_id: string;
@@ -511,15 +717,54 @@ export interface Database {
         };
         Returns: Json;
       };
+      expire_case_approvals: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
       expire_stale_document_uploads: {
         Args: Record<string, never>;
         Returns: number;
+      };
+      freeze_case_package: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_case_id: string;
+          p_case_version: number;
+          p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
+      record_case_verdict: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_case_id: string;
+          p_case_version: number;
+          p_verdict: string;
+          p_note: string;
+          p_idempotency_key: string;
+        };
+        Returns: Json;
       };
       record_document_scan: {
         Args: {
           p_upload_id: string;
           p_verdict: string;
           p_reason?: string;
+        };
+        Returns: Json;
+      };
+      resume_case: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_case_id: string;
+          p_case_version: number;
+          p_idempotency_key: string;
         };
         Returns: Json;
       };
@@ -533,6 +778,17 @@ export interface Database {
           p_body: string;
           p_cited_document_ids: string[];
           p_answer_version?: number;
+        };
+        Returns: Json;
+      };
+      start_case_review: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_case_id: string;
+          p_case_version: number;
+          p_idempotency_key: string;
         };
         Returns: Json;
       };

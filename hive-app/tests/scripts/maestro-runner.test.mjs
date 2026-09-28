@@ -13,6 +13,8 @@ import {
   PROBE_TIMEOUT_MS,
   RUN_ROOT_PREFIX,
   SEQUENCE,
+  isExtraFlowName,
+  sequenceWith,
   detectDefaultLocationLeak,
   flowTimeoutMs,
   isStaleRunRoot,
@@ -255,4 +257,22 @@ test('find 36: stale run roots from a hand-killed run are recognized for the sta
   assert.ok(!isStaleRunRoot('maestro-tests'));
   assert.ok(!isStaleRunRoot('hive-app'));
   assert.ok(!isStaleRunRoot(''));
+});
+
+test('--then adds one staff flow after the login and before the revocation, by file name only', () => {
+  const steps = sequenceWith('case-review.yaml').map((entry) => entry.step);
+  assert.deepEqual(steps, [
+    'reset-factors',
+    'mfa-enroll.yaml',
+    'staff-sign-out.yaml',
+    'mfa-login.yaml',
+    'case-review.yaml',
+    'revoke-factor',
+  ]);
+  assert.equal(sequenceWith('case-review.yaml')[4].retainArtifacts, true);
+  assert.equal(sequenceWith(null), SEQUENCE);
+  assert.equal(isExtraFlowName('case-review.yaml'), true);
+  for (const bad of ['../case-review.yaml', 'case-review.js', 'Case Review.yaml', '', undefined]) {
+    assert.equal(isExtraFlowName(bad), false, `${bad} is not a flow name`);
+  }
 });

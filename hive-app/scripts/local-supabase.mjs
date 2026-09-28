@@ -338,9 +338,14 @@ async function bridge() {
   // and it would wait for an enrollment that never comes (first CLI-stack
   // bridge, 2026-09-28). Reset through the checked loopback command.
   await resetTotp('reviewer.rae@example.invalid');
-  // The answer journey settles the seeded November question (WO-004), and
-  // a request is answered once: put it back before the suites run.
+  // The review journey (WO-005) enrolls three more staff identities and
+  // moves the seeded case to APPROVED; the answer journey (WO-004) settles
+  // the seeded question. Put every one of them back before the suites run.
+  for (const email of ['preparer.pat', 'mixed.same', 'approver.avery']) {
+    await resetTotp(`${email}@example.invalid`);
+  }
   await resetAnswer('a1Question');
+  await resetCase('a1');
   const child = spawnSync(
     'npx',
     ['--no-install', 'jest', '--config', 'jest.live.config.js', '--colors=false'],
@@ -376,6 +381,26 @@ async function resetAnswer(requestKey) {
     fail('usage: local-supabase.mjs reset-answer <requestKey>');
   }
   await runHarness('answer-reset.mjs', { HIVE_RESET_ANSWER_REQUEST: requestKey });
+}
+
+/** Checked reset of one seeded case's review workflow (WO-005): the
+ * recovery after a review lane moved it. */
+async function resetCase(caseKey) {
+  if (!caseKey) {
+    fail('usage: local-supabase.mjs reset-case <caseKey>');
+  }
+  await runHarness('case-reset.mjs', { HIVE_RESET_CASE: caseKey });
+}
+
+/** Move the seeded case to a workflow state for a device flow (WO-005),
+ * through real staff sign-ins and the reviewed transitions. */
+async function stageCase(caseKey, state) {
+  if (!caseKey || !state) {
+    fail(
+      'usage: local-supabase.mjs stage-case <caseKey> <ready-for-review|in-review|approval-pending>',
+    );
+  }
+  await runHarness('case-stage.mjs', { HIVE_STAGE_CASE: caseKey, HIVE_STAGE_STATE: state });
 }
 
 /** The local quarantine tooling (WO-003): the named synthetic scan over
@@ -428,6 +453,12 @@ if (isMain) {
     case 'reset-answer':
       await resetAnswer(process.argv[3]);
       break;
+    case 'reset-case':
+      await resetCase(process.argv[3]);
+      break;
+    case 'stage-case':
+      await stageCase(process.argv[3], process.argv[4]);
+      break;
     case 'scan-quarantine':
       await scanQuarantine();
       break;
@@ -439,7 +470,7 @@ if (isMain) {
       break;
     default:
       fail(
-        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|scan-quarantine|sweep-uploads|stop>',
+        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|scan-quarantine|sweep-uploads|stop>',
       );
   }
 }

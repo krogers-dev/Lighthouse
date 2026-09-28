@@ -198,6 +198,35 @@ it to the same reader); the storage service's policy admits exactly the
 reserved path from the phone's real session; and `expo-crypto`'s digest
 on the device matches what the server's scanner recomputes.
 
+### Milestones 3 and 4 on the desktop
+
+The answer flow (WO-004) and the review flow (WO-005) each move a seeded
+row exactly once, so their lanes come with a checked, loopback-only
+reset, and the review flow with a staging command that signs the staff
+in for real and calls the reviewed transitions. Records:
+`docs/plans/2026-09-28-wo-004-review-and-response.md` and
+`docs/plans/2026-09-28-wo-005-review-and-approval.md`.
+
+1. `node scripts/local-supabase.mjs reset-answer a1Question` puts the
+   seeded November question back to OPEN with no answer;
+   `maestro test .maestro/request-respond.yaml` (signed in as
+   client.owner) then answers it on glass. ✅ the request ends "Answered"
+   with the answer on it.
+2. `node scripts/local-supabase.mjs reset-case a1`, then
+   `node scripts/local-supabase.mjs stage-case a1 ready-for-review`
+   (preparer.pat freezes the package through a real AAL2 sign-in), then
+   `npm run maestro:enroll -- --then case-review.yaml` (reviewer.rae
+   enrolls, signs out, logs in on the same factor, and reviews the case
+   on the session that login proved). ✅ the case ends "Awaiting
+   approval" with the verdict on record.
+3. `node scripts/local-supabase.mjs e2e` and
+   `node scripts/local-supabase.mjs bridge` reset what they need
+   themselves. The harness's exact-reach proofs hold on a fresh
+   `npx supabase db reset` + `seed`.
+
+The staging and reset commands are synthetic-lane tooling: seeded keys
+only, loopback only, the privileged bearer in memory for one command.
+
 ### The Android lane, end to end
 
 > After any change to `app.json`, `assets/images`, or `plugins/`, regenerate

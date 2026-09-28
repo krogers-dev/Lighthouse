@@ -79,6 +79,26 @@ export const SEQUENCE = [
   { step: 'revoke-factor', kind: 'admin' },
 ];
 
+/** An extra staff flow's file name: a flow in .maestro/, nothing else
+ * (no path, no other extension). */
+export function isExtraFlowName(name) {
+  return typeof name === 'string' && /^[a-z0-9-]+.yaml$/.test(name);
+}
+
+/** The sequence with one extra flow after the login and before the factor
+ * is revoked (WO-005, `--then <flow>`): a staff flow that needs exactly
+ * the AAL2 session the login just proved, run inside the same confinement
+ * and cleanup, with its artifacts retained like the login's. */
+export function sequenceWith(extraFlow) {
+  if (!extraFlow) return SEQUENCE;
+  const at = SEQUENCE.findIndex((entry) => entry.step === 'revoke-factor');
+  return [
+    ...SEQUENCE.slice(0, at),
+    { step: extraFlow, kind: 'flow', retainArtifacts: true },
+    ...SEQUENCE.slice(at),
+  ];
+}
+
 /** Entries in ~/.maestro/tests, or an empty set when it does not exist. */
 export function snapshotDefaultLocation(readdir = readdirSync, dir = DEFAULT_MAESTRO_TESTS) {
   try {
@@ -248,6 +268,19 @@ function privateDir(parent, name) {
 const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
 if (isMain) {
   const proveConfinement = process.argv.includes('--prove-confinement');
+  const thenIndex = process.argv.indexOf('--then');
+  const thenFlow = thenIndex >= 0 ? process.argv[thenIndex + 1] : null;
+  if (thenIndex >= 0 && !isExtraFlowName(thenFlow)) {
+    console.error(
+      'maestro:enroll ENGINE FAILURE: --then names a flow file in .maestro/ (letters, digits, dashes, .yaml)',
+    );
+    process.exit(2);
+  }
+  if (thenFlow && !existsSync(path.join(appRoot, '.maestro', thenFlow))) {
+    console.error(`maestro:enroll ENGINE FAILURE: .maestro/${thenFlow} does not exist`);
+    process.exit(2);
+  }
+  const sequence = sequenceWith(thenFlow);
 
   if (!existsSync(path.join(appRoot, '.maestro'))) {
     console.error('maestro:enroll ENGINE FAILURE: .maestro/ is missing');
@@ -671,7 +704,7 @@ if (isMain) {
     process.exit(0);
   }
 
-  for (const entry of SEQUENCE) {
+  for (const entry of sequence) {
     if (entry.kind === 'admin') {
       if (entry.step === 'reset-factors') {
         if (!revokeFactor('pre-run reset')) fail('pre-run factor reset failed');

@@ -36,8 +36,11 @@ select is(
         'authenticated', format('%I.%I', t.schemaname, t.tablename), 'SELECT')),
   array[
     'activity_events',
+    'case_approvals',
     'case_attention_items',
     'case_next_actions',
+    'case_review_packages',
+    'case_reviews',
     'cases',
     'clients',
     'document_uploads',
@@ -48,7 +51,7 @@ select is(
     'request_answers',
     'requests'
   ],
-  'authenticated can select exactly the twelve granted tables, by name');
+  'authenticated can select exactly the fifteen granted tables, by name');
 
 -- 4. audit receipts accept no client read at all.
 select ok(

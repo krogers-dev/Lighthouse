@@ -68,7 +68,7 @@ binary and called protected.
 | 1. Read-only client dashboard   | Scoped case status, requests, activity, help, source timestamps                                             | No uploads or financial values until contracts pass                   | Requires Milestone 0 PASS _[in progress from 2026-08-22 on Kody's instruction while Milestone 0 is still RETURN; see docs/plans/2026-08-22-milestone1-read-only-dashboard.md]_                                                                                                                                   |
 | 2. Controlled document request  | System picker, quarantine upload, validation, malware-scan interface, digest, duplicate and expiry controls | No automatic Drive filing; no document becomes evidence automatically | Requires approved scanner, limits, retention _[built 2026-09-28 under Kody's standing instruction; limits and retention are provisional in security/APPROVALS.md; the scanner stays HOLD with a named synthetic stand-in locally; see docs/plans/2026-09-28-wo-003-controlled-document-request.md]_              |
 | 3. Review and response          | Client answers, source-linked questions, draft retention, explicit submission                               | No accounting decision or approval by Beth or automation              | Requires communication and record contracts _[built 2026-09-28 under Kody's standing instruction; the limits, the citation rule, and the wording are provisional in security/APPROVALS.md; how Honeybee is told of a submission stays HOLD for Stacie; see docs/plans/2026-09-28-wo-004-review-and-response.md]_ |
-| 4. Internal review and approval | Frozen package, read-only PASS/RETURN/HOLD, exact expiring approval                                         | Approval is not release, reconciliation, completion, or filing        | Requires conflict-free approvers                                                                                                                                                                                                                                                                                 |
+| 4. Internal review and approval | Frozen package, read-only PASS/RETURN/HOLD, exact expiring approval                                         | Approval is not release, reconciliation, completion, or filing        | Requires conflict-free approvers _[built 2026-09-28 under Kody's standing instruction; the binding, the expiry, the destination, and the conflict rules are provisional in security/APPROVALS.md; see docs/plans/2026-09-28-wo-005-review-and-approval.md]_                                                      |
 | 5. Source adapters              | QBO read-only references and verified manual Drive filing receipts                                          | No QBO write and no automatic Drive mutation                          | Requires separate adapter PASS                                                                                                                                                                                                                                                                                   |
 | 6. Store release candidate      | Signed builds, disclosures, review tenant, support/deletion flows, store assets, rollback                   | No automatic public release                                           | Requires joint exact-build approval                                                                                                                                                                                                                                                                              |
 
@@ -104,7 +104,7 @@ about a document (the request's source link, seeded only for now); how
 Honeybee learns of a submission is a communication contract still to be
 approved.
 
-### Case lifecycle (later milestone; schema carries the states now)
+### Case lifecycle (review and approval implemented in Milestone 4; intake later)
 
 `DRAFT -> INTAKE_RECORDED -> EVIDENCE_PENDING -> READY_FOR_REVIEW -> IN_REVIEW -> APPROVAL_PENDING -> APPROVED`
 
@@ -112,6 +112,22 @@ Correctable review findings go to `RETURNED`, then back to
 `EVIDENCE_PENDING`. Identity, authority, evidence, policy, boundary,
 destination, or security gaps go to `HOLD`. `APPROVED` does not mean
 released, final, closed, reconciled, filed, archived, or locked.
+
+From `EVIDENCE_PENDING` the assigned preparer freezes the case's evidence
+into a review package (every request, every submitted answer, every
+checked document, as ids and digests under one SHA-256) and the case is
+`READY_FOR_REVIEW`. A conflict-free reviewer, at AAL2, takes it into
+`IN_REVIEW` and records exactly one of PASS (`APPROVAL_PENDING`), RETURN
+(`RETURNED`), or HOLD (`HOLD`); review is read-only. A conflict-free
+approver approves the exact package by id and digest, for the HIVE record
+only, and the approval is bound to actor, role, scope, package, case
+version, destination, and a 30-day expiry; a new package or a reopened
+case supersedes it, and expiry returns the case to `APPROVAL_PENDING`.
+An approver may instead RETURN or HOLD a passed package; a preparer
+resumes a returned or approved case, an approver lifts a hold. Clients
+see the case status and the enumerated trail; the package, the verdicts,
+and the approvals are staff reads at AAL2. Intake's `DRAFT ->
+INTAKE_RECORDED -> EVIDENCE_PENDING` steps are a later milestone.
 
 ## Gate model
 

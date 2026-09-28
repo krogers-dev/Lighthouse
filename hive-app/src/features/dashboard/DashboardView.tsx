@@ -6,9 +6,10 @@
  * Presentation (HIVE 2026 design, 2026-09-07): case rows separated by
  * thin rules rather than boxed cards, the title first, then the exact
  * status, the attention item, the named next action, the owner, and the
- * source dates. Rows are read-only; nothing here is pressable. */
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+ * source dates. Rows are read-only for clients; for staff (WO-005) a row
+ * opens the case for review, and only then is it pressable. */
+import React, { useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { SafeError } from '@/core/errors';
 import type { CaseSummary, ScopedList } from '@/data/supabase/repositories';
@@ -21,7 +22,7 @@ import {
 import { ScopedStates } from '@/features/shared/ScopedStates';
 import type { ScopedLoadStateName } from '@/features/shared/useScopedLoad';
 import { AppText, Button, EmptyState, StatusBadge, useThemeColors } from '@/ui';
-import { layout, spacing } from '@/ui/tokens';
+import { layout, spacing, touchTarget } from '@/ui/tokens';
 
 /** The dashboard shows exactly the shared scoped-load states. */
 export type DashboardStateName = ScopedLoadStateName;
@@ -33,6 +34,8 @@ export interface DashboardViewProps {
   error?: SafeError;
   onRetry: () => void;
   onSwitchScope?: () => void;
+  /** Present for staff only: a row opens the case for review. */
+  onOpenCase?: (caseId: string) => void;
 }
 
 const styles = StyleSheet.create({
@@ -44,6 +47,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderTopWidth: layout.hairline,
   },
+  pressableRow: { minHeight: touchTarget.minHeight },
+  focused: {
+    outlineStyle: 'solid',
+    outlineWidth: layout.focusRingWidth,
+    outlineOffset: layout.focusRingOffset,
+  },
   block: { gap: spacing.xs },
   footer: {
     gap: spacing.sm,
@@ -52,14 +61,10 @@ const styles = StyleSheet.create({
   },
 });
 
-function CaseRow({ item }: { item: CaseSummary }): React.JSX.Element {
-  const colors = useThemeColors();
+function CaseRowBody({ item }: { item: CaseSummary }): React.JSX.Element {
   const presentation = CASE_STATUS_PRESENTATION[item.status];
   return (
-    <View
-      style={[styles.row, { borderTopColor: colors.divider }]}
-      testID={`dashboard-case-${item.id}`}
-    >
+    <>
       <AppText variant="heading">{item.title}</AppText>
       <StatusBadge kind={presentation.kind} label={presentation.label} />
       <AppText variant="caption" tone="secondary">
@@ -86,7 +91,48 @@ function CaseRow({ item }: { item: CaseSummary }): React.JSX.Element {
           ) : null}
         </View>
       ) : null}
-    </View>
+    </>
+  );
+}
+
+function CaseRow({
+  item,
+  onOpen,
+}: {
+  item: CaseSummary;
+  onOpen?: (caseId: string) => void;
+}): React.JSX.Element {
+  const colors = useThemeColors();
+  const [focused, setFocused] = useState(false);
+  if (!onOpen) {
+    return (
+      <View
+        style={[styles.row, { borderTopColor: colors.divider }]}
+        testID={`dashboard-case-${item.id}`}
+      >
+        <CaseRowBody item={item} />
+      </View>
+    );
+  }
+  const presentation = CASE_STATUS_PRESENTATION[item.status];
+  return (
+    <Pressable
+      onPress={() => onOpen(item.id)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.title}. ${presentation.label}.`}
+      accessibilityHint="Opens the case for review"
+      testID={`dashboard-case-${item.id}`}
+      style={({ pressed }) => [
+        styles.row,
+        styles.pressableRow,
+        { borderTopColor: colors.divider, opacity: pressed ? 0.85 : 1 },
+        focused && [styles.focused, { outlineColor: colors.focusRing }],
+      ]}
+    >
+      <CaseRowBody item={item} />
+    </Pressable>
   );
 }
 
@@ -97,6 +143,7 @@ export function DashboardView({
   error,
   onRetry,
   onSwitchScope,
+  onOpenCase,
 }: DashboardViewProps): React.JSX.Element {
   const colors = useThemeColors();
   const recordedThrough = recordedThroughLabel(data?.recordedThrough ?? null);
@@ -131,7 +178,7 @@ export function DashboardView({
       {state === 'ready' && data ? (
         <View style={styles.list} testID="dashboard-list">
           {data.items.map((item) => (
-            <CaseRow key={item.id} item={item} />
+            <CaseRow key={item.id} item={item} onOpen={onOpenCase} />
           ))}
         </View>
       ) : null}

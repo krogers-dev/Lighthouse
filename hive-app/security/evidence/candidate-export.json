@@ -1,7 +1,7 @@
 {
   "lane": "authorized synthetic candidate lane — expressly synthetic nonfunctional configuration; NOT a functional build",
-  "command": "npx --no-install expo export --platform all --output-dir C:\\Users\\kodyr\\AppData\\Local\\Temp\\hive-candidate-oCBZzM",
-  "outputDir": "C:\\Users\\kodyr\\AppData\\Local\\Temp\\hive-candidate-oCBZzM",
+  "command": "npx --no-install expo export --platform all --output-dir C:\\Users\\kodyr\\AppData\\Local\\Temp\\hive-candidate-4r0UL7",
+  "outputDir": "C:\\Users\\kodyr\\AppData\\Local\\Temp\\hive-candidate-4r0UL7",
   "qaHooks": "disabled",
   "profile": "candidate",
   "toolVersions": {
@@ -10,7 +10,7 @@
     "expo": "57.0.20"
   },
   "sourceCommit": {
-    "sha": "b051c4cdbe9245802efa0f8e979bf3da97f71e3e",
+    "sha": "d5c2483fbd3894e5184f3efd72927383c0f5bbc2",
     "dirty": true
   },
   "configManifest": {
@@ -24,12 +24,12 @@
   },
   "approvedOrigin": "http://127.0.0.1:54321",
   "inspectExit": 0,
-  "fileCount": 87,
+  "fileCount": 88,
   "outputManifest": [
     {
       "path": "+not-found.html",
       "bytes": 18604,
-      "sha256": "7a53de02d35b6b9619b58c0ff8184065a49ca4f73a3fda632a260135e69f67e6"
+      "sha256": "9e8e0ccdab216b1529dacdde5114c36cf3f5882c0e63ed6c7c6887922fd9c792"
     },
     {
       "path": "_expo\\.routes.json",
@@ -37,29 +37,29 @@
       "sha256": "18234e6b8c5aee837883245f400d379f3f9686f1396b7d90d7ebcdad76c51d47"
     },
     {
-      "path": "_expo\\static\\js\\android\\entry-6a92f704967737d0ee53af003c43d49f.hbc",
-      "bytes": 3783397,
-      "sha256": "e44ebcec7614c42c2b765abe1aa69ac0f00f65dd91cb186a5f7e07c4e433aadb"
+      "path": "_expo\\static\\js\\android\\entry-ae32b3a04256bb65879e239dacb0660c.hbc",
+      "bytes": 3827401,
+      "sha256": "95b0ae4f40f663efee2b46b4c7d22a6efde0212d3a4cae5677bab06c511ad1ff"
     },
     {
-      "path": "_expo\\static\\js\\ios\\entry-1c149d5e2ed32e953f919ea779b99903.hbc",
-      "bytes": 3488070,
-      "sha256": "1f8a51fa20ec631420ab40cbc7e4b1eddee13443a18cda292ac5c736ae0e90fc"
+      "path": "_expo\\static\\js\\ios\\entry-131cf768809878a1539f33aa123e8385.hbc",
+      "bytes": 3532060,
+      "sha256": "42578cd8b9b26fc9091c47b0cd8539fe05528bfba3a78d92ee2712acf37f3309"
     },
     {
-      "path": "_expo\\static\\js\\web\\entry-3708a881e6891bbab44656e9c8acf910.js",
-      "bytes": 1671803,
-      "sha256": "d8ac0d482fa5ac8f99925159776bc4a6da139dfe808f1f0434ecc1ad73e56dab"
+      "path": "_expo\\static\\js\\web\\entry-8c01ff570940ae482dd4ce253986b675.js",
+      "bytes": 1704113,
+      "sha256": "48f14ea9503ec7f6bd7865145989a490b9a475a8ac2ee549f662067ccf4a64b7"
     },
     {
       "path": "_sitemap.html",
       "bytes": 18604,
-      "sha256": "7a53de02d35b6b9619b58c0ff8184065a49ca4f73a3fda632a260135e69f67e6"
+      "sha256": "9e8e0ccdab216b1529dacdde5114c36cf3f5882c0e63ed6c7c6887922fd9c792"
     },
     {
       "path": "activity.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "assets\\017bc6ba3fc25503e5eb5e53826d48a8",
@@ -382,14 +382,19 @@
       "sha256": "efc79da3c4c97dfb1571bff6202958ab0529c5aa31e8392600578b3e359d1447"
     },
     {
+      "path": "cases\\[id].html",
+      "bytes": 22307,
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
+    },
+    {
       "path": "dashboard.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "fatal.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "favicon.ico",
@@ -399,68 +404,68 @@
     {
       "path": "help.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "index.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "metadata.json",
       "bytes": 4210,
-      "sha256": "fb1a09faf4a301ced371e01c316129d9143b967e673c2672189fbc93a6984964"
+      "sha256": "020f0b3a7ef6a751a0ef9a5a3c805f7504ce83bb3c0cdb668fb2aaecacb50dfa"
     },
     {
       "path": "mfa.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "otp.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "quarantine.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "requests\\[id].html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "requests\\[id]\\add-document.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "requests\\[id]\\respond.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "requests\\index.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "select-scope.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "settings.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     },
     {
       "path": "sign-in.html",
       "bytes": 22307,
-      "sha256": "c3f15924c42adb9e7c60a6ca5653c13a6857fe5ae1f22812bf950482a93f10e2"
+      "sha256": "4937abece71359c7d0f922ccae09671e2bc863a14e96ac05e8be386a0bf68f07"
     }
   ],
-  "recordedAt": "2026-09-28T22:23:18.866Z"
+  "recordedAt": "2026-09-28T23:19:32.727Z"
 }

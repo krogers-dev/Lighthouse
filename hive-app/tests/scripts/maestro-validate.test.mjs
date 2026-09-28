@@ -149,8 +149,11 @@ test('EVERY real flow in .maestro/ validates cleanly', () => {
   // Plus the Milestone 3 answer flow (WO-004): the client answers the
   // seeded question with a draft, a cited document, and one submission.
   //
+  // Plus the Milestone 4 review flow (WO-005): a reviewer at AAL2 opens
+  // the frozen case from Home, starts the review, and records PASS.
+  //
   // Exact, not a floor: an accidental extra flow should be noticed.
-  assert.equal(flowCount, 20);
+  assert.equal(flowCount, 21);
   assert.ok(scriptCount >= 4);
 });
 

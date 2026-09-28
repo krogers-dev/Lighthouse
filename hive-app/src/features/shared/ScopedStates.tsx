@@ -69,6 +69,14 @@ export const SCOPED_STATE_TEST_IDS = {
     stale: 'respond-stale',
     error: 'respond-error',
   },
+  'case-review': {
+    loading: 'case-review-loading',
+    offline: 'case-review-offline',
+    expired: 'case-review-expired',
+    denied: 'case-review-denied',
+    stale: 'case-review-stale',
+    error: 'case-review-error',
+  },
 } as const;
 
 export type ScopedStatesSurface = keyof typeof SCOPED_STATE_TEST_IDS;

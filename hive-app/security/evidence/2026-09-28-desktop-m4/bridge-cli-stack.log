@@ -1,0 +1,20 @@
+reset-totp: reviewer.rae@example.invalid is factor-clean (1 deleted, readback verified zero)
+reset-totp: preparer.pat@example.invalid is factor-clean (1 deleted, readback verified zero)
+reset-totp: mixed.same@example.invalid is factor-clean (1 deleted, readback verified zero)
+reset-totp: approver.avery@example.invalid is factor-clean (1 deleted, readback verified zero)
+answer-reset: a1Question is OPEN again with no answer (version 5)
+case-reset: a1 is back to its seeded status with no package (version 11)
+
+PASS tests/live/review-live.test.ts
+PASS tests/live/app-live-bridge.test.ts
+PASS tests/live/screens-live.test.tsx
+PASS tests/live/answers-live.test.ts
+PASS tests/live/documents-live.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       10 passed, 10 total
+Snapshots:   0 total
+Time:        10.297 s, estimated 11 s
+Ran all test suites.
+local-supabase: live bridge on the CLI stack passed (10 of 10)
+bridge exit 0
