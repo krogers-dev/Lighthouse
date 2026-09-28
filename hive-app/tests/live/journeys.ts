@@ -19,6 +19,7 @@ import {
   type HiveSupabaseClient,
   type SessionWriteGate,
 } from '@/data/supabase/client';
+import { AnswersRepository } from '@/data/supabase/answers';
 import { DocumentsRepository } from '@/data/supabase/documents';
 import {
   ActivityRepository,
@@ -122,6 +123,7 @@ export function buildApp() {
     requests: new RequestsRepository(clientAccessor, registry),
     activity: new ActivityRepository(clientAccessor, registry),
     documents: new DocumentsRepository(clientAccessor, registry),
+    answers: new AnswersRepository(clientAccessor, registry),
   };
 }
 

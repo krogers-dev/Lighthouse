@@ -349,6 +349,87 @@ export interface Database {
         };
         Relationships: [];
       };
+      request_answer_citations: {
+        Row: {
+          id: string;
+          answer_id: string;
+          document_id: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          answer_id: string;
+          document_id: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          answer_id?: string;
+          document_id?: string;
+          environment_id?: string;
+          client_id?: string;
+          entity_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      request_answers: {
+        Row: {
+          id: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          request_id: string;
+          created_by: string;
+          status: string;
+          body: string;
+          version: number;
+          submit_key: string | null;
+          submitted_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          request_id: string;
+          created_by: string;
+          status?: string;
+          body?: string;
+          version?: number;
+          submit_key?: string | null;
+          submitted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          environment_id?: string;
+          client_id?: string;
+          entity_id?: string;
+          case_id?: string;
+          request_id?: string;
+          created_by?: string;
+          status?: string;
+          body?: string;
+          version?: number;
+          submit_key?: string | null;
+          submitted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       requests: {
         Row: {
           id: string;
@@ -364,6 +445,7 @@ export interface Database {
           due_on: string | null;
           created_at: string;
           version: number;
+          subject_document_id: string | null;
         };
         Insert: {
           id?: string;
@@ -379,6 +461,7 @@ export interface Database {
           due_on?: string | null;
           created_at?: string;
           version?: number;
+          subject_document_id?: string | null;
         };
         Update: {
           id?: string;
@@ -394,6 +477,7 @@ export interface Database {
           due_on?: string | null;
           created_at?: string;
           version?: number;
+          subject_document_id?: string | null;
         };
         Relationships: [];
       };
@@ -436,6 +520,27 @@ export interface Database {
           p_upload_id: string;
           p_verdict: string;
           p_reason?: string;
+        };
+        Returns: Json;
+      };
+      save_request_answer_draft: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_request_id: string;
+          p_request_version: number;
+          p_body: string;
+          p_cited_document_ids: string[];
+          p_answer_version?: number;
+        };
+        Returns: Json;
+      };
+      submit_request_answer: {
+        Args: {
+          p_answer_id: string;
+          p_answer_version: number;
+          p_idempotency_key: string;
         };
         Returns: Json;
       };

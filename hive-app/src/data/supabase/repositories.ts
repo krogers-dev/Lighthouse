@@ -166,6 +166,10 @@ export interface RequestDetail extends RequestSummary {
   /** The request's object version (WO-003): a document reservation names
    * the version the screen read, and the server refuses a stale one. */
   version: number;
+  /** The document this request is about, when it has one (WO-004): an id
+   * inside the scope, resolved by a separate scoped read so a foreign id
+   * could never render a name. Seeded only in Milestone 3. */
+  subjectDocumentId: string | null;
 }
 
 /** Activity is an enumerated vocabulary, never free text: the database
@@ -276,7 +280,9 @@ export class RequestsRepository implements ScopedResource, RequestsLoader {
     try {
       const result = await client
         .from('requests')
-        .select('id, title, detail, status, owner_role, requested_on, due_on, version')
+        .select(
+          'id, title, detail, status, owner_role, requested_on, due_on, version, subject_document_id',
+        )
         .eq('environment_id', scope.environmentId)
         .eq('client_id', scope.clientId)
         .eq('entity_id', scope.entityId)
@@ -294,6 +300,7 @@ export class RequestsRepository implements ScopedResource, RequestsLoader {
         requestedOn: row.requested_on,
         dueOn: row.due_on,
         version: row.version,
+        subjectDocumentId: row.subject_document_id,
       };
     } catch (error) {
       throw mapDbError(error);

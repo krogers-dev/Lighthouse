@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import {
   DOCUMENT_COLUMNS,
   QUARANTINE_BUCKET,
+  SUBJECT_LINKS,
   SYNTHETIC_DOCUMENTS,
   renderSeedSql,
   storagePathFor,
@@ -63,7 +64,22 @@ test('the rendered SQL names every column once, in the upsert order, and is idem
   assert.ok(
     sql.includes(`insert into public.document_uploads (${DOCUMENT_COLUMNS.join(', ')}) values`),
   );
-  assert.ok(sql.trimEnd().endsWith('on conflict (id) do nothing;'));
+  const upsertEnd = sql.indexOf('on conflict (id) do nothing;');
+  assert.ok(upsertEnd > 0, 'the upsert is idempotent on the primary key');
+  // The source links follow the documents they name and are idempotent too.
+  const links = sql.slice(upsertEnd);
+  assert.ok(SUBJECT_LINKS.length >= 1);
+  for (const link of SUBJECT_LINKS) {
+    assert.ok(
+      links.includes(
+        `update public.requests set subject_document_id = '${link.documentId}' where id = '${link.requestId}' and subject_document_id is null;`,
+      ),
+      `${link.requestId} source link is rendered after the documents, idempotently`,
+    );
+    const named = SYNTHETIC_DOCUMENTS.find((document) => document.id === link.documentId);
+    assert.ok(named, 'a source link names a seeded document');
+    assert.equal(named.status, 'ACCEPTED', 'and only a checked one');
+  }
   assert.equal(new Set(DOCUMENT_COLUMNS).size, DOCUMENT_COLUMNS.length);
   for (const document of SYNTHETIC_DOCUMENTS) {
     for (const column of DOCUMENT_COLUMNS) {

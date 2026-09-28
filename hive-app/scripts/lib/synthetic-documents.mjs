@@ -30,8 +30,20 @@ const CLIENT_SECOND = SYNTHETIC_IDENTITIES.find(
 export const REQUESTS = {
   a1Open: 'dddddddd-0000-4000-8000-0000000000a1',
   a1Answered: 'dddddddd-0000-4000-8000-0000000000a2',
+  /** Milestone 3: the open question about the November statement. */
+  a1Question: 'dddddddd-0000-4000-8000-0000000000a3',
   b1Open: 'dddddddd-0000-4000-8000-0000000000b1',
 };
+
+/** The source links (WO-004): which document a seeded question is about.
+ * Seeded only: no client or staff path sets one in Milestone 3. The
+ * November question points at the checked statement that sits on the
+ * ANSWERED request of the same case, so "resolved inside the scope, even
+ * from another request" is a real property of the seed. Applied after the
+ * documents exist, by both seed lanes. */
+export const SUBJECT_LINKS = [
+  { requestId: REQUESTS.a1Question, documentId: 'd0c0d0c0-0000-4000-8000-0000000000a3' },
+];
 
 export const CASES = {
   a1: 'eeeeeeee-0000-4000-8000-0000000000a1',
@@ -149,6 +161,23 @@ export const SYNTHETIC_DOCUMENTS = [
     createdAt: '2026-08-06T14:00:00Z',
     checkedAt: '2026-08-06T14:03:00Z',
   }),
+  // A1, the November question (Milestone 3): one checked document of its
+  // own, so an answer on it has something to cite in every lane.
+  row({
+    id: 'd0c0d0c0-0000-4000-8000-0000000000a4',
+    clientKey: 'clientA',
+    entityKey: 'entityA1',
+    caseId: CASES.a1,
+    requestId: REQUESTS.a1Question,
+    createdBy: CLIENT_OWNER,
+    status: 'ACCEPTED',
+    displayName: 'november-balance-photo (Synthetic).png',
+    mimeType: 'image/png',
+    byteSize: 512000,
+    clientDigest: '7a1c2f3e4d5b6a7980f1e2d3c4b5a69788796a5b4c3d2e1f0a9b8c7d6e5f4a3b',
+    createdAt: '2026-08-16T09:00:00Z',
+    checkedAt: '2026-08-16T09:04:00Z',
+  }),
   // Out of scope: client B / entity B1. Reachable by no seeded A user and
   // by staff only at AAL2, so the cross-scope negatives are real.
   row({
@@ -220,6 +249,14 @@ export function renderSeedSql() {
     lines.push(`  (${values.join(', ')})${suffix}`);
   });
   lines.push('on conflict (id) do nothing;');
+  lines.push('');
+  lines.push('-- Source links (WO-004): the document a seeded question is about.');
+  for (const link of SUBJECT_LINKS) {
+    lines.push(
+      `update public.requests set subject_document_id = ${sqlLiteral(link.documentId)}` +
+        ` where id = ${sqlLiteral(link.requestId)} and subject_document_id is null;`,
+    );
+  }
   lines.push('');
   return lines.join('\n');
 }

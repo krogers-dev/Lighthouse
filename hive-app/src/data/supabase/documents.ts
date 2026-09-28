@@ -51,6 +51,10 @@ export interface DocumentSummary {
 
 export interface DocumentsLoader {
   list(scope: ScopeKey, requestId: string): Promise<ScopedList<DocumentSummary>>;
+  /** One document by id inside the scope (WO-004: the document a request
+   * is about, which may sit on another request of the case). A foreign or
+   * unknown id is null, never an error, so nothing confirms it exists. */
+  getById(scope: ScopeKey, documentId: string): Promise<DocumentSummary | null>;
 }
 
 export interface UploadReservation {
@@ -249,6 +253,34 @@ export class DocumentsRepository implements ScopedResource, DocumentsLoader, Doc
       return {
         items,
         recordedThrough: newest(items.flatMap((item) => [item.receivedAt, item.checkedAt])),
+      };
+    } catch (error) {
+      throw mapDbError(error);
+    }
+  }
+
+  async getById(scope: ScopeKey, documentId: string): Promise<DocumentSummary | null> {
+    const client = this.getClient();
+    try {
+      const result = await client
+        .from('document_uploads')
+        .select('id, display_name, mime_type, byte_size, status, received_at, checked_at')
+        .eq('environment_id', scope.environmentId)
+        .eq('client_id', scope.clientId)
+        .eq('entity_id', scope.entityId)
+        .eq('id', documentId)
+        .limit(1);
+      if (result.error) throw result.error;
+      const row = result.data[0];
+      if (!row || !isDocumentStatus(row.status)) return null;
+      return {
+        id: row.id,
+        displayName: row.display_name,
+        mimeType: row.mime_type,
+        byteSize: row.byte_size,
+        status: row.status,
+        receivedAt: row.received_at,
+        checkedAt: row.checked_at,
       };
     } catch (error) {
       throw mapDbError(error);

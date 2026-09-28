@@ -16,6 +16,7 @@ const request: RequestDetail = {
   requestedOn: '2026-08-10',
   dueOn: '2026-09-10',
   version: 1,
+  subjectDocumentId: null,
 };
 
 const document: CheckedDocument = {

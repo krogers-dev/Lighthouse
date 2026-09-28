@@ -1,0 +1,155 @@
+appId: com.myhbcfo.hive.development
+name: A client answers an open question with a saved draft, a cited document, and one explicit submission
+tags:
+  - milestone3
+# Pre-steps: the seeded stack up (Docker or CLI; no storage service is
+# needed), the app signed in as client.owner@example.invalid (sign-in.yaml),
+# and the seeded November question OPEN with no answer. A request is
+# answered once, so between runs on the same stack reset it through the
+# checked loopback command:
+#   node scripts/local-supabase.mjs reset-answer a1Question
+# What this proves on glass: the question names the checked document it
+# is about (a document on another request of the case, resolved inside
+# the scope); the one primary action for a client user on an open
+# request is to answer it; the draft is saved with the request and says
+# nothing was submitted; a cited document is a checkbox that says so in
+# words; submission goes through one explicit confirmation that says what
+# it means; and the request then shows as answered with the answer on it.
+# Emulator note (first desktop run, 2026-09-28): the first time a multi-line
+# field takes focus, Gboard raises its one-time "Try out your stylus"
+# onboarding sheet over the app and every step under it fails. Dismiss it
+# once by hand (Cancel); it does not return. Text selectors name whole
+# captions: Maestro matches text as an anchored regex, so a fragment such
+# as "Referred to in your answer" never matches "Checked. Referred to in
+# your answer".
+---
+- launchApp:
+    clearState: false
+# ScopeKey is memory-only by design, so a resumed session lands on the
+# chooser. Bounded wait: a dev build fetches its bundle on a cold start.
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- tapOn:
+    id: 'nav-requests'
+- assertVisible:
+    id: 'requests-list'
+- tapOn: 'Confirm the November statement balance \(Synthetic\)'
+- assertVisible:
+    id: 'request-detail-ready'
+# The source link, resolved inside the scope: the row sits in the table
+# below the request text, so scroll to it rather than assert the viewport.
+- scrollUntilVisible:
+    element:
+      id: 'request-detail-subject'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- assertVisible: 'statement-2025-11 \(Synthetic\).pdf'
+- scrollUntilVisible:
+    element:
+      id: 'request-detail-answer'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- assertVisible: 'No answer yet.'
+- tapOn:
+    id: 'request-detail-answer'
+- assertVisible:
+    id: 'respond-request-title'
+- tapOn:
+    id: 'respond-text'
+- inputText: 'Yes, the closing balance matches our records. (Synthetic)'
+# The soft keyboard covers the lower half of the screen and hideKeyboard is
+# forbidden (find 37): every control below is scrolled into view first.
+- scrollUntilVisible:
+    element:
+      text: 'november-balance-photo \(Synthetic\).png'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: true
+- tapOn: 'november-balance-photo \(Synthetic\).png'
+- assertVisible: 'Checked. Referred to in your answer'
+- scrollUntilVisible:
+    element:
+      id: 'respond-save'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'respond-save'
+- extendedWaitUntil:
+    visible:
+      id: 'respond-saved'
+    timeout: 20000
+- assertVisible: 'Your draft is kept with the request. Nothing has been submitted.'
+- scrollUntilVisible:
+    element:
+      id: 'respond-submit'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'respond-submit'
+# One explicit confirmation that says what submitting means.
+- extendedWaitUntil:
+    visible:
+      id: 'respond-confirm-notice'
+    timeout: 10000
+- assertVisible: 'Once submitted it cannot be changed, and Honeybee will see it. The request will show as answered.'
+- scrollUntilVisible:
+    element:
+      id: 'respond-confirm'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'respond-confirm'
+- extendedWaitUntil:
+    visible:
+      id: 'respond-submitted'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'respond-back'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'respond-back'
+# Back on the request: answered, with the answer on it and no control.
+- extendedWaitUntil:
+    visible:
+      id: 'request-detail-ready'
+    timeout: 20000
+- assertVisible: 'Answered'
+- scrollUntilVisible:
+    element:
+      id: 'request-detail-answer-submitted'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: true
+- assertVisible: 'Yes, the closing balance matches our records. \(Synthetic\)'
+- assertVisible: 'Refers to: november-balance-photo \(Synthetic\).png'
+- assertNotVisible:
+    id: 'request-detail-answer'

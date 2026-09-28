@@ -75,6 +75,8 @@ select coalesce(json_agg(f order by f.name, f.arity), '[]'::json) from (
 `;
 
 export function tsTypeFor(udt) {
+  // pg_type names an array type with a leading underscore (uuid[] is _uuid).
+  if (udt.startsWith('_')) return `${tsTypeFor(udt.slice(1))}[]`;
   switch (udt) {
     case 'uuid':
     case 'text':

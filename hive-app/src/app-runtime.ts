@@ -19,11 +19,13 @@ import {
   type EnvironmentConfig,
 } from '@/core/env';
 import { SafeError } from '@/core/errors';
+import type { RandomSource } from '@/core/ids';
 import {
   createSupabaseBundle,
   type HiveSupabaseClient,
   type SessionWriteGate,
 } from '@/data/supabase/client';
+import { AnswersRepository } from '@/data/supabase/answers';
 import { DocumentsRepository } from '@/data/supabase/documents';
 import {
   ActivityRepository,
@@ -46,8 +48,11 @@ export interface AppServices {
   requestsRepository: RequestsRepository;
   activityRepository: ActivityRepository;
   documentsRepository: DocumentsRepository;
+  answersRepository: AnswersRepository;
   /** The device bindings the add-document flow runs on (WO-003). */
   documentPorts: AddDocumentPorts;
+  /** The device's random source, for the keys a write makes (WO-004). */
+  random: RandomSource;
   env: EnvironmentConfig;
 }
 
@@ -147,6 +152,7 @@ export function getRuntime(): RuntimeResult {
   const requestsRepository = new RequestsRepository(clientAccessor, registry);
   const activityRepository = new ActivityRepository(clientAccessor, registry);
   const documentsRepository = new DocumentsRepository(clientAccessor, registry);
+  const answersRepository = new AnswersRepository(clientAccessor, registry);
   const documentPorts: AddDocumentPorts = {
     // In a QA build the picker can be armed by the synthetic-document deep
     // link for one pick (a device flow cannot drive the platform's file
@@ -166,7 +172,9 @@ export function getRuntime(): RuntimeResult {
       requestsRepository,
       activityRepository,
       documentsRepository,
+      answersRepository,
       documentPorts,
+      random: expoCryptoRandomSource,
       env,
     },
   };

@@ -17,6 +17,7 @@ import {
   membershipMixedReviewer,
 } from '@/auth/__tests__/fixtures';
 import { AuthProvider } from '@/auth/provider';
+import type { AnswerLoader } from '@/data/supabase/answers';
 import type { DocumentsLoader } from '@/data/supabase/documents';
 import type {
   ActivityEntry,
@@ -37,7 +38,11 @@ import { makeContractHarness } from './helpers/auth-harness';
  * contract is about the request read, so the documents read is empty. */
 const noDocuments: DocumentsLoader = {
   list: async () => ({ items: [], recordedThrough: null }),
+  getById: async () => null,
 };
+
+/** And its answer (WO-004): none, for the same reason. */
+const noAnswers: AnswerLoader = { get: async () => null };
 
 function requestNamed(title: string): RequestSummary {
   return {
@@ -114,6 +119,7 @@ class ScopedDetailLoader implements RequestsLoader {
       requestedOn: '2026-08-10',
       dueOn: null,
       version: 1,
+      subjectDocumentId: null,
     };
   }
 }
@@ -216,7 +222,9 @@ describe('request detail scope contract', () => {
         <RequestDetailScreen
           repository={loader}
           documentsRepository={noDocuments}
+          answersRepository={noAnswers}
           onAddDocument={() => undefined}
+          onAnswer={() => undefined}
           requestId="reachable-id"
           onBack={() => undefined}
         />
@@ -244,7 +252,9 @@ describe('request detail scope contract', () => {
         <RequestDetailScreen
           repository={loader}
           documentsRepository={noDocuments}
+          answersRepository={noAnswers}
           onAddDocument={() => undefined}
+          onAnswer={() => undefined}
           requestId="another-workspaces-id"
           onBack={() => undefined}
         />

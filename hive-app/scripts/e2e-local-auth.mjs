@@ -35,6 +35,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import process from 'node:process';
 
 import { requireFactorsClean } from './lib/admin-factors.mjs';
+import { assertAnswerPath } from './lib/answer-path.mjs';
+import { performAnswerReset } from './lib/answer-reset.mjs';
 import { msUntilIatAdvance, verifyRefreshedSession } from './lib/refresh-verify.mjs';
 import { SCOPE, SYNTHETIC_IDENTITIES } from './lib/synthetic-identities.mjs';
 import { totpCode } from './lib/totp.mjs';
@@ -346,6 +348,8 @@ const NEXT_ACTIONS = {
 const REQUESTS = {
   a1: 'dddddddd-0000-4000-8000-0000000000a1',
   a2: 'dddddddd-0000-4000-8000-0000000000a2',
+  // Milestone 3 (WO-004): the November question, on the same case.
+  a3: 'dddddddd-0000-4000-8000-0000000000a3',
   b1: 'dddddddd-0000-4000-8000-0000000000b1',
 };
 const ACTIVITY = {
@@ -362,6 +366,8 @@ const DOCUMENTS = {
   a1Accepted: 'd0c0d0c0-0000-4000-8000-0000000000a1',
   a1Rejected: 'd0c0d0c0-0000-4000-8000-0000000000a2',
   a2Accepted: 'd0c0d0c0-0000-4000-8000-0000000000a3',
+  // Milestone 3: the checked document on the November question.
+  a3Accepted: 'd0c0d0c0-0000-4000-8000-0000000000a4',
   b1Accepted: 'd0c0d0c0-0000-4000-8000-0000000000b1',
 };
 const REACH = {
@@ -372,9 +378,16 @@ const REACH = {
     cases: [CASES.a1, CASES.a1Older],
     case_attention_items: [ATTENTION.a1],
     case_next_actions: [NEXT_ACTIONS.a1],
-    requests: [REQUESTS.a1, REQUESTS.a2],
+    requests: [REQUESTS.a1, REQUESTS.a2, REQUESTS.a3],
     activity_events: [ACTIVITY.a1, ACTIVITY.a2, ACTIVITY.a3],
-    document_uploads: [DOCUMENTS.a1Accepted, DOCUMENTS.a1Rejected, DOCUMENTS.a2Accepted],
+    document_uploads: [
+      DOCUMENTS.a1Accepted,
+      DOCUMENTS.a1Rejected,
+      DOCUMENTS.a2Accepted,
+      DOCUMENTS.a3Accepted,
+    ],
+    request_answers: [],
+    request_answer_citations: [],
   },
   aAndB1: {
     environments: [SCOPE.environmentId],
@@ -383,14 +396,17 @@ const REACH = {
     cases: [CASES.a1, CASES.a1Older, CASES.b1],
     case_attention_items: [ATTENTION.a1, ATTENTION.b1],
     case_next_actions: [NEXT_ACTIONS.a1, NEXT_ACTIONS.b1],
-    requests: [REQUESTS.a1, REQUESTS.a2, REQUESTS.b1],
+    requests: [REQUESTS.a1, REQUESTS.a2, REQUESTS.a3, REQUESTS.b1],
     activity_events: [ACTIVITY.a1, ACTIVITY.a2, ACTIVITY.a3, ACTIVITY.b1],
     document_uploads: [
       DOCUMENTS.a1Accepted,
       DOCUMENTS.a1Rejected,
       DOCUMENTS.a2Accepted,
+      DOCUMENTS.a3Accepted,
       DOCUMENTS.b1Accepted,
     ],
+    request_answers: [],
+    request_answer_citations: [],
   },
 };
 const PROTECTED_TABLES = [
@@ -405,6 +421,10 @@ const PROTECTED_TABLES = [
   'activity_events',
   // Milestone 2 (WO-003): the documents on a request, same shape, same proofs.
   'document_uploads',
+  // Milestone 3 (WO-004): the answer on a request and its citations. The
+  // seed holds none; the rows step 3c creates are counted through extraReach.
+  'request_answers',
+  'request_answer_citations',
 ];
 
 function idsOf(rows) {
@@ -449,7 +469,12 @@ async function assertStaffAal1(identity, session) {
  * the activity trail and the document table gained from THIS harness run
  * (step 7) are counted through `extraReach`, so the sets stay exact
  * rather than becoming floors. */
-const extraReach = { activity_events: [], document_uploads: [] };
+const extraReach = {
+  activity_events: [],
+  document_uploads: [],
+  request_answers: [],
+  request_answer_citations: [],
+};
 
 async function assertExactReach(identity, accessToken, reach, label) {
   for (const table of PROTECTED_TABLES) {
@@ -711,6 +736,42 @@ for (const identity of SYNTHETIC_IDENTITIES) {
   }
 }
 
+// 3c. Milestone 3 (WO-004): the answer path with real JWTs, also before
+//     the AAL2 reach checks. The seeded question is reset first through
+//     the checked loopback reset, so a re-run starts from the seed.
+{
+  const owner = byEmail.get('client.owner@example.invalid');
+  const other = byEmail.get('client.second@example.invalid');
+  const staff = byEmail.get('reviewer.rae@example.invalid');
+  const parties = {
+    owner,
+    other,
+    staff,
+    ownerSession: sessions.get(owner.email),
+    otherSession: sessions.get(other.email),
+    staffSession: sessions.get(staff.email),
+  };
+  if (parties.ownerSession && parties.otherSession && parties.staffSession) {
+    await assertAnswerPath(
+      {
+        rest,
+        rpc,
+        check,
+        uuidV4,
+        extraReach,
+        SCOPE,
+        REQUESTS,
+        DOCUMENTS,
+        CASES,
+        reset: (requestKey) => performAnswerReset({ url, serviceKey, gatewayKey, requestKey }),
+      },
+      parties,
+    );
+  } else {
+    check(false, 'answer path: the three sessions it needs are not all available');
+  }
+}
+
 // 4. Full staff path (preparer.pat): enroll, AAL2, MANDATORY refresh, and
 //    protected reads with the REFRESHED token; then repeat login against
 //    the existing factor discovered via GET /factors.
@@ -738,7 +799,12 @@ for (const identity of SYNTHETIC_IDENTITIES) {
       }
       // Repeat login: fresh OTP; the verified factor is discovered from
       // GET /user (the documented factor listing for a session), never
-      // remembered from enrollment.
+      // remembered from enrollment. On a fast local stack the enrollment,
+      // the refresh, and the reach checks finish inside GoTrue's one-second
+      // send floor for the same address (auth.email.max_frequency), and the
+      // repeat request is refused 429 (find 60, 2026-09-28): wait it out,
+      // as step 2 does.
+      await sleep(1100);
       const again = await signInWithOtp(identity);
       if (again) {
         const user = await auth('/user', {}, again.access_token);

@@ -28,7 +28,7 @@
 import process from 'node:process';
 
 import { verifyCanonicalUser } from './lib/auth-verify.mjs';
-import { SYNTHETIC_DOCUMENTS } from './lib/synthetic-documents.mjs';
+import { SUBJECT_LINKS, SYNTHETIC_DOCUMENTS } from './lib/synthetic-documents.mjs';
 import { SYNTHETIC_IDENTITIES, membershipRows } from './lib/synthetic-identities.mjs';
 
 const url = process.env.HIVE_LOCAL_SUPABASE_URL;
@@ -255,6 +255,37 @@ if (missingDocuments.length > 0) {
   process.exit(1);
 }
 
+// Source links (WO-004): the document a seeded question is about, set
+// once the document exists. Only a request still without a link is
+// touched, so a re-run changes nothing (and bumps no request version).
+for (const link of SUBJECT_LINKS) {
+  const linked = await restRequest(
+    `/requests?id=eq.${link.requestId}&subject_document_id=is.null`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ subject_document_id: link.documentId }),
+    },
+  );
+  if (!linked.ok) {
+    console.error(`seed-local: source link update failed with status ${linked.status}`);
+    process.exit(1);
+  }
+}
+const linkCheck = await restRequest(
+  `/requests?select=id,subject_document_id&id=in.(${SUBJECT_LINKS.map((l) => l.requestId).join(',')})`,
+  { method: 'GET' },
+);
+const linkedRows = linkCheck.ok ? JSON.parse(linkCheck.text) : [];
+const unlinked = SUBJECT_LINKS.filter(
+  (link) =>
+    !linkedRows.some((r) => r.id === link.requestId && r.subject_document_id === link.documentId),
+);
+if (!linkCheck.ok || unlinked.length > 0) {
+  console.error(`seed-local: ${unlinked.length} source link(s) missing after the update`);
+  process.exit(1);
+}
+
 console.log(
-  `seed-local: ${created} created, ${existing} verified existing, ${rows.length} memberships in place, ${SYNTHETIC_DOCUMENTS.length} documents in place, all ids canonical`,
+  `seed-local: ${created} created, ${existing} verified existing, ${rows.length} memberships in place, ${SYNTHETIC_DOCUMENTS.length} documents in place, ${SUBJECT_LINKS.length} source link(s) in place, all ids canonical`,
 );

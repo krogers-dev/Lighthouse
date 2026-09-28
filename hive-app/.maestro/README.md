@@ -10,21 +10,22 @@ targets, and banned secret channels across every flow.
 
 ## Flows
 
-| Flow                        | Covers                                                                                                                                                  |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sign-in.yaml`              | Invite-only email OTP to the scoped dashboard (multi-membership chooser)                                                                                |
-| `mfa-enroll.yaml`           | First staff login: TOTP enrollment (QR + setup key), derived wrong-code recovery, AAL2                                                                  |
-| `mfa-login.yaml`            | Subsequent staff login against the existing factor — never a second QR                                                                                  |
-| `scope-switch.yaml`         | Entity switch clears content and rebinds                                                                                                                |
-| `sign-out.yaml`             | Sign-out removes protected UI and survives relaunch                                                                                                     |
-| `expired-session.yaml`      | Revoked/expired stored session fails closed into fresh sign-in                                                                                          |
-| `offline.yaml`              | Explicit offline state, no stale content, retry recovery (Android `setAirplaneMode`)                                                                    |
-| `quarantine-recovery.yaml`  | Storage quarantine blocks protected UI; verified scrub is the only exit (QA-build corruption hook)                                                      |
-| `reinstall.yaml`            | Data-cleared/reinstalled app boots clean and scrubs stale secure data first                                                                             |
-| `accessibility-smoke.yaml`  | Accessible labels on the auth path (run with the screen reader active)                                                                                  |
-| `confinement-probe.yaml`    | Forced failure while the QR/setup key is on screen — proves artifact confinement (`npm run maestro:confinement`)                                        |
-| `clipboard-scrub.yaml`      | Cleanup only: overwrites the device clipboard on every runner exit path                                                                                 |
-| `request-add-document.yaml` | Milestone 2: a client adds a document to an open request (QA build, Docker stack; the synthetic source is armed by `hivedev:///?qa=synthetic-document`) |
+| Flow                        | Covers                                                                                                                                                                                         |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sign-in.yaml`              | Invite-only email OTP to the scoped dashboard (multi-membership chooser)                                                                                                                       |
+| `mfa-enroll.yaml`           | First staff login: TOTP enrollment (QR + setup key), derived wrong-code recovery, AAL2                                                                                                         |
+| `mfa-login.yaml`            | Subsequent staff login against the existing factor — never a second QR                                                                                                                         |
+| `scope-switch.yaml`         | Entity switch clears content and rebinds                                                                                                                                                       |
+| `sign-out.yaml`             | Sign-out removes protected UI and survives relaunch                                                                                                                                            |
+| `expired-session.yaml`      | Revoked/expired stored session fails closed into fresh sign-in                                                                                                                                 |
+| `offline.yaml`              | Explicit offline state, no stale content, retry recovery (Android `setAirplaneMode`)                                                                                                           |
+| `quarantine-recovery.yaml`  | Storage quarantine blocks protected UI; verified scrub is the only exit (QA-build corruption hook)                                                                                             |
+| `reinstall.yaml`            | Data-cleared/reinstalled app boots clean and scrubs stale secure data first                                                                                                                    |
+| `accessibility-smoke.yaml`  | Accessible labels on the auth path (run with the screen reader active)                                                                                                                         |
+| `confinement-probe.yaml`    | Forced failure while the QR/setup key is on screen — proves artifact confinement (`npm run maestro:confinement`)                                                                               |
+| `clipboard-scrub.yaml`      | Cleanup only: overwrites the device clipboard on every runner exit path                                                                                                                        |
+| `request-add-document.yaml` | Milestone 2: a client adds a document to an open request (QA build, Docker stack; the synthetic source is armed by `hivedev:///?qa=synthetic-document`)                                        |
+| `request-respond.yaml`      | Milestone 3: a client answers the seeded November question (draft, cited document, one explicit submission); reset between runs with `node scripts/local-supabase.mjs reset-answer a1Question` |
 
 ## Prerequisites on a machine with a device lane
 

@@ -76,6 +76,7 @@ const REQUEST_DETAIL: RequestDetail = {
   dueOn: '2026-08-30',
   detail: 'Please provide the June statement for the operating account (Synthetic).',
   version: 1,
+  subjectDocumentId: null,
 };
 
 const DOCUMENTS: ScopedList<DocumentSummary> = {

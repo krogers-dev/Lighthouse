@@ -96,8 +96,9 @@ select throws_ok('select * from public.activity_events', '42501', null,
 select pg_temp.become_superuser() \gset
 select pg_temp.impersonate_email('client.owner@example.invalid') \gset
 
-select is((select count(*)::int from public.requests), 2,
-  'client A owner sees exactly their two requests');                       -- 12
+-- Three since Milestone 3 seeded the November question on the same case.
+select is((select count(*)::int from public.requests), 3,
+  'client A owner sees exactly their three requests');                     -- 12
 select is((select count(*)::int from public.activity_events), 3,
   'client A owner sees exactly their three activity events');              -- 13
 select is(
@@ -183,7 +184,7 @@ select is((select count(*)::int from public.activity_events), 0,
 -- Same staff user at AAL2: their exact membership scope, nothing wider.
 select pg_temp.become_superuser() \gset
 select pg_temp.impersonate_email('reviewer.rae@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.requests), 2,
+select is((select count(*)::int from public.requests), 3,
   'staff at aal2 sees exactly their scoped requests');                     -- 30
 select is((select count(*)::int from public.activity_events), 3,
   'staff at aal2 sees exactly their scoped activity events');              -- 31

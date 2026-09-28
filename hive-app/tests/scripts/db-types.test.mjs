@@ -9,6 +9,9 @@ test('maps postgres types to TypeScript', () => {
   assert.equal(tsTypeFor('jsonb'), 'Json');
   assert.equal(tsTypeFor('int4'), 'number');
   assert.equal(tsTypeFor('bool'), 'boolean');
+  // An array argument (WO-004: the cited document ids) is an array type.
+  assert.equal(tsTypeFor('_uuid'), 'string[]');
+  assert.equal(tsTypeFor('_text'), 'string[]');
 });
 
 test('renders a deterministic Database interface with nullability and defaults', () => {

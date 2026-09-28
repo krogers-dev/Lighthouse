@@ -338,6 +338,9 @@ async function bridge() {
   // and it would wait for an enrollment that never comes (first CLI-stack
   // bridge, 2026-09-28). Reset through the checked loopback command.
   await resetTotp('reviewer.rae@example.invalid');
+  // The answer journey settles the seeded November question (WO-004), and
+  // a request is answered once: put it back before the suites run.
+  await resetAnswer('a1Question');
   const child = spawnSync(
     'npx',
     ['--no-install', 'jest', '--config', 'jest.live.config.js', '--colors=false'],
@@ -364,6 +367,15 @@ async function bridge() {
   console.log(
     `local-supabase: live bridge on the CLI stack passed${counts ? ` (${counts[1]} of ${counts[2]})` : ''}`,
   );
+}
+
+/** Checked reset of one seeded request's answer (WO-004): the recovery
+ * after an answer flow, the harness, or the bridge settled it. */
+async function resetAnswer(requestKey) {
+  if (!requestKey) {
+    fail('usage: local-supabase.mjs reset-answer <requestKey>');
+  }
+  await runHarness('answer-reset.mjs', { HIVE_RESET_ANSWER_REQUEST: requestKey });
 }
 
 /** The local quarantine tooling (WO-003): the named synthetic scan over
@@ -413,6 +425,9 @@ if (isMain) {
     case 'bridge':
       await bridge();
       break;
+    case 'reset-answer':
+      await resetAnswer(process.argv[3]);
+      break;
     case 'scan-quarantine':
       await scanQuarantine();
       break;
@@ -424,7 +439,7 @@ if (isMain) {
       break;
     default:
       fail(
-        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|scan-quarantine|sweep-uploads|stop>',
+        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|scan-quarantine|sweep-uploads|stop>',
       );
   }
 }

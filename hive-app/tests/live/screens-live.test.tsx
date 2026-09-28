@@ -97,7 +97,9 @@ describe('the real screens over the live composition', () => {
         <RequestDetailScreen
           repository={app.requests}
           documentsRepository={app.documents}
+          answersRepository={app.answers}
           onAddDocument={() => undefined}
+          onAnswer={() => undefined}
           requestId={B1_REQUEST}
           onBack={() => {}}
         />

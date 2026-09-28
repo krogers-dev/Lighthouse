@@ -1,0 +1,15 @@
+reset-totp: reviewer.rae@example.invalid is factor-clean (0 deleted, readback verified zero)
+answer-reset: a1Question is OPEN again with no answer (version 5)
+
+PASS tests/live/answers-live.test.ts
+PASS tests/live/app-live-bridge.test.ts
+PASS tests/live/screens-live.test.tsx
+PASS tests/live/documents-live.test.ts
+
+Test Suites: 4 passed, 4 total
+Tests:       9 passed, 9 total
+Snapshots:   0 total
+Time:        10.435 s
+Ran all test suites.
+local-supabase: live bridge on the CLI stack passed (9 of 9)
+bridge exit 0

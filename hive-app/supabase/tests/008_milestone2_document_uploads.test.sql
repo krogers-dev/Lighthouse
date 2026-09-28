@@ -174,8 +174,9 @@ select throws_ok('select * from public.document_uploads', '42501', null,
 
 select pg_temp.become_superuser() \gset
 select pg_temp.impersonate_email('client.owner@example.invalid') \gset
-select is((select count(*)::int from public.document_uploads), 3,
-  'client A owner sees exactly the three documents in their scope');       -- 19
+-- Four since Milestone 3 seeded a checked document on the November question.
+select is((select count(*)::int from public.document_uploads), 4,
+  'client A owner sees exactly the four documents in their scope');        -- 19
 select is(
   (select count(*)::int from public.document_uploads
    where id = 'd0c0d0c0-0000-4000-8000-0000000000b1'), 0,
@@ -212,7 +213,7 @@ select is((select count(*)::int from public.document_uploads), 0,
   'staff at aal1 sees zero documents');                                     -- 26
 select pg_temp.become_superuser() \gset
 select pg_temp.impersonate_email('reviewer.rae@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.document_uploads), 3,
+select is((select count(*)::int from public.document_uploads), 4,
   'staff at aal2 sees exactly the documents of their one scope');           -- 27
 
 select pg_temp.become_superuser() \gset
@@ -221,7 +222,7 @@ select is((select count(*)::int from public.document_uploads), 0,
   'a mixed-role user at aal1 sees zero documents despite a client membership'); -- 28
 select pg_temp.become_superuser() \gset
 select pg_temp.impersonate_email('mixed.cross@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.document_uploads), 4,
+select is((select count(*)::int from public.document_uploads), 5,
   'a mixed-role user at aal2 sees exactly their two scopes (A1 and B1)');  -- 29
 
 select pg_temp.become_superuser() \gset

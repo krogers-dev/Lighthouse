@@ -7,6 +7,7 @@
  * activity is stored as enumerated kinds rather than sentences: changing
  * the words below changes the app, and nothing else.
  */
+import type { AnswerStatus } from '@/data/supabase/answers';
 import type { DocumentStatus } from '@/data/supabase/documents';
 import type {
   ActivityActorRole,
@@ -14,6 +15,7 @@ import type {
   CaseStatus,
   RequestStatus,
 } from '@/data/supabase/repositories';
+import type { AnswerFlowRefusal } from '@/features/answers/answer-flow';
 import type { AddDocumentRefusal } from '@/features/documents/add-document-flow';
 import type { MembershipRole } from '@/tenancy/types';
 import type { StatusKind } from '@/ui/primitives/StatusBadge';
@@ -194,3 +196,60 @@ export function recordedThroughLabel(recordedThrough: string | null): string | n
   if (!recordedThrough) return null;
   return `Recorded through ${formatServerTimestamp(recordedThrough)}`;
 }
+
+/** Why an answer was not taken, in client language (WO-004). Every server
+ * refusal token has an entry, so no refusal ever reaches a person as a
+ * code. What to do next is part of each one. */
+export const ANSWER_REFUSAL_WORDING: Record<AnswerFlowRefusal, { title: string; body: string }> = {
+  request_not_found: {
+    title: 'Request not found here',
+    body: 'This request is not part of the workspace you are viewing.',
+  },
+  request_closed: {
+    title: 'This request is no longer taking an answer',
+    body: 'It has been answered or closed. Go back to the request to see its current status.',
+  },
+  request_changed: {
+    title: 'This request changed while you were here',
+    body: 'Go back to the request, refresh it, and continue from there. Your text is still on this screen.',
+  },
+  invalid_text: {
+    title: 'Part of the text could not be used',
+    body: 'Remove any unusual characters and try again.',
+  },
+  answer_too_long: {
+    title: 'The answer is too long',
+    body: 'Up to 4,000 characters can be submitted. Shorten it and try again.',
+  },
+  too_many_citations: {
+    title: 'Too many documents are referred to',
+    body: 'Up to 20 documents can be referred to in one answer. Remove some and try again.',
+  },
+  invalid_document: {
+    title: 'A document can no longer be referred to',
+    body: 'One of the documents you referred to is no longer on this request, or was not accepted. Remove it and try again.',
+  },
+  already_submitted: {
+    title: 'This request has already been answered',
+    body: 'An answer was submitted, and a submitted answer cannot be changed. Go back to the request to see it.',
+  },
+  answer_changed: {
+    title: 'This draft changed elsewhere',
+    body: 'It was saved from another device or by someone else in your workspace. Go back to the request and continue from the latest draft. Your text is still on this screen.',
+  },
+  empty_answer: {
+    title: 'The answer is empty',
+    body: 'Write your answer before submitting it.',
+  },
+  invalid_idempotency_key: {
+    title: 'The answer could not be prepared',
+    body: 'Try again.',
+  },
+};
+
+/** An answer's state on its request, in client language (WO-004). */
+export const ANSWER_STATUS_PRESENTATION: Record<AnswerStatus, { kind: StatusKind; label: string }> =
+  {
+    DRAFT: { kind: 'neutral', label: 'Draft, not submitted' },
+    SUBMITTED: { kind: 'stable', label: 'Submitted' },
+  };

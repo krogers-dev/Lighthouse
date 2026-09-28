@@ -146,8 +146,11 @@ test('EVERY real flow in .maestro/ validates cleanly', () => {
   // Plus the Milestone 2 add-document flow (WO-003): the client adds a
   // document to an open request through the checked, quarantined transfer.
   //
+  // Plus the Milestone 3 answer flow (WO-004): the client answers the
+  // seeded question with a draft, a cited document, and one submission.
+  //
   // Exact, not a floor: an accidental extra flow should be noticed.
-  assert.equal(flowCount, 19);
+  assert.equal(flowCount, 20);
   assert.ok(scriptCount >= 4);
 });
 

@@ -61,6 +61,7 @@ function makeFakeClient(script: {
           record.order = { column, ascending: options.ascending };
           return builder;
         },
+        limit: () => builder,
         then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
           resolve({ data: script.rows ?? [], error: null }),
       };
@@ -329,5 +330,47 @@ describe('error mapping', () => {
     expect(Array.from(new Uint8Array(exactArrayBuffer(view)))).toEqual([1, 2, 3]);
     const whole = new Uint8Array([4, 5]);
     expect(exactArrayBuffer(whole)).toBe(whole.buffer);
+  });
+});
+
+describe('DocumentsRepository.getById (WO-004)', () => {
+  it('reads one document by id inside the full scope, and never a bare reservation', async () => {
+    const fake = makeFakeClient({
+      rows: [
+        {
+          id: 'd0c0d0c0-0000-4000-8000-0000000000a3',
+          display_name: 'statement-2025-11 (Synthetic).pdf',
+          mime_type: 'application/pdf',
+          byte_size: 96256,
+          status: 'ACCEPTED',
+          received_at: '2026-08-06T14:00:00Z',
+          checked_at: '2026-08-06T14:03:00Z',
+        },
+      ],
+    });
+    const found = await repo(fake.client).getById(scope, 'd0c0d0c0-0000-4000-8000-0000000000a3');
+    expect(found).toMatchObject({ id: 'd0c0d0c0-0000-4000-8000-0000000000a3', status: 'ACCEPTED' });
+    expect(fake.queries[0]?.filters).toEqual({
+      environment_id: scope.environmentId,
+      client_id: scope.clientId,
+      entity_id: scope.entityId,
+      id: 'd0c0d0c0-0000-4000-8000-0000000000a3',
+    });
+
+    const reservation = makeFakeClient({
+      rows: [
+        {
+          id: 'u1',
+          display_name: 'x',
+          mime_type: 'application/pdf',
+          byte_size: 1,
+          status: 'UPLOADING',
+          received_at: null,
+          checked_at: null,
+        },
+      ],
+    });
+    await expect(repo(reservation.client).getById(scope, 'u1')).resolves.toBeNull();
+    await expect(repo(makeFakeClient({}).client).getById(scope, 'missing')).resolves.toBeNull();
   });
 });

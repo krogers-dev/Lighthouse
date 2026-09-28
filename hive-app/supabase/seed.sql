@@ -139,6 +139,16 @@ insert into public.requests
    'Confirm the vehicle expense category (Synthetic)',
    'One category needs your confirmation before review (Synthetic).',
    'client_user', 'ANSWERED', '2026-08-05', null),
+  -- Milestone 3 (WO-004): an open QUESTION about a document that sits on
+  -- another request of the same case. Its source link (subject_document_id)
+  -- is set by the seed tooling after the documents exist
+  -- (scripts/lib/synthetic-documents.mjs; seed-local.mjs), never here.
+  ('dddddddd-0000-4000-8000-0000000000a3', '11111111-0000-4000-8000-000000000001',
+   'aaaaaaaa-0000-4000-8000-000000000001', 'aaaaaaaa-1111-4000-8000-000000000001',
+   'eeeeeeee-0000-4000-8000-0000000000a1',
+   'Confirm the November statement balance (Synthetic)',
+   'Does the closing balance on the November statement match your records? A short answer is enough (Synthetic).',
+   'client_user', 'OPEN', '2026-08-15', '2026-09-15'),
   -- Out of scope: client B / entity B1.
   ('dddddddd-0000-4000-8000-0000000000b1', '11111111-0000-4000-8000-000000000001',
    'bbbbbbbb-0000-4000-8000-000000000001', 'bbbbbbbb-1111-4000-8000-000000000001',

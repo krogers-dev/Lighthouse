@@ -20,6 +20,12 @@ export interface TextFieldProps {
   autoComplete?: 'email' | 'one-time-code' | 'off';
   secureTextEntry?: boolean;
   editable?: boolean;
+  /** A paragraph field (WO-004): taller, top-aligned, bounded by
+   * maxLength, with the platform's own correction on. */
+  multiline?: boolean;
+  numberOfLines?: number;
+  maxLength?: number;
+  autoCorrect?: boolean;
   onSubmitEditing?: () => void;
   testID?: string;
   /** testID for the LABEL text, so a device flow can address the label as
@@ -42,6 +48,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     fontSize: inputType.fontSize,
     lineHeight: inputType.lineHeight,
+  },
+  multiline: {
+    minHeight: layout.fieldMinHeight * 3,
+    textAlignVertical: 'top',
+    paddingTop: spacing.sm,
   },
   focused: {
     outlineStyle: 'solid',
@@ -66,6 +77,10 @@ export function TextField({
   autoComplete = 'off',
   secureTextEntry = false,
   editable = true,
+  multiline = false,
+  numberOfLines,
+  maxLength,
+  autoCorrect = false,
   onSubmitEditing,
   testID,
   labelTestID,
@@ -89,9 +104,12 @@ export function TextField({
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         autoComplete={autoComplete}
-        autoCorrect={false}
+        autoCorrect={autoCorrect}
         secureTextEntry={secureTextEntry}
         editable={editable}
+        multiline={multiline}
+        numberOfLines={numberOfLines}
+        maxLength={maxLength}
         onSubmitEditing={onSubmitEditing}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
@@ -99,6 +117,7 @@ export function TextField({
         testID={testID}
         style={[
           styles.input,
+          multiline && styles.multiline,
           fontStyleFor(inputType, fontStatus),
           {
             color: colors.textPrimary,

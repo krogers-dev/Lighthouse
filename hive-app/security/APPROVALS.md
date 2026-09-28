@@ -84,6 +84,22 @@ settles them. Until then they stand as built.
 | What a checked document is | A HIVE evidence reference: "Checked", never approved, filed, or final; Drive stays the record, filing manual | `DOCUMENT_STATUS_PRESENTATION`; PRODUCT.md                                                                     |
 | Who uploads                | Client users only, on OPEN requests; staff never (the control is absent and the server refuses)              | `client_user_for_scope`; the storage policy; `canAddDocumentTo`                                                |
 
+### Milestone 3 — review and response (WO-004, 2026-09-28)
+
+| Decision                     | As built                                                                                                                                                                                        | Where it lives                                                     |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Answer length                | 4,000 characters; newline and tab allowed, other control characters removed on the phone and refused by the server                                                                              | the table constraint; `save_request_answer_draft`; `ANSWER_LIMITS` |
+| What can be cited            | Up to 20 documents, only ones received on the same request (received, being checked, or checked); a citation that is refused or expired before submission refuses the submission                | `citable_document_count`; both functions; `citableDocuments`       |
+| One answer per request       | A single record, DRAFT until submitted, then immutable in text, citations, and status; another client user of the workspace cannot take over a draft (answer_changed)                           | `unique (request_id)`; the lifecycle trigger; the draft function   |
+| Where the draft lives        | On the server with the request, never on the device; the writer sees it from any device; staff never see a draft                                                                                | `request_answers_select_by_membership`                             |
+| What a submission moves      | The request to ANSWERED, one "request answered" activity entry, and an audit receipt carrying lengths and counts, never the text; the case, its attention item, and its next action do not move | `submit_request_answer`; pgTAP suite 009                           |
+| Who reads a submitted answer | Client users of the scope; staff of the scope at AAL2 only                                                                                                                                      | the permissive and restrictive policies on both tables             |
+| Blank drafts                 | A blank draft can be saved (a person may clear and come back); it cannot be submitted (empty_answer)                                                                                            | `submit_request_answer`; `checkAnswerText`                         |
+| The primary action           | On an open request a client user's primary control is "Answer this request"; "Add a document" stands beside it as the secondary control                                                         | `RequestDetailView`                                                |
+| The source link              | Seeded only; no client or staff path sets which document a request is about; resolved by its own scoped read, so a link outside the scope could never render a name                             | `requests.subject_document_id`; `loadRequestContext`               |
+| Telling Honeybee             | **HOLD**: how Honeybee learns of a submission is a communication contract for Stacie; nothing here notifies anyone                                                                              | the migration header; PRODUCT.md                                   |
+| Wording                      | Placeholder client wording for every refusal, state, and the confirmation, Stacie's to replace wholesale                                                                                        | `ANSWER_REFUSAL_WORDING`; the answer view                          |
+
 ## Current state
 
 **Ratified.** On 2026-09-07 Kody ratified the four history exceptions in
