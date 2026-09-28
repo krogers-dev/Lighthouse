@@ -1,0 +1,16 @@
+﻿Running on Pixel_8
+ > Flow Ad-hoc desktop check (not a repository flow) - the QA document reads Checked after the scan
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that "Choose a workspace" is visible... COMPLETED
+Tap on "Harbor Light Bakery LLC \(Synthetic\), Client access"... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Tap on id: nav-requests... COMPLETED
+Assert that id: requests-list is visible... COMPLETED
+Tap on "Bank statement for the closing month \(Synthetic\)"... COMPLETED
+Assert that id: request-detail-ready is visible... COMPLETED
+Scrolling DOWN until "hive-qa-document \(Synthetic\).pdf" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering enabled... COMPLETED
+Assert that "hive-qa-document \(Synthetic\).pdf" is visible... COMPLETED
+Assert that "Checked" is visible... COMPLETED
+Assert that "Approved" is not visible... COMPLETED
+Assert that "Filed" is not visible... COMPLETED
+Take screenshot request-after-scan... COMPLETED

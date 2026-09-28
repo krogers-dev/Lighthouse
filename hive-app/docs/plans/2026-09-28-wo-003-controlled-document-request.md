@@ -359,3 +359,43 @@ sign-in on first use: `git push -u origin claude/hive-fable-5-greenfield-p0cwkq`
 
 Next: Milestone 3, review and response (WO-004), on the same standing
 instruction, from this candidate.
+
+## Desktop run — 2026-09-28, the seven steps on the emulator
+
+Executed on Kody's desktop from this session rather than waiting for his
+hands, under the standing instruction; the full capture is in
+`security/evidence/2026-09-28-desktop-m2/`. All seven steps ✅: the stack
+re-pointed at the emulator and re-seeded; pgTAP PASS; a clean prebuild
+and a QA build (1m 40s); `sign-in.yaml` then `request-add-document.yaml`
+green on `Pixel_8` (API 35), ending on "Received, being checked";
+`scan-quarantine` accepted the device's document (the phone's
+`expo-crypto` digest equal to the scanner's recomputation over the stored
+object: the proof the container could not produce); the sweep clean; the
+bridge 8 of 8. An ad-hoc flow then read "Checked" beside the document on
+glass, and neither "Approved" nor "Filed" anywhere (screenshot in the
+evidence folder).
+
+- **Find 58 — the native digest takes a typed array.** The first pass
+  through "Choose a file" ended in "Something went wrong": expo-crypto's
+  Android `digest` converts its data argument as a `TypedArray` and
+  refused the bare `ArrayBuffer` the adapter passed. Fixed in
+  `expo-adapters.ts`; pinned by a jest contract test against mocked
+  native modules (`expo-adapters.test.ts`, 5 tests), which the unit lane
+  had lacked because the adapters were "device only". Localized from the
+  failure screenshot and the synthetic PDF's presence in the app cache.
+- **Find 59 — the documents section is below the fold.** The flow's
+  `assertVisible` on a seeded document name could not see it under the
+  request's table; the flow now scrolls each name into view first and
+  centres the received document on return.
+- Maestro's on-device server segfaulted twice in five runs (transport:
+  the app stayed healthy; each re-run passed). Two runbook notes: `expo
+run:android --device` wants the AVD name, and a `CI=1` Metro has no
+  watcher, so restart it after any edit.
+
+Gates after the two fixes: jest **589 passed across 47 suites**, eslint
+0, prettier clean, typecheck 0, `maestro:validate` OK (19 flows).
+
+### State
+
+Milestone 2: built, gated, and run on the device. Committed locally; not
+pushed (Kody's sign-in). Provisional decisions still await his one line.

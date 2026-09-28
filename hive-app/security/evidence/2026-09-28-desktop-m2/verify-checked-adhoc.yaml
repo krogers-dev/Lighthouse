@@ -1,0 +1,32 @@
+appId: com.myhbcfo.hive.development
+name: Ad-hoc desktop check (not a repository flow) - the QA document reads Checked after the scan
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- tapOn:
+    id: 'nav-requests'
+- assertVisible:
+    id: 'requests-list'
+- tapOn: 'Bank statement for the closing month \(Synthetic\)'
+- assertVisible:
+    id: 'request-detail-ready'
+- scrollUntilVisible:
+    element:
+      text: 'hive-qa-document \(Synthetic\).pdf'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: true
+- assertVisible: 'hive-qa-document \(Synthetic\).pdf'
+- assertVisible: 'Checked'
+- assertNotVisible: 'Approved'
+- assertNotVisible: 'Filed'
+- takeScreenshot: request-after-scan

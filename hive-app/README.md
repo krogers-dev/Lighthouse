@@ -184,7 +184,12 @@ run:android` (after `npx expo prebuild --platform android --clean` if
 7. `node scripts/local-supabase.mjs bridge`. ✅ "live bridge on the CLI
    stack passed (8 of 8)".
 
-Reply "✅ M2" or "❌ M2 step N" with the line that differed.
+**Run on 2026-09-28 from this desktop: all seven steps ✅** (the capture is
+in `security/evidence/2026-09-28-desktop-m2/`; finds 58 and 59 were fixed
+in the same commit). Two notes for the next run: `expo run:android
+--device` wants the AVD name (`Pixel_8`), not the adb serial, and a Metro
+started with `CI=1` has no file watcher, so restart it after any edit
+before relaunching the app.
 
 What the desktop run proves that the build container could not: the
 platform's file picker copies a file the app can read (step 4 uses the

@@ -40,9 +40,27 @@ tags:
 - tapOn: 'Bank statement for the closing month \(Synthetic\)'
 - assertVisible:
     id: 'request-detail-ready'
-# The seeded documents on this request, each with its true status.
-- assertVisible: 'bank-statement-2026-07 \(Synthetic\).pdf'
-- assertVisible: 'receipt-photo \(Synthetic\).jpeg'
+# The seeded documents on this request, each with its true status. The
+# documents section sits below the request's table, so at any text size
+# the rows are below the fold and assertVisible (viewport only, find 17)
+# cannot see them: scroll each into view instead (first desktop run,
+# 2026-09-28).
+- scrollUntilVisible:
+    element:
+      text: 'bank-statement-2026-07 \(Synthetic\).pdf'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- scrollUntilVisible:
+    element:
+      text: 'receipt-photo \(Synthetic\).jpeg'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
 - scrollUntilVisible:
     element:
       id: 'request-detail-add-document'
@@ -90,10 +108,20 @@ tags:
     centerElement: false
 - tapOn:
     id: 'add-document-back'
-# Back on the request, the document is listed as received, being checked.
+# Back on the request, the document is listed (newest first, so it heads
+# the documents section) as received, being checked. Below the fold, so
+# scroll to it; the status badge sits directly under the name.
 - extendedWaitUntil:
     visible:
       id: 'request-detail-ready'
     timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: 'hive-qa-document \(Synthetic\).pdf'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: true
 - assertVisible: 'hive-qa-document \(Synthetic\).pdf'
 - assertVisible: 'Received, being checked'

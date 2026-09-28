@@ -73,10 +73,14 @@ function toHex(bytes: Uint8Array): string {
 
 export const expoDigester: Digester = {
   async sha256Hex(bytes: Uint8Array): Promise<string> {
-    const digest = await Crypto.digest(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      exactArrayBuffer(bytes),
-    );
+    // A TYPED ARRAY over exactly these bytes, never the bare buffer: the
+    // native module (CryptoModule.kt digest(algorithm, output: TypedArray,
+    // data: TypedArray)) converts its data argument as a typed array and
+    // refuses an ArrayBuffer, which the first desktop run met only as
+    // "Something went wrong" at the check step (2026-09-28). The exact
+    // buffer keeps the digest over the view, not its allocation.
+    const view = new Uint8Array(exactArrayBuffer(bytes));
+    const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, view);
     return toHex(new Uint8Array(digest));
   },
 };
