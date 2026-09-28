@@ -110,6 +110,9 @@ decisions, start Milestone 4"** (given at candidate `6234f12`).
 
 ### Milestone 4 — internal review and approval (WO-005, 2026-09-28)
 
+**Ratified 2026-09-28 by Kody, in writing: "I ratify the Milestone 4
+decisions, start Milestone 5"** (given at candidate `eb1a974`).
+
 | Decision               | As built                                                                                                                                                                                                                                                                                               | Where it lives                                                                          |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | Who freezes            | The assigned preparer, from EVIDENCE_PENDING or from APPROVED (material change); intake never (no accounting decision and no submission for review)                                                                                                                                                    | `freeze_case_package`; `actionsFor`                                                     |
