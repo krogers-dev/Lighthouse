@@ -63,15 +63,20 @@ be able to point at material the implementer controls. A surviving
   archive — any material change invalidates it.
 - A ratification dated in the future, or after the entry's expiry.
 
-## Provisional decisions awaiting Kody's one-line ratification
+## Milestone decisions under Kody's standing instruction
 
 Under Kody's standing instruction of 2026-09-18 ("just RUN"), each
 milestone records the product decisions it had to make. None is a HOLD
 item; each is reversible by changing one value and re-running the gates.
 A one-line reply ("I ratify the Milestone 2 decisions" or "change X to Y")
-settles them. Until then they stand as built.
+settles them; until then they stand as built, marked provisional. A
+ratification is recorded here with its date and Kody's exact words, and
+the candidate it was given at.
 
 ### Milestone 2 — controlled document request (WO-003, 2026-09-28)
+
+**Ratified 2026-09-28 by Kody, in writing: "I ratify the Milestone 2 and 3
+decisions, start Milestone 4"** (given at candidate `6234f12`).
 
 | Decision                   | As built                                                                                                     | Where it lives                                                                                                 |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
@@ -85,6 +90,9 @@ settles them. Until then they stand as built.
 | Who uploads                | Client users only, on OPEN requests; staff never (the control is absent and the server refuses)              | `client_user_for_scope`; the storage policy; `canAddDocumentTo`                                                |
 
 ### Milestone 3 — review and response (WO-004, 2026-09-28)
+
+**Ratified 2026-09-28 by Kody, in writing: "I ratify the Milestone 2 and 3
+decisions, start Milestone 4"** (given at candidate `6234f12`).
 
 | Decision                     | As built                                                                                                                                                                                        | Where it lives                                                     |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
