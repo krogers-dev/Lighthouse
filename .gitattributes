@@ -1,0 +1,31 @@
+# Line endings: LF in the repository and LF in every checkout.
+#
+# The repository is authored with LF, and three of its gates depend on the
+# working tree carrying exactly the bytes the index holds: prettier
+# (endOfLine lf) reports every CRLF file as unformatted, node:test's
+# brand-assets suite hashes assets/fonts/OFL.txt against the design
+# package manifest, and the ratification tooling digests files. On a
+# Windows machine with the Git for Windows default core.autocrlf=true, a
+# plain clone checked out 306 text files as CRLF, so `format:check`
+# failed on 248 files and the font-notice digest test failed while the
+# committed content was correct (find 53, 2026-09-28, Kody's desktop).
+# `eol=lf` makes the checkout independent of that machine setting.
+* text=auto eol=lf
+
+# Binary by extension, so no heuristic ever decides for them.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+*.zip binary
+*.jar binary
+*.keystore binary
+*.jks binary
+*.p12 binary
