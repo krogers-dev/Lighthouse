@@ -132,10 +132,10 @@ decisions, start Milestone 5"** (given at candidate `eb1a974`).
 
 ### Milestone 5 — source adapters (WO-006, 2026-09-28)
 
-**Provisional — awaiting Kody's one-line ratification.** Built on his word
-("I ratify the Milestone 4 decisions, start Milestone 5"). No live ledger
-and no live Drive is touched: both adapters are named synthetic stand-ins,
-and the live integrations stay HOLD with their own adapter PASS.
+**Ratified 2026-09-28 by Kody, in writing: "I ratify the Milestone 5
+decisions, start Milestone 6"** (given at candidate `0a243b1`). No live
+ledger and no live Drive is touched: both adapters are named synthetic
+stand-ins, and the live integrations stay HOLD with their own adapter PASS.
 
 | Decision                   | As built                                                                                                                                                                                                                                                                                                                                                                        | Where it lives                                                                     |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
