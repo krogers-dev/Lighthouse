@@ -492,3 +492,30 @@ enable_confirmations = true
 # is by emailed code only.
 enabled = false
 uri = ""
+
+# ---------------------------------------------------------------------------
+# Hosted production: hive-production (ref nceencyvxfhkffbjqlea, us-east-2),
+# created 2026-09-29 at Kody's "Help here" under his general grant, on the
+# Free plan until he upgrades it. Same overrides as staging; the same push
+# rule applies (the hook keeps the CLI from applying the auth section, so
+# the values are Kody's dashboard clicks and this block is the record).
+# NEVER a seed of any kind on this project.
+# ---------------------------------------------------------------------------
+[remotes.production]
+project_id = "nceencyvxfhkffbjqlea"
+
+[remotes.production.auth]
+site_url = "http://localhost:3000"
+additional_redirect_urls = []
+minimum_password_length = 12
+
+[remotes.production.auth.rate_limit]
+email_sent = 30
+
+[remotes.production.auth.email]
+max_frequency = "1m0s"
+enable_confirmations = true
+
+[remotes.production.auth.hook.password_verification_attempt]
+enabled = false
+uri = ""

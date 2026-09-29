@@ -196,9 +196,11 @@ stay local.
 - `EXPO_PUBLIC_DELETION_INFO_URL`: the public page whose content is
   drafted in `docs/release/deletion-page.md`, hosted on Honeybee's site. The zone shows `hive.myhbcfo.com` already served by
   ChatGPT-hosted pages, a natural home for it.
-- The privacy policy URL: written by Kody and Stacie (with counsel if
-  they choose) from `docs/release/privacy-policy-facts.md`; never drafted
-  here.
+- The privacy policy URL: the policy is `docs/release/privacy-policy.md`
+  (drafted at Kody's instruction, his entity and address filled, published
+  by him); both pages are pasted from `docs/release/site-pages-to-publish.md`
+  into the ChatGPT project that serves `hive.myhbcfo.com`, by Kody, the
+  session's policy refusing to publish.
 
 ## 8. The kill switch, backups, and the plan
 
@@ -232,9 +234,15 @@ known emulator fault on this desktop); the same code verified from the
 host, and the second attempt on the healthy emulator passed. Restore
 Metro to the local environment afterwards, as the runbook lane expects.
 
-## 9. For the production project
+## 9. The production project (created 2026-09-29, "Help here")
 
-Repeat sections 1, 2, 4, and 7 with a new `[remotes.production]` block and
-its own exact origin and key, no seed of any kind (section 5), the SMTP
-provider of section 3, and the plan of section 8; keep the staging
-project as the review and rehearsal environment.
+`hive-production`, ref `nceencyvxfhkffbjqlea`, us-east-2, the same
+organization, Free plan until Kody upgrades it (section 8). Sections 1 and
+4 are done: thirteen migrations by `db push --db-url`, the committed types
+matching, no seed of any kind, the release profile of the manifest now
+naming its origin and publishable key (`security/evidence/2026-09-29-hosted-production/`).
+Still Kody's clicks on its dashboard, the same list as section 2 plus the
+SMTP settings of section 3 with a second Resend key named "HIVE
+production" and the code template; then the Pro upgrade before any real
+client. `[remotes.production]` in `config.toml` records the values.
+Staging stays the review and rehearsal environment.

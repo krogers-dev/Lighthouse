@@ -95,9 +95,9 @@ test('the emulator host is approved for development only', () => {
   // The candidate lane exports and inspects; it never runs on an
   // emulator, so widening it would approve an origin nothing uses.
   assert.ok(!candidate.approvedOrigins.includes('http://10.0.2.2:54321'));
-  // Release approves exactly the hosted staging origin (2026-09-29): one
+  // Release approves exactly the hosted production origin (2026-09-29): one
   // https origin, never the emulator host and never a loopback.
-  assert.deepEqual(release.approvedOrigins, ['https://zhdvmllscjyepwucbtzq.supabase.co']);
+  assert.deepEqual(release.approvedOrigins, ['https://nceencyvxfhkffbjqlea.supabase.co']);
   assert.ok(!release.approvedOrigins.includes('http://10.0.2.2:54321'));
 });
 

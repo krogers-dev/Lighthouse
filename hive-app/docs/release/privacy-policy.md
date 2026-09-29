@@ -1,31 +1,30 @@
-# HIVE privacy policy — DRAFT for Kody and Stacie's review (2026-09-29)
+# HIVE privacy policy (published 2026-09-29 at Kody's instruction)
 
-**Status: a draft, written at Kody's instruction of 2026-09-29 ("Build a
-default Privacy Policy"), not a published policy.** Every statement about
-what the app does comes from `privacy-policy-facts.md`, where each fact
-names the gate, migration, or test that proves it. The parts in square
-brackets are Honeybee's to fill; nothing is guessed there. Kody and Stacie
-review the whole, with counsel if they choose, and Kody publishes it on
-Honeybee's site; its address then goes into both store forms and, if they
-want it in the app, into the Help screen.
+**Status: the policy as published on Honeybee's site on 2026-09-29, at
+Kody's written instruction ("fill the brackets ... You publish it"), with
+the entity, address, and retention wording he supplied. The legal-basis
+and rights paragraphs are standard wording he asked for and said he will
+have reviewed; when that review changes them, this file, the page, and the
+effective date change together.** Every statement about the app comes
+from `privacy-policy-facts.md`, where each fact names the gate, migration,
+or test that proves it.
 
 ---
 
 ## HIVE Privacy Policy
 
-**Effective date: [date of publication]**
+**Effective date: September 29, 2026**
 
 HIVE is a mobile app made by Honeybee Accounting for its clients and
 staff. This policy explains what information HIVE handles, why, who else
-sees it, how long it is kept, and what you can ask us to do. It is written
-to be read, not skimmed; if anything in it is unclear, write to us at
-**info@myhbcfo.com**.
+sees it, how long it is kept, and what you can ask us to do. If anything
+in it is unclear, write to us at **info@myhbcfo.com**.
 
 ### 1. Who is responsible
 
-Honeybee Accounting, [legal entity name and form], [postal address],
-operates HIVE and is responsible for the information described here.
-Contact: info@myhbcfo.com.
+Myhbcfo, LLC, doing business as Honeybee Accounting, 1464 Boomers Loop W,
+Santa Clara, UT 84765, operates HIVE and is responsible for the
+information described here. Contact: info@myhbcfo.com.
 
 ### 2. What HIVE is, and is not
 
@@ -61,9 +60,10 @@ keep a record of who did what. Every sensitive action leaves an audit
 receipt that names identifiers, never content. We do not sell information,
 use it for advertising, or build profiles from it.
 
-[Legal basis, where a law requires one to be named: performance of the
-engagement between Honeybee and its client, and Honeybee's legitimate
-interest in operating and securing the service — counsel to confirm.]
+Where a law requires us to name a legal basis, we rely on the performance
+of the engagement between Honeybee Accounting and the client you work with
+or for, on our legitimate interest in operating and securing the service,
+and, where a law requires it, on your consent.
 
 ### 5. Who else sees it
 
@@ -92,28 +92,36 @@ are logged.
 Your session stays on your device until you sign out or your account is
 deleted. Your account exists until you ask for its deletion (section 8).
 Documents, answers, and review records belong to the business records
-Honeybee keeps for the client you work with and are retained under
-Honeybee's record-keeping policy: [retention periods, or a reference to
-the published policy].
+Honeybee keeps for the client you work with and are retained for as long
+as the law and Honeybee's professional obligations require, then deleted
+or made anonymous.
 
-### 8. Your choices
+### 8. Your choices and rights
 
 - **Deleting your account.** In HIVE, open **Account** and choose
   **Request account deletion**; you can withdraw the request from the same
   place until Honeybee completes it. If you can no longer sign in, email
   info@myhbcfo.com. Deletion removes your access and the account you sign
   in with. Business records, including documents and answers you provided,
-  are kept under the record-keeping policy above; where they name who
-  acted, they keep an internal reference and not your name or email once
-  the account is gone. Honeybee confirms the deletion by email.
+  are kept as described in section 7; where they name who acted, they keep
+  an internal reference and not your name or email once the account is
+  gone. Honeybee confirms the deletion by email.
 - **Seeing or correcting your information.** Email info@myhbcfo.com.
-- [Rights under state or national law that apply to Honeybee's clients,
-  and how to exercise them — counsel to confirm.]
+- **Other rights.** Depending on where you live, you may have the right to
+  know what information we hold about you, to have it corrected or
+  deleted, to receive a copy of it, to object to or restrict certain uses,
+  and to complain to a supervisory authority. California residents have
+  the rights the California Consumer Privacy Act provides, including the
+  right to know, to delete, to correct, and not to be treated differently
+  for exercising them; we do not sell or share personal information as
+  that law defines those terms. To exercise any right, email
+  info@myhbcfo.com; we confirm the request through the account it concerns
+  and answer within the time the applicable law allows.
 
 ### 9. Children
 
 HIVE is for Honeybee's clients and staff and is not directed to anyone
-under [18].
+under 18.
 
 ### 10. Changes to this policy
 
@@ -123,11 +131,12 @@ change applies.
 
 ### 11. Contact
 
-Honeybee Accounting, info@myhbcfo.com, [postal address].
+Myhbcfo, LLC, doing business as Honeybee Accounting
+1464 Boomers Loop W, Santa Clara, UT 84765
+info@myhbcfo.com
 
 ---
 
-_Fields Honeybee fills before publishing: the legal entity name and form,
-the postal address, the effective date, the retention periods or the
-policy reference, the legal basis and the rights paragraphs (counsel), and
-the age line._
+_Published by Kody's instruction of 2026-09-29. Pending his counsel's
+review: the legal-basis paragraph in section 4, the "Other rights"
+paragraph in section 8, and the age line in section 9._
