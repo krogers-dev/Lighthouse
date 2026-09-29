@@ -208,8 +208,10 @@ brief's rule that a release needs exact authority (an exact build, an
 exact destination, a named account), so it covers every preparation that
 needs no external account, no spending, no accepted term, and no value
 only Kody can supply; it is NOT read as authority to create accounts,
-pay, accept terms, submit, or release, and none of those was done. The
-decisions below are provisional under it, awaiting his one line.
+pay, accept terms, submit, or release, and none of those was done.
+**Ratified 2026-09-29 by Kody, in writing: "I ratify the release
+configuration decisions"** (given at candidate `b98aecc`): the decisions
+below are his.
 
 | Decision                   | As built                                                                                                                                                                                                                   | Where it lives                                                          |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
