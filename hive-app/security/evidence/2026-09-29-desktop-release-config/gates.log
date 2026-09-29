@@ -1,0 +1,45 @@
+== typecheck
+exit 0
+== eslint
+exit 0
+== prettier
+All matched files use Prettier code style!
+exit 0
+== verify:toolchain
+verify:toolchain OK
+exit 0
+== maestro:validate
+maestro:validate OK
+exit 0
+== config:check
+config:check OK for profile development
+exit 0
+== eas:guard
+eas:guard OK — one profile ('ios-simulator'), simulator-only, no submit lane, root .easignore covers both .gitignore files
+exit 0
+== db:types:check
+db-types: committed types match the schema
+exit 0
+== privacy:reconcile
+privacy:reconcile OK — 24 dependencies, 112 source files, the manifest, the permissions, and the export answer match docs/release/privacy-disclosures.json
+exit 0
+== audit:gate
+audit:gate OK (high/critical advisories all covered by ratified, unexpired waivers; no prohibited assets)
+exit 0
+== secrets:scan
+secrets:scan OK
+exit 0
+== jest
+Test Suites: 62 passed, 62 total
+Tests:       733 passed, 733 total
+exit 0
+== test:scripts
+# tests 413
+# pass 377
+# fail 0
+# skipped 36
+exit 0
+== export:candidate
+export:candidate: run record written to security\evidence\candidate-export.json
+export:candidate OK — authorized synthetic candidate lane passed (synthetic nonfunctional configuration; NOT a functional build)
+exit 0

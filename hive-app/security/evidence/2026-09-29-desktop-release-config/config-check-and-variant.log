@@ -1,0 +1,21 @@
+== config:check --profile release (the production variant; every finding is a value only Kody supplies)
+FAIL release configuration uses a loopback URL
+FAIL release configuration must use https
+FAIL profile release has no approved origins in the manifest (HOLD)
+FAIL release configuration is missing EXPO_PUBLIC_SUPPORT_EMAIL (HOLD: Kody supplies the support address)
+FAIL release configuration uses a reserved or testing domain for EXPO_PUBLIC_DELETION_INFO_URL
+config:check FAILED for profile release
+exit 1
+
+== config:check (development)
+config:check OK for profile development
+exit 0
+
+== APP_VARIANT=production expo config --type public (identifiers only)
+  name: 'HIVE',
+  version: '1.0.0',
+  scheme: 'hive',
+    bundleIdentifier: 'com.myhbcfo.hive',
+    buildNumber: '1',
+    package: 'com.myhbcfo.hive',
+    versionCode: 1,

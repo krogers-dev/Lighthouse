@@ -216,6 +216,11 @@ checkpoint, milestone, release candidate, or production release.
   review code the server admits only while a review window is open; the
   hosted hook, the hosted review mailbox, and each window's notes are the
   remaining HOLD steps in `docs/release/signing-and-submission.md`.
-- Store identifiers, privacy answers, financial-features declaration,
-  export compliance, and all items in the brief's "Decisions Claude must
-  HOLD instead of guessing" list remain HOLD.
+- **Store identifiers (decided provisionally 2026-09-29 under Kody's general
+  grant):** `com.myhbcfo.hive` on both platforms, "HIVE", scheme `hive`,
+  version 1.0.0 (`app.config.js`, `APP_VARIANT=production`); app.json
+  stays the development configuration.
+- Privacy answers are prepared and reconciled (`docs/release/privacy-disclosures.md`);
+  the financial-features declaration, export compliance, and every
+  remaining item in the brief's "Decisions Claude must HOLD instead of
+  guessing" list are Kody's to submit.

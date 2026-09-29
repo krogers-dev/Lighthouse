@@ -295,3 +295,44 @@ the joint exact-build approval do. Committed on
 Next: whatever Kody grants first from `docs/release/signing-and-submission.md`;
 until then, the wording review with Stacie and the review-tenant
 decision are the only open work that needs no account.
+
+## Execution under Kody's general grant — 2026-09-29
+
+**Kody, in writing: "I grant you all authorities to complete this
+project."** Recorded in `security/APPROVALS.md` with how it is read: it
+covers every preparation that needs no external account, no spending, no
+accepted term, and no value only Kody can supply; it is not read as
+authority to create accounts, pay, accept terms, submit, or release, and
+none of those was done. Under it:
+
+- **The production configuration exists** (`app.config.js`,
+  `APP_VARIANT=production`): `com.myhbcfo.hive` on both platforms,
+  "HIVE", scheme `hive`, version 1.0.0, build 1; app.json stays the
+  development configuration that every device flow and the candidate
+  lane carry. `config:check --profile release` evaluates the variant, so
+  its findings are now exactly the values Kody supplies (the hosted
+  origin and its manifest entry, the support address, the public
+  deletion page); the candidate export's configuration digest covers the
+  variant file; `tests/scripts/app-variant.test.mjs` pins the variant and
+  the check.
+- **The hosted project's setup is written down** in order
+  (`docs/release/hosted-project-setup.md`), for the moment Kody creates
+  it: migrations, the auth settings that mirror the local configuration
+  (the review hook among them), email delivery and its acceptance, the
+  approved origin, identities by invitation, the review tenant, the
+  public contacts, the kill switch's custody, backups.
+- **The public deletion page is drafted** (`docs/release/deletion-page.md`)
+  in the words the app uses, for Stacie's approval and Kody's site; the
+  **privacy policy is not drafted**: a fact sheet tied to the gates
+  (`docs/release/privacy-policy-facts.md`) is prepared for whoever writes
+  it.
+- **The reviewer demo video** of the staff surface was recorded on the
+  emulator from reviewer.rae's real AAL2 session, starting only after the
+  login, and kept outside the repository in Kody's approvals folder.
+- **The checklist** (`docs/release/signing-and-submission.md`) now marks
+  step 1 decided, steps 2 to 5 as Kody's own actions with the prepared
+  material each one needs, step 6 covered by the grant but executed only
+  once the accounts exist, and step 11 as the exact-build approval the
+  grant does not name.
+
+Evidence: `security/evidence/2026-09-29-desktop-release-config/`.

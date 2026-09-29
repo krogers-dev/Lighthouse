@@ -131,7 +131,13 @@ function sourceCommit() {
 }
 
 function configManifestDigest() {
-  const files = ['app.json', 'metro.config.js', 'package.json', 'security/approved-config.json'];
+  const files = [
+    'app.json',
+    'app.config.js',
+    'metro.config.js',
+    'package.json',
+    'security/approved-config.json',
+  ];
   const hash = createHash('sha256');
   for (const file of files) {
     hash.update(file);

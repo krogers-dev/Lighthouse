@@ -43,6 +43,8 @@ Stacie's choice; the assets are exported from the approved brand kit
 "HIVE is an invitation-only app for Honeybee Accounting's clients and
 staff. Accounts cannot be created in the app. Sign-in uses a one-time
 code sent by email, and staff accounts also use an authenticator. For
-review, use the review account and the arrangement described in
-`review-tenant.md` once Kody has decided it." The review-account
-mechanism itself is HOLD (see that page).
+review, use the review account: the review email and the review code
+in these notes work for this review window only. A short video of the
+staff surface is attached." The mechanism is built (option A,
+`review-tenant.md`); the hosted hook, the mailbox, and each window's
+notes are Kody's steps in the checklist.

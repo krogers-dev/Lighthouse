@@ -16,6 +16,7 @@
  * compile/target SDK 36, allowBackup=false, iOS deployment target 16.4.
  */
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -42,6 +43,16 @@ export function jwtRoleIsAnon(key) {
   } catch {
     return false;
   }
+}
+
+/** The configuration a profile is checked against: app.json for
+ * development, and app.config.js's production variant for release
+ * (APP_VARIANT=production), so the release check reads what a release
+ * build would carry. */
+export function resolveAppConfig(profile, appJson, variantModule) {
+  const expo = appJson?.expo ?? {};
+  if (profile !== 'release') return expo;
+  return variantModule.applyVariant(expo, 'production');
 }
 
 export function checkAppConfig(expo, profile) {
@@ -272,8 +283,9 @@ if (isMain) {
     EXPO_PUBLIC_DELETION_INFO_URL:
       process.env.EXPO_PUBLIC_DELETION_INFO_URL ?? envLocal.EXPO_PUBLIC_DELETION_INFO_URL,
   };
+  const variantModule = createRequire(import.meta.url)(path.join(appRoot, 'app.config.js'));
   const problems = [
-    ...checkAppConfig(appJson.expo, profile),
+    ...checkAppConfig(resolveAppConfig(profile, appJson, variantModule), profile),
     ...checkEnvValues(effectiveEnv, profile, manifest),
     ...checkQaHooks(effectiveEnv, profile),
     ...checkReleaseContacts(effectiveEnv, profile),

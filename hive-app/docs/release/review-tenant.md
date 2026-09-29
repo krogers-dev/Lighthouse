@@ -53,6 +53,15 @@ Option A, with these bounds written into the decision:
   the identity a controlled mailbox, open a window per submission, and
   put the email and the code in the review notes for that window.
 
+## The demo video
+
+The staff surface for the reviewer notes (the approved case with its
+sources and permanent record on a staff session) was recorded on the
+emulator on 2026-09-29 from reviewer.rae's real AAL2 session, starting
+only after the login and never showing the enrollment screen. It is kept
+outside the repository, in Kody's approvals folder
+(`HIVE-approvals\review-demo\`), for him to attach to the review notes.
+
 ## What Kody decides next
 
 1. Which option.

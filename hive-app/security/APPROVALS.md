@@ -200,6 +200,26 @@ hosted hook, the review mailbox, and each window's notes stay HOLD rows.
 | The app               | A code the server refused as an OTP is tried once as the review code, on the ordinary code screen; nothing else changes for anyone                                                                                                                                                                  | `AuthController.submitOtp`                                         |
 | Trail                 | `review.identity_registered`, `review.window_opened`, `review.signed_in`, `review.sign_in_refused`, `review.window_closed`, `review.identity_unregistered`, each in the review environment's scope, as audit receipts only                                                                          | the functions; pgTAP 013; the harness step 4e                      |
 
+### Kody's general grant (2026-09-29) and the release configuration decided under it
+
+**Given by Kody in writing on 2026-09-29: "I grant you all authorities to
+complete this project."** Recorded as given. It is applied within the
+brief's rule that a release needs exact authority (an exact build, an
+exact destination, a named account), so it covers every preparation that
+needs no external account, no spending, no accepted term, and no value
+only Kody can supply; it is NOT read as authority to create accounts,
+pay, accept terms, submit, or release, and none of those was done. The
+decisions below are provisional under it, awaiting his one line.
+
+| Decision                   | As built                                                                                                                                                                                                                   | Where it lives                                                          |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Production identifiers     | iOS bundle identifier and Android application id `com.myhbcfo.hive` (the development ones drop their `.development` suffix); display name "HIVE"; URL scheme `hive`                                                        | `app.config.js` (`APP_VARIANT=production`)                              |
+| First release version      | `1.0.0`, iOS build number 1, Android version code 1; app.json stays the development configuration (`0.1.0`, "HIVE Dev") and every device flow and the candidate lane keep carrying it                                      | `app.config.js`; `docs/release/signing-and-submission.md`               |
+| How the release is checked | `config:check --profile release` evaluates the production variant, so its remaining findings are exactly the values Kody supplies: the hosted origin and its manifest entry, the support address, the public deletion page | `scripts/candidate-config-check.mjs`                                    |
+| The pages and the policy   | The public deletion page's content is drafted for Honeybee's site; the privacy policy is NOT drafted (never invent policy): a fact sheet of what the app does, each fact tied to a gate, is prepared for whoever writes it | `docs/release/deletion-page.md`; `docs/release/privacy-policy-facts.md` |
+| The hosted project         | Its exact setup is written down, in order, for the moment Kody creates it; nothing was created                                                                                                                             | `docs/release/hosted-project-setup.md`                                  |
+| The reviewer demo video    | The staff surface recorded on the emulator from reviewer.rae's real AAL2 session, starting only after the login (never the enrollment screen), kept outside the repository in Kody's approvals folder                      | `docs/release/review-tenant.md`                                         |
+
 ## Current state
 
 **Ratified.** On 2026-09-07 Kody ratified the four history exceptions in

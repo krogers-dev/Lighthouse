@@ -225,7 +225,12 @@ destination (`docs/release/signing-and-submission.md`). Records:
    then `seed` to restore it.
 4. `npm run privacy:reconcile` and `npm run config:check -- --profile release`
    (the latter fails today by design, naming each HOLD).
-5. The review tenant (WO-008, option A): `node scripts/local-supabase.mjs seed-review`,
+5. The production configuration is one variable away:
+   `APP_VARIANT=production npx expo config --type public` shows
+   `com.myhbcfo.hive`, "HIVE", scheme `hive`, 1.0.0; `config:check --profile release`
+   evaluates it. The hosted project's exact setup is in
+   `docs/release/hosted-project-setup.md`.
+6. The review tenant (WO-008, option A): `node scripts/local-supabase.mjs seed-review`,
    `open-review-window 1` (the code is read from or generated into the file
    `HIVE_REVIEW_CODE_FILE` names, never printed), then
    `maestro test -e REVIEW_CODE=<the code> .maestro/review-sign-in.yaml`
