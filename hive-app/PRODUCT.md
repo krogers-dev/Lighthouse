@@ -131,6 +131,12 @@ INTAKE_RECORDED -> EVIDENCE_PENDING` steps are a later milestone.
 
 ### Sources and the permanent record (implemented in Milestone 5)
 
+**The review tenant on every plan (WO-009, 2026-09-29).** The store
+reviewer's sign-in no longer depends on a hook the hosted platform sells
+only on its Teams plan: the server keeps the same rules by a trigger, a
+scheduled sweep, and server-side revocation, and the hook returns the day
+a plan permits it (`docs/plans/2026-09-29-wo-009-review-tenant-fallback.md`).
+
 **Live client information (direction of 2026-09-29, Kody: "I support what
 you recommend").** After the store release candidate and the review-tenant
 fallback: first the real read-only QuickBooks Online and Google Drive

@@ -37,6 +37,10 @@ alter default privileges in schema public
 
 -- auth schema as GoTrue provides it (the columns the seed touches).
 create schema if not exists auth;
+-- The scramble of WO-009 hashes with pgcrypto, which the Supabase image keeps
+-- in the extensions schema.
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists auth.users (
   instance_id uuid,

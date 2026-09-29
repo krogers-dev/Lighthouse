@@ -1055,6 +1055,12 @@ export interface Database {
         };
         Returns: Json;
       };
+      review_sweep: {
+        Args: {
+          p_as_of?: string;
+        };
+        Returns: Json;
+      };
       review_window_status: {
         Args: Record<string, never>;
         Returns: Json;

@@ -177,13 +177,13 @@ offered to a real recipient:
 The hook the review tenant relies on (WO-008, option A) is a
 **Teams/Enterprise** feature of the hosted platform, not a Free or Pro
 one. On staging it is off, nothing holds a password, and the review
-identity does not exist. The options are recorded in
-`docs/plans/2026-09-29-wo-008-review-tenant.md` (open finding of
-2026-09-29): the plan that permits the hook, or the fallback in which the
-window tooling alone sets and scrambles the review identity's password and
-a scheduled sweep scrambles it at expiry, with the hook re-enabled the day
-the plan permits it. Until Kody decides, `seed-review` and the windows
-stay local.
+identity does not exist. Kody chose the fallback, built as WO-009 the same day
+(`docs/plans/2026-09-29-wo-009-review-tenant-fallback.md`): the migration
+`20260929120014` is on both hosted projects with its every-minute sweep,
+so the review sign-in holds on every plan; the hook returns the day a plan
+permits it. Seeding the review tenant on staging, opening a window per
+submission, and the review notes stay the operator steps of the operator
+document.
 
 ## 7. The public contacts and pages (Kody)
 

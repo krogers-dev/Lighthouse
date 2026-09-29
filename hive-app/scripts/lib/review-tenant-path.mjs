@@ -1,21 +1,39 @@
-/** The review tenant's sign-in (WO-008, option A) as real requests against
- * GoTrue's password grant and the server-role window functions, for the
- * black-box harness (step 4e), run after the release-controls path.
+/** The review tenant's sign-in (WO-008 and its fallback WO-009) as real
+ * requests against GoTrue's password grant and the server-role window
+ * functions, for the black-box harness (step 4e), run after the
+ * release-controls path.
  *
- * With the tenant seeded and registered: the review identity is refused
- * while no window is open; the server role opens a window and sets the
- * code; the review identity signs in with the code (its JWT names the
- * canonical id) and reads exactly the review environment's rows, none of
- * the seeded clients'; a wrong code is refused and counted; a seeded
- * client with a password of its own is refused (not the review
- * identity); the window closes and the code is refused again; every
- * attempt is on the audit trail. The tenant is retired at the end.
+ * With the tenant seeded and registered: a code set while no window is
+ * open is useless (the hook refuses it, or without the hook the trigger
+ * replaced it as it was written); the server role opens a window and the
+ * code is set; the review identity signs in with the code (its JWT names
+ * the canonical id) and reads exactly the review environment's rows,
+ * none of the seeded clients'; a wrong code is refused (and counted only
+ * where the hook runs); a seeded client with a password of its own is
+ * refused; the sweep, run as of a later moment, expires the window, the
+ * code and the session with it; a second window closes on request with
+ * the same effect; every step is on the audit trail. The tenant is
+ * retired at the end.
+ *
+ * ctx.hookMode says whether GoTrue's password-verification hook is
+ * enabled on this stack (HIVE_REVIEW_HOOK=on); the fallback holds either
+ * way, and the counting assertion flips with it.
  */
 import { REVIEW_TENANT } from './review-tenant.mjs';
 
 export async function assertReviewTenantPath(ctx) {
-  const { rest, check, uuidV4, url, clientKey, serviceKey, gatewayKey, seedReview, retireReview } =
-    ctx;
+  const {
+    rest,
+    check,
+    uuidV4,
+    url,
+    clientKey,
+    serviceKey,
+    gatewayKey,
+    seedReview,
+    retireReview,
+    hookMode = false,
+  } = ctx;
   const t = REVIEW_TENANT;
   const server = {
     apikey: gatewayKey,
@@ -38,6 +56,14 @@ export async function assertReviewTenantPath(ctx) {
     });
     return { status: response.status, body: await response.json().catch(() => null) };
   };
+  const refreshGrant = async (refreshToken) => {
+    const response = await fetch(`${url}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { apikey: clientKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    return { status: response.status, body: await response.json().catch(() => null) };
+  };
   const setPassword = async (userId, password) => {
     const response = await fetch(`${url}/auth/v1/admin/users/${userId}`, {
       method: 'PUT',
@@ -46,23 +72,24 @@ export async function assertReviewTenantPath(ctx) {
     });
     return response.status;
   };
+  const refused = (attempt) => attempt.status >= 400 && attempt.status < 500;
 
   const seeded = await seedReview();
   if (!check(seeded, 'review tenant: seeded and registered on demand')) return;
   const code = `review-code-${uuidV4()}`;
+
+  // No window: a code set now is useless, whichever mechanism refuses it.
   check(
     (await setPassword(t.identity.id, code)) === 200,
-    'review tenant: the code is set as the review identity’s password',
+    'review tenant: the code is set as the review identity’s password while no window is open',
   );
-
-  // No window: refused, even with the right code.
   const closedAttempt = await passwordGrant(t.identity.email, code);
   check(
-    closedAttempt.status >= 400 && closedAttempt.status < 500,
+    refused(closedAttempt),
     `review tenant: the review identity is refused while no window is open (${closedAttempt.status})`,
   );
 
-  // Open a window.
+  // Open a window, then set the code, as the tooling does.
   const opened = await serverCall('/rest/v1/rpc/open_review_window', {
     p_hours: 1,
     p_idempotency_key: uuidV4(),
@@ -76,15 +103,27 @@ export async function assertReviewTenantPath(ctx) {
     await retireReview();
     return;
   }
-  const wrong = await passwordGrant(t.identity.email, `${code}-wrong`);
   check(
-    wrong.status >= 400 && wrong.status < 500,
-    `review tenant: a wrong code is refused (${wrong.status})`,
+    (await setPassword(t.identity.id, code)) === 200,
+    'review tenant: the code is set inside the window',
   );
+  const wrong = await passwordGrant(t.identity.email, `${code}-wrong`);
+  check(refused(wrong), `review tenant: a wrong code is refused (${wrong.status})`);
   const status = await serverCall('/rest/v1/rpc/review_window_status', {});
+  if (hookMode) {
+    check(
+      status.status === 200 && status.body?.open === true && status.body?.failed_attempts === 1,
+      'server role: the wrong code was counted against the window (hook mode)',
+    );
+  } else {
+    check(
+      status.status === 200 && status.body?.open === true && status.body?.failed_attempts === 0,
+      'server role: without the hook a wrong code is not counted; the rate limit and the code’s length bound it (fallback mode)',
+    );
+  }
   check(
-    status.status === 200 && status.body?.open === true && status.body?.failed_attempts === 1,
-    'server role: the wrong code was counted against the window',
+    status.status === 200 && typeof status.body?.sweep === 'object' && status.body.sweep !== null,
+    'server role: the status carries the sweep state',
   );
   const signedIn = await passwordGrant(t.identity.email, code);
   if (
@@ -97,6 +136,7 @@ export async function assertReviewTenantPath(ctx) {
     return;
   }
   const token = signedIn.body.access_token;
+  const firstRefresh = signedIn.body.refresh_token;
   const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
   check(
     payload.sub === t.identity.id,
@@ -131,37 +171,78 @@ export async function assertReviewTenantPath(ctx) {
   );
   const ownerAttempt = await passwordGrant('client.owner@example.invalid', ownerCode);
   check(
-    ownerAttempt.status >= 400 && ownerAttempt.status < 500,
+    refused(ownerAttempt),
     `review tenant: anyone but the review identity is refused the password grant even with a valid password (${ownerAttempt.status})`,
   );
-  await setPassword(ownerId, `scrambled-${uuidV4()}-${uuidV4()}`);
 
-  // Close: refused again.
+  // Expiry: the sweep, as of two hours on, ends the window nobody closed.
+  const swept = await serverCall('/rest/v1/rpc/review_sweep', {
+    p_as_of: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+  });
+  check(
+    swept.status === 200 && swept.body?.expired === 1,
+    `server role: the sweep expires the window whose close time has passed (${JSON.stringify(swept.body)})`,
+  );
+  const afterExpiry = await passwordGrant(t.identity.email, code);
+  check(
+    refused(afterExpiry),
+    `review tenant: the code is refused once the window expired (${afterExpiry.status})`,
+  );
+  const refreshAfterExpiry = await refreshGrant(firstRefresh);
+  check(
+    refused(refreshAfterExpiry),
+    `review tenant: the session issued inside the window cannot be refreshed after expiry (${refreshAfterExpiry.status})`,
+  );
+
+  // A second window closes on request, with the same effect.
+  const reopened = await serverCall('/rest/v1/rpc/open_review_window', {
+    p_hours: 1,
+    p_idempotency_key: uuidV4(),
+  });
+  check(reopened.status === 200, 'server role: opens a second window');
+  check(
+    (await setPassword(t.identity.id, code)) === 200,
+    'review tenant: the code is set again inside the second window',
+  );
+  const secondSignIn = await passwordGrant(t.identity.email, code);
+  check(
+    secondSignIn.status === 200 && typeof secondSignIn.body?.refresh_token === 'string',
+    'review tenant: the review identity signs in inside the second window',
+  );
   const closed = await serverCall('/rest/v1/rpc/close_review_window', {
     p_idempotency_key: uuidV4(),
   });
   check(closed.status === 200, 'server role: closes the window');
   const afterClose = await passwordGrant(t.identity.email, code);
   check(
-    afterClose.status >= 400 && afterClose.status < 500,
+    refused(afterClose),
     `review tenant: the code is refused once the window is closed (${afterClose.status})`,
+  );
+  const refreshAfterClose = await refreshGrant(secondSignIn.body?.refresh_token ?? '');
+  check(
+    refused(refreshAfterClose),
+    `review tenant: the session issued inside the second window cannot be refreshed after the close (${refreshAfterClose.status})`,
   );
 
   // The trail, read by the server role.
   const audit = await fetch(
-    `${url}/rest/v1/audit_receipts?select=action&environment_id=eq.${t.environmentId}&action=like.review.*`,
+    `${url}/rest/v1/audit_receipts?select=action,details&environment_id=eq.${t.environmentId}&action=like.review.*`,
     { headers: server },
   );
-  const actions = ((await audit.json().catch(() => [])) ?? []).map((row) => row.action);
+  const rows = (await audit.json().catch(() => [])) ?? [];
+  const actions = rows.map((row) => row.action);
+  const closeReasons = rows
+    .filter((row) => row.action === 'review.window_closed')
+    .map((row) => row.details?.reason);
   check(
-    [
-      'review.identity_registered',
-      'review.window_opened',
-      'review.sign_in_refused',
-      'review.signed_in',
-      'review.window_closed',
-    ].every((action) => actions.includes(action)),
-    'review tenant: every step is on the audit trail, in the review environment’s scope',
+    ['review.identity_registered', 'review.window_opened', 'review.window_closed'].every((action) =>
+      actions.includes(action),
+    ) &&
+      closeReasons.includes('expired') &&
+      closeReasons.includes('closed') &&
+      (!hookMode ||
+        (actions.includes('review.sign_in_refused') && actions.includes('review.signed_in'))),
+    'review tenant: every step is on the audit trail, in the review environment’s scope, with both close reasons',
   );
 
   const retired = await retireReview();
@@ -171,7 +252,7 @@ export async function assertReviewTenantPath(ctx) {
   );
   const afterRetire = await passwordGrant(t.identity.email, code);
   check(
-    afterRetire.status >= 400 && afterRetire.status < 500,
+    refused(afterRetire),
     `review tenant: nothing signs in after retirement (${afterRetire.status})`,
   );
 }

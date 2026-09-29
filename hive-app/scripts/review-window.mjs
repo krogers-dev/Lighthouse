@@ -1,26 +1,36 @@
 #!/usr/bin/env node
 /**
- * review-window — the store review window (WO-008, option A).
+ * review-window — the store review window (WO-008, option A, and its
+ * fallback WO-009).
  *
  *   node scripts/local-supabase.mjs open-review-window [hours]   # default 24, at most 168
  *   node scripts/local-supabase.mjs close-review-window
+ *   node scripts/local-supabase.mjs sweep-review-window
  *   node scripts/local-supabase.mjs review-window-status
  *
  * open    Opens the window through the server role and sets the review
  *         identity's sign-in code as its password through the Auth Admin
- *         API. The code comes from the file HIVE_REVIEW_CODE_FILE names,
- *         OUTSIDE the repository (twelve to twenty digits, typed where the
- *         sign-in code is typed); when that file does not exist the tool
- *         generates sixteen digits, writes them there, and says so. The code is
- *         never printed and never stored anywhere else: the server holds
- *         only the password hash, and the hook decides every attempt.
+ *         API, in that order: the server keeps a password only for the
+ *         review identity and only inside an open window. The code comes
+ *         from the file HIVE_REVIEW_CODE_FILE names, OUTSIDE the
+ *         repository (twelve to twenty digits, typed where the sign-in
+ *         code is typed); when that file does not exist the tool generates
+ *         sixteen digits, writes them there, and says so. The code is never
+ *         printed and never stored anywhere else.
  *
- * close   Closes the window through the server role and replaces the
- *         review identity's password with an unknown value, so nothing
- *         depends on the window state alone.
+ * close   Closes the window through the server role, which replaces the
+ *         review identity's password with an unknown value and revokes its
+ *         sessions; the tool then replaces the password once more through
+ *         the Auth Admin API, so nothing depends on one layer alone.
+ *
+ * sweep   Runs the server's sweep now: any window whose close time has
+ *         passed is closed with its access ended, and any stray password
+ *         hash is replaced. The schedule does this every minute where the
+ *         scheduler exists; this is the same call by hand.
  *
  * status  What the server holds: open or not, the close time, the count
- *         of failed attempts, and how many review identities exist.
+ *         of failed attempts (counted only where the hook runs), the sweep
+ *         state, and how many review identities exist.
  *
  * Loopback only; the privileged bearer arrives in memory and is never
  * printed.
@@ -40,7 +50,7 @@ const codeFile = process.env.HIVE_REVIEW_CODE_FILE ?? '';
 
 if (!url || !serviceKey) {
   console.error(
-    'review-window: run through `node scripts/local-supabase.mjs open-review-window|close-review-window|review-window-status`',
+    'review-window: run through `node scripts/local-supabase.mjs open-review-window|close-review-window|sweep-review-window|review-window-status`',
   );
   process.exit(1);
 }
@@ -75,6 +85,11 @@ function fail(message) {
   process.exit(1);
 }
 
+function describeSweep(sweep) {
+  if (!sweep || !sweep.last_run_at) return 'the sweep has not run yet';
+  return `the sweep last ran at ${sweep.last_run_at} (expired ${sweep.last_expired}, scrubbed ${sweep.last_scrubbed}; totals ${sweep.total_expired} expired, ${sweep.total_scrubbed} scrubbed)`;
+}
+
 const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
 if (isMain) {
   if (mode === 'status') {
@@ -83,8 +98,16 @@ if (isMain) {
     const s = status.body;
     console.log(
       s.open
-        ? `review-window: OPEN until ${s.closes_at} (${s.failed_attempts} of ${s.max_failed_attempts} failed attempts; ${s.review_identities} review identity)`
-        : `review-window: closed (${s.review_identities} review identity registered)`,
+        ? `review-window: OPEN until ${s.closes_at} (${s.failed_attempts} of ${s.max_failed_attempts} failed attempts where the hook runs; ${s.review_identities} review identity); ${describeSweep(s.sweep)}`
+        : `review-window: closed (${s.review_identities} review identity registered); ${describeSweep(s.sweep)}`,
+    );
+    process.exit(0);
+  }
+  if (mode === 'sweep') {
+    const swept = await call('/rest/v1/rpc/review_sweep', { method: 'POST', body: '{}' });
+    if (!swept.ok) fail(`review_sweep answered ${swept.status}`);
+    console.log(
+      `review-window: swept as of ${swept.body.as_of}; ${swept.body.expired} window(s) expired, ${swept.body.scrubbed} stray hash(es) replaced`,
     );
     process.exit(0);
   }
@@ -126,7 +149,7 @@ if (isMain) {
       body: JSON.stringify({ p_idempotency_key: crypto.randomUUID() }),
     });
     const note = closed.ok
-      ? `closed at ${closed.body.closed_at}`
+      ? `closed at ${closed.body.closed_at} (sessions revoked, password replaced on the server)`
       : closed.body?.message === 'no_open_window'
         ? 'no open window'
         : fail(`close_review_window answered ${closed.status}`);
@@ -138,10 +161,10 @@ if (isMain) {
       fail(`the review identity's password could not be replaced (${scrambled.status})`);
     }
     console.log(
-      `review-window: ${note}; the review identity's password replaced with an unknown value`,
+      `review-window: ${note}; the review identity's password replaced once more through the Auth Admin API`,
     );
     process.exit(0);
   }
-  console.error('review-window: HIVE_REVIEW_WINDOW_MODE must be open, close, or status');
+  console.error('review-window: HIVE_REVIEW_WINDOW_MODE must be open, close, sweep, or status');
   process.exit(1);
 }

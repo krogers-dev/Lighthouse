@@ -1,0 +1,9 @@
+ [Y/n] y
+Applying migration 20260929120014_review_tenant_fallback.sql...
+{"upToDate":false,"dryRun":false,"migrations":["20260929120014_review_tenant_fallback.sql"],"seeds":[],"roles":[],"message":"Finished supabase db push."}
+cron jobs: hive-review-window-sweep [* * * * *] active=true
+trigger on auth.users: 1
+migrations=14
+runs: 1 latest 21:37:00 UTC, statuses succeeded
+sweep state: last_run_at=21:37:00 last_expired=0 last_scrubbed=0 total_scrubbed=0
+scrubbed users: 0

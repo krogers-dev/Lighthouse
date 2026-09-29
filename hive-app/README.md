@@ -235,7 +235,9 @@ destination (`docs/release/signing-and-submission.md`). Records:
    `HIVE_REVIEW_CODE_FILE` names, never printed), then
    `maestro test -e REVIEW_CODE=<the code> .maestro/review-sign-in.yaml`
    (the review identity signs in on the ordinary screens and sees only
-   the review workspace), then `close-review-window` and `retire-review`.
+   the review workspace), then `close-review-window` and `retire-review`;
+   `sweep-review-window` runs by hand what the schedule runs every minute
+   (WO-009), and `review-window-status` shows the sweep state.
    The harness and the bridge run the same lifecycle themselves.
 
 ### Milestones 3, 4, and 5 on the desktop

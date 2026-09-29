@@ -39,9 +39,15 @@ Option A, with these bounds written into the decision:
 - The review identity (`review.reader@example.invalid` locally; a
   Honeybee-controlled address on a hosted project) is a client user of a
   dedicated synthetic review environment seeded by `seed-review`.
-- GoTrue's password-verification hook, in Postgres, admits that identity
-  alone and only while a review window is open; ten wrong codes close the
-  window; every attempt is audited.
+- On a plan with GoTrue's password-verification hook, the hook admits
+  that identity alone and only while a review window is open; ten wrong
+  codes close the window; every attempt is audited. On every other plan
+  (WO-009, the fallback Kody chose): a trigger replaces any password hash
+  written for anyone but the review identity inside an open window, a
+  scheduled sweep expires windows within a minute of their close time and
+  revokes the identity's sessions, and closing or retiring ends access on
+  the server; wrong codes are not counted there, and GoTrue's rate limit
+  and the code's length stand in.
 - `open-review-window [hours]` sets the code from the file
   `HIVE_REVIEW_CODE_FILE` names (outside the repository; generated if
   absent, never printed); `close-review-window` replaces it;

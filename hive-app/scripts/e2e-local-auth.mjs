@@ -1103,6 +1103,7 @@ await assertReviewTenantPath({
   serviceKey,
   gatewayKey,
   seedReview: async () => reviewTenantTool('seed'),
+  hookMode: process.env.HIVE_REVIEW_HOOK === 'on',
   retireReview: async () => reviewTenantTool('retire'),
 });
 

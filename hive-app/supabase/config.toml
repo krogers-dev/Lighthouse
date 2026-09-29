@@ -304,7 +304,13 @@ max_frequency = "5s"
 # email OTP and TOTP are not touched (the hook runs for the password grant
 # alone). Migration 20260929120013 defines the function and its grants.
 [auth.hook.password_verification_attempt]
-enabled = true
+# Off by default since WO-009 (2026-09-29): the hosted platform offers this
+# hook only on its Teams and Enterprise plans, so the local stack proves the
+# fallback that runs everywhere else (the trigger, the sweep, the server-side
+# revocation). To prove the hook itself, set enabled = true, restart the
+# stack (supabase stop, supabase start), reset, and run the harness with
+# HIVE_REVIEW_HOOK=on.
+enabled = false
 uri = "pg-functions://postgres/app_private/review_password_verification"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.

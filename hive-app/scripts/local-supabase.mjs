@@ -606,6 +606,9 @@ if (isMain) {
     case 'close-review-window':
       await reviewWindow('close');
       break;
+    case 'sweep-review-window':
+      await reviewWindow('sweep');
+      break;
     case 'review-window-status':
       await reviewWindow('status');
       break;
@@ -620,7 +623,7 @@ if (isMain) {
       break;
     default:
       fail(
-        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|sync-ledger <caseKey>|stage-filing <caseKey>|verify-filings [caseKey]|service-status|pause-service [maintenance|incident]|resume-service|request-deletion <email>|reset-deletion <email>|complete-deletion <email>|drill-backup|seed-review|retire-review|open-review-window [hours]|close-review-window|review-window-status|scan-quarantine|sweep-uploads|stop>',
+        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|sync-ledger <caseKey>|stage-filing <caseKey>|verify-filings [caseKey]|service-status|pause-service [maintenance|incident]|resume-service|request-deletion <email>|reset-deletion <email>|complete-deletion <email>|drill-backup|seed-review|retire-review|open-review-window [hours]|close-review-window|sweep-review-window|review-window-status|scan-quarantine|sweep-uploads|stop>',
       );
   }
 }
