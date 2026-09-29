@@ -20,6 +20,8 @@ not in this folder or anywhere in the repository.
 | 9    | Resend: the domain `myhbcfo.com` added from this session; its three DNS records entered by Kody at Squarespace | ✅ verified by Resend (`resend-domain-verified.jpg`); the records served by the authoritative name server, Google's mail records untouched   |
 | 10   | the dashboard SMTP settings entered by Kody                                                        | ✅ read back with the password hidden — `dashboard-smtp-settings.jpg`; the Magic Link template pasted by Kody — `dashboard-template-preview.jpg`; the rate limit reads 30 per hour |
 | 11   | the four-step hosted OTP acceptance, black-box through the public sign-in path                   | ✅ PASS — `hosted-otp-acceptance.md`, `resend-email-delivered.jpg`                                                                             |
+| 12   | the QA identity granted `client_user` on the synthetic entity; Metro restarted with the staging origin; the served bundle checked | ✅ one membership; staging origin once, no loopback, the publishable key once, no secret-shaped value in 9.2 MB of bundle |
+| 13   | three scratch Maestro flows on Pixel_8: request the code, enter it, browse the requests            | ✅ PASS — `device-01-code-screen.png`, `device-02-dashboard.png`, `device-03-requests.png`, `device-04-request-detail.png`; one `aal1` session on staging; first attempt refused on the device with no request at the gateway and an emulator runtime abort seconds later, second attempt clean |
 
 ## What this proves
 
@@ -34,8 +36,7 @@ not in this folder or anywhere in the repository.
 
 ## What this does not prove
 
-- The app on a device has not signed in against staging yet: the QA
-  identity holds no membership, so the app would land on its no-access
-  state until a synthetic scope is granted, a separate recorded step.
+- The staff surface against staging: the QA identity is a client user;
+  staff enrollment and AAL2 against the hosted project are not yet run.
 - The review tenant is not on staging; its hook is a Teams/Enterprise
   feature (open finding in the WO-008 plan).

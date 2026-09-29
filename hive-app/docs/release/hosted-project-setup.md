@@ -205,6 +205,28 @@ stay local.
   for daily backups and no pausing; point-in-time recovery is a further
   add-on. Plan and payment are Kody's decisions.
 
+## 8a. The app on a device against staging (done 2026-09-29, "go device")
+
+The QA identity `kody@myhbcfo.com` holds one membership on staging,
+`client_user` on the synthetic entity Harbor Light Bakery LLC (Synthetic)
+of client A, inserted as `postgres` through the pooler (the seed tooling
+stays loopback-only). Metro was restarted with the staging origin and the
+publishable key in its process environment (they take precedence over
+`.env.local`), and the served bundle was checked before any launch: the
+staging origin once, no loopback address, the publishable key once, no
+secret-shaped value. Three scratch Maestro flows then ran on the Pixel_8
+emulator: a cleared launch entering the address and requesting a code
+(delivered by Resend), the code entered and the scoped dashboard reached,
+and the requests list with one request detail, all from the hosted
+database (`security/evidence/2026-09-29-hosted-staging/device-0*.png`).
+Staging recorded one `aal1` session for the identity. The first attempt
+was refused on the device with the "code not accepted" wording while the
+gateway log showed no verify request at all and the emulator's runtime
+aborted the process seconds later (an ART profile-saver check failure, a
+known emulator fault on this desktop); the same code verified from the
+host, and the second attempt on the healthy emulator passed. Restore
+Metro to the local environment afterwards, as the runbook lane expects.
+
 ## 9. For the production project
 
 Repeat sections 1, 2, 4, and 7 with a new `[remotes.production]` block and

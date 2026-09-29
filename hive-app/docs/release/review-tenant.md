@@ -52,8 +52,8 @@ Option A, with these bounds written into the decision:
 - Hosted: the hook is a Teams/Enterprise feature of the hosted platform
   (2026-09-29: the Free-plan staging project refuses any auth update that
   names it), so first Kody's decision in the WO-008 plan's open finding
-  (the plan that permits it, or the proposed fallback in which the window
-  tooling and a scheduled sweep govern the review password); then give
+  (decided 2026-09-29: the fallback, in which the window tooling and a
+  scheduled sweep govern the review password, built as WO-009); then give
   the identity a controlled mailbox, open a window per submission, and
   put the email and the code in the review notes for that window.
 

@@ -136,8 +136,9 @@ Pro plan. Two ways forward, Kody's decision:
 
 The recommendation is 2, because the Teams price is out of proportion to
 one review identity in a synthetic environment, and because the fallback
-keeps every proven part. Until Kody decides, the hook is off on staging,
-no review identity exists there, and `seed-review` stays local.
+keeps every proven part. **Kody chose 2 on 2026-09-29 in writing ("your
+recommended fallback"); it is built as WO-009.** Until then the hook is off
+on staging, no review identity exists there, and `seed-review` stays local.
 
 ## 7. Execution record
 
