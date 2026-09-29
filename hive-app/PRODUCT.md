@@ -138,8 +138,11 @@ adapters behind the Milestone 5 interface, refreshed by a scheduled
 server job (references and receipts, never a value; each adapter its own
 account, review, and PASS); then instant updates on the phone through the
 database's realtime channel and notifications, with a notification policy
-and a disclosure change. Live financial numbers in the app stay out of
-HIVE unless Kody and Stacie reopen that as its own work order.
+and a disclosure change. Live financial numbers in the app: reopened by Kody
+the same evening for after go-live, as its own work order delivered by an
+app update, with read-through display (shown at request time, not stored)
+as the recommended shape and the disclosures, store answers, policy date,
+and security review redone before it ships.
 
 QuickBooks Online is the read-only ledger and Drive is the permanent
 record; HIVE holds neither. What it holds is a **ledger reference**: the
