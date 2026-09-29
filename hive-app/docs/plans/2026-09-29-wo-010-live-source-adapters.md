@@ -99,21 +99,29 @@ reading the same tables through the same row-level security.
 
 ## 6. Doors (Kody's), in order
 
-**Status 2026-09-29, read from Kody's own sessions:** an Intuit account
-exists on `info@myhbcfo.com` and signs in to the developer portal, but the
-portal's own pages (Workspaces, Sandboxes, Account profile) never render
-for it, the state before the developer onboarding is completed; that step,
-which accepts the Intuit Developer Terms and creates the first workspace,
-is Kody's. Google Cloud: a `myhbcfo.com` organization exists with two projects,
-"Honeybee Multi-Google MCP" (`utility-canto-505505-m5`, with the Drive,
-Gmail, Calendar, and BigQuery interfaces among 25 enabled, the project
-behind Honeybee's Google connectors) and "My First Project"
-(`silent-hook-505505-r0`). The console blocks the `info@myhbcfo.com` account's
-access pages until 2-step verification is turned on for it (a Google rule
-since 2026-09-08), so that is the first step, Kody's; then a dedicated
-`hive` project in the same organization is recommended over reusing the
-connectors' project, so HIVE's service account and its Drive grant stand
-on their own.
+**Status 2026-09-29, late evening, after Kody turned on 2-step verification
+for `info@myhbcfo.com` and finished the Intuit onboarding ("they're
+working. make your adjustments"):**
+
+- **Google Cloud, done from this session in his signed-in Chrome:** the
+  project `hive` (ID `hive-510122`, number 980407634255) in the
+  `myhbcfo.com` organization, kept apart from the connectors' project; the
+  Drive interface enabled on it; the service account
+  `hive-drive-reader@hive-510122.iam.gserviceaccount.com`, no project
+  roles, no key yet. A duplicate from a first attempt,
+  `hive-drive-reader-636@hive-510122.iam.gserviceaccount.com`, also exists
+  with no key and no role; Kody deletes it from the service-accounts page,
+  or it is disabled on the next pass. Still Kody's: sharing the permanent-record folder with
+  that address as a viewer (read-only), and, when the adapter is built,
+  creating the account's key and placing it in the hosted project's function
+  secrets, never seen here.
+- **Intuit, done by Kody:** the workspace "Honeybee Accounting"
+  (`9341457864870122`) and in it the app "HONEYBEE HIVE"
+  (AppID `186083bd-f96f-4f52-ac3e-6bc9832ddcb4`, QuickBooks, in
+  development, created 2026-09-06). Its keys page stays his: the client id
+  and secret go into the function secrets when the adapter is built; the
+  redirect address for the sign-in exchange is added then. Production
+  keys follow Intuit's own review, later.
 
 1. **Intuit developer account** at developer.intuit.com, an app for HIVE
    with the accounting permission, and its sandbox company: the
