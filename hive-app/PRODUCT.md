@@ -131,6 +131,16 @@ INTAKE_RECORDED -> EVIDENCE_PENDING` steps are a later milestone.
 
 ### Sources and the permanent record (implemented in Milestone 5)
 
+**Live client information (direction of 2026-09-29, Kody: "I support what
+you recommend").** After the store release candidate and the review-tenant
+fallback: first the real read-only QuickBooks Online and Google Drive
+adapters behind the Milestone 5 interface, refreshed by a scheduled
+server job (references and receipts, never a value; each adapter its own
+account, review, and PASS); then instant updates on the phone through the
+database's realtime channel and notifications, with a notification policy
+and a disclosure change. Live financial numbers in the app stay out of
+HIVE unless Kody and Stacie reopen that as its own work order.
+
 QuickBooks Online is the read-only ledger and Drive is the permanent
 record; HIVE holds neither. What it holds is a **ledger reference**: the
 object's type, identifier, version, own label, as-of time, and a digest
