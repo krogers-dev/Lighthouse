@@ -1,8 +1,9 @@
-/** Connected case review screen for staff (WO-005).
+/** Connected case review screen for staff (WO-005, WO-006).
  *
  * Loads the case, its current package, the verdicts and approvals on
- * that package, and the scope's requests (to name the ones the package
- * froze) through one scoped read; decides the viewer's actions from the
+ * that package, the case's documents, its ledger references and filing
+ * receipts, and the scope's requests (to name what the package froze)
+ * through one scoped read; decides the viewer's actions from the
  * server-confirmed role and the case status; and mounts the transition
  * flow keyed on the case version, so a settled transition reloads the
  * case and starts a fresh flow on the new state. A client user reaching
@@ -12,11 +13,14 @@ import React, { useCallback } from 'react';
 
 import { useAuthController } from '@/auth/provider';
 import type { RandomSource } from '@/core/ids';
+import type { DocumentSummary, DocumentsLoader } from '@/data/supabase/documents';
 import type { RequestsLoader, RequestSummary } from '@/data/supabase/repositories';
 import type {
   CaseApproval,
   CaseRecord,
   CaseReview,
+  FilingReceipt,
+  LedgerReference,
   ReviewLoader,
   ReviewPackage,
   ReviewWriter,
@@ -36,11 +40,15 @@ export interface CaseReviewContext {
   reviews: readonly CaseReview[];
   approvals: readonly CaseApproval[];
   requests: readonly RequestSummary[];
+  documents: readonly DocumentSummary[];
+  references: readonly LedgerReference[];
+  receipts: readonly FilingReceipt[];
 }
 
 export interface CaseReviewScreenProps {
   reviewRepository: ReviewLoader & ReviewWriter;
   requestsRepository: RequestsLoader;
+  documentsRepository: DocumentsLoader;
   random?: RandomSource;
   caseId: string;
   onBack: () => void;
@@ -52,6 +60,9 @@ const EMPTY: CaseReviewContext = {
   reviews: [],
   approvals: [],
   requests: [],
+  documents: [],
+  references: [],
+  receipts: [],
 };
 
 const isMissing = (value: CaseReviewContext): boolean => value.caseRecord === null;
@@ -60,6 +71,7 @@ const isMissing = (value: CaseReviewContext): boolean => value.caseRecord === nu
 export function loadCaseReviewContext(
   reviewRepository: ReviewLoader,
   requestsRepository: RequestsLoader,
+  documentsRepository: DocumentsLoader,
   caseId: string,
 ): (scope: ScopeKey) => Promise<CaseReviewContext> {
   return async (scope: ScopeKey) => {
@@ -69,13 +81,28 @@ export function loadCaseReviewContext(
     const reviews = current ? await reviewRepository.listReviews(scope, current.id) : [];
     const approvals = current ? await reviewRepository.listApprovals(scope, current.id) : [];
     const requests = (await requestsRepository.list(scope)).items;
-    return { caseRecord, package: current, reviews, approvals, requests };
+    const documents = await documentsRepository.listByCase(scope, caseId);
+    const references = await reviewRepository.listLedgerReferences(scope, caseId);
+    const receipts = await reviewRepository.listFilingReceipts(scope, caseId);
+    return {
+      caseRecord,
+      package: current,
+      reviews,
+      approvals,
+      requests,
+      documents,
+      references,
+      receipts,
+    };
   };
 }
 
 type FlowHandlers =
   | 'onChooseVerdict'
   | 'onChangeNote'
+  | 'onChooseFilingDocument'
+  | 'onChangeFileId'
+  | 'onChangePath'
   | 'onRequestAction'
   | 'onConfirm'
   | 'onCancel'
@@ -120,6 +147,9 @@ function CaseReviewFlow({
       flow={flow.state}
       onChooseVerdict={flow.chooseVerdict}
       onChangeNote={flow.setNote}
+      onChooseFilingDocument={flow.chooseFilingDocument}
+      onChangeFileId={flow.setFileId}
+      onChangePath={flow.setPath}
       onRequestAction={flow.request}
       onConfirm={flow.confirm}
       onCancel={flow.cancel}
@@ -132,13 +162,20 @@ function CaseReviewFlow({
 export function CaseReviewScreen({
   reviewRepository,
   requestsRepository,
+  documentsRepository,
   random,
   caseId,
   onBack,
 }: CaseReviewScreenProps): React.JSX.Element | null {
   const load = useCallback(
-    (scope: ScopeKey) => loadCaseReviewContext(reviewRepository, requestsRepository, caseId)(scope),
-    [reviewRepository, requestsRepository, caseId],
+    (scope: ScopeKey) =>
+      loadCaseReviewContext(
+        reviewRepository,
+        requestsRepository,
+        documentsRepository,
+        caseId,
+      )(scope),
+    [reviewRepository, requestsRepository, documentsRepository, caseId],
   );
   const { scope, state, data, error, role, retry, switchScope } = useScopedLoad(load, isMissing);
 
@@ -153,6 +190,9 @@ export function CaseReviewScreen({
     reviews: data?.reviews ?? [],
     approvals: data?.approvals ?? [],
     requests: data?.requests ?? [],
+    documents: data?.documents ?? [],
+    references: data?.references ?? [],
+    receipts: data?.receipts ?? [],
     role,
     actions: actionsFor(staff, caseRecord?.status ?? null),
     verdicts: verdictsFor(staff),
@@ -184,6 +224,9 @@ export function CaseReviewScreen({
       flow={initialReviewState}
       onChooseVerdict={noop}
       onChangeNote={noop}
+      onChooseFilingDocument={noop}
+      onChangeFileId={noop}
+      onChangePath={noop}
       onRequestAction={noop}
       onConfirm={noop}
       onCancel={noop}

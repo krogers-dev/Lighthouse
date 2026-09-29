@@ -39,6 +39,7 @@ import { makeContractHarness } from './helpers/auth-harness';
 const noDocuments: DocumentsLoader = {
   list: async () => ({ items: [], recordedThrough: null }),
   getById: async () => null,
+  listByCase: async () => [],
 };
 
 /** And its answer (WO-004): none, for the same reason. */

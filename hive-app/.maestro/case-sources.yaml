@@ -1,0 +1,73 @@
+appId: com.myhbcfo.hive.development
+name: A reviewer opens the approved case from Home and reads its sources and its permanent record
+tags:
+  - milestone5
+# RUN THIS THROUGH THE RUNNER, as the extra step after the staff login:
+#   npm run maestro:enroll -- --then case-sources.yaml
+# Pre-steps: the seeded stack up; the seeded case APPROVED with the
+# synthetic ledger's references on it and two filing receipts settled by
+# the synthetic record adapter, one VERIFIED and one MISMATCH
+#   node scripts/local-supabase.mjs reset-case a1
+#   node scripts/local-supabase.mjs stage-case a1 approved
+#   node scripts/local-supabase.mjs sync-ledger a1
+#   node scripts/local-supabase.mjs stage-filing a1
+#   node scripts/local-supabase.mjs verify-filings a1
+# The runner has just signed reviewer.rae@example.invalid in at AAL2
+# (mfa-login.yaml), which lands on Home. What this proves on glass: a
+# staff Home row opens the approved case; the Sources section shows the
+# ledger objects the case refers to as labels, versions, and digests,
+# each named to the adapter that read them, and never a value; the
+# Permanent record section shows what was filed to Drive by hand, one
+# receipt verified and one that did not match, each named to the adapter
+# that checked it; and a reviewer has no action on an approved case.
+# Nothing here writes to any ledger or record. Reset between runs with
+# reset-case a1 and stage again.
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'dashboard-workspace'
+    timeout: 30000
+- assertVisible: '2025 books close \(Synthetic\)'
+- tapOn: '2025 books close \(Synthetic\)'
+- extendedWaitUntil:
+    visible:
+      id: 'case-review-ready'
+    timeout: 20000
+- assertVisible: 'Approved'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-sources'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: true
+- assertVisible: 'Operating account \(Synthetic\)'
+- assertVisible: 'Year-end close entry \(Synthetic\)'
+- assertVisible: 'Journal entry · version 2 · as of .*'
+- assertVisible: 'Digest .* · read by HiveSyntheticLedger'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-record'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: true
+- assertVisible: 'bank-statement-2026-07 \(Synthetic\)\.pdf'
+- assertVisible: 'Verified in the record'
+- assertVisible: 'statement-2025-11 \(Synthetic\)\.pdf'
+- assertVisible: 'Did not match the record'
+- assertVisible: 'Checked .* by HiveSyntheticDrive, found .*'
+# A reviewer has nothing to do on an approved case: scroll to the action
+# section, never a viewport-only assertion (find 17).
+- scrollUntilVisible:
+    element:
+      id: 'case-review-no-action'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- assertVisible: 'Nothing for you to do on this case right now.'

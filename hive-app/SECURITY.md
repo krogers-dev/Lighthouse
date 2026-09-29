@@ -201,6 +201,49 @@ in server-controlled tables).
   and calls the same transitions; the reset is the only privileged write,
   loopback-only and keyed to seeded cases.
 
+## Controls added in Milestone 5 (WO-006)
+
+- **The adapter interface is the server role's alone.**
+  `record_ledger_reference` and `verify_filing_receipt` are executable by
+  `service_role` only and re-check `app_private.require_server_role()`;
+  the app has no path to either, a client or staff call is refused, and
+  the harness proves it with real JWTs. The adapters are named on every
+  row they touch (`adapter_name`); locally they are the synthetic
+  `HiveSyntheticLedger` and `HiveSyntheticDrive`, production-inert, and
+  a live adapter is HOLD until its own PASS.
+- **Read-only toward the ledger and the record, by construction.** The
+  ledger contract has no write; the record contract has no write, move,
+  delete, or share. HIVE writes to neither: a filing is a person's act,
+  recorded as a receipt; verification reads bytes and compares a digest.
+- **A reference is never a value.** The `ledger_references` shape is
+  identifiers, versions, a bounded printable label, an as-of time, and a
+  digest; no column exists for an amount, a balance, or an account
+  number (data classification: financial values excluded), and the rows
+  are immutable (`ledger_reference_guard`).
+- **A receipt binds to the approval it stands on.** `record_filing_receipt`
+  is a `security definer` transition under the Milestone 4 contract
+  (exact scope, case version, idempotency key, AAL2 role membership, one
+  audit receipt): it requires an APPROVED case with an ACTIVE approval,
+  a checked document in the approved package's manifest, a Drive file id
+  in one shape and a bounded path, refuses a second receipt for the same
+  document at the same file, records the document's checked digest as
+  the claim, and moves nothing else. Verification settles a receipt once
+  (`filing_receipt_lifecycle`), keeps what was found, and treats a
+  missing object as a MISMATCH: a filing nobody can check is not verified
+  by default.
+- **Staff-only reads, again.** Both tables are `SELECT`-only for
+  `authenticated`, permissive for staff of the row's scope, under the
+  restrictive staff-AAL2 layer; a client reads zero rows and learns of
+  the sources through the enumerated trail (`source.referenced`,
+  `record.filed`, `record.verified`, `record.mismatch`). Audit details
+  carry ids, statuses, and the adapter name; never a path, a label, or a
+  digest of content.
+- **Lane tooling without borrowed authority.** `stage-filing` signs intake
+  in for real and calls the same transition; `sync-ledger` and
+  `verify-filings` run the named synthetic adapters through the
+  server-role interface, loopback only, the bearer in memory; the case
+  reset removes receipts and references with the rest of the workflow.
+
 ## Deliberately not used (per brief)
 
 Root/jailbreak detection, device attestation, certificate pinning,

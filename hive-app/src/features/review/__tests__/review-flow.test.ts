@@ -14,6 +14,8 @@ function run(events: ReviewFlowEvent[], from: ReviewFlowState = initialReviewSta
   return events.reduce(reviewReducer, from);
 }
 
+const EMPTY_FILING = { documentId: null, driveFileId: '', drivePath: '' };
+
 describe('reviewReducer', () => {
   it('collects a verdict and a note while idle, then confirms, runs, and settles', () => {
     const chosen = run([
@@ -22,7 +24,7 @@ describe('reviewReducer', () => {
     ]);
     expect(chosen).toEqual({
       name: 'idle',
-      draft: { verdict: 'RETURN', note: 'Missing page (Synthetic)' },
+      draft: { verdict: 'RETURN', note: 'Missing page (Synthetic)', filing: EMPTY_FILING },
     });
     expect(canAct(chosen)).toBe(true);
     const confirming = reviewReducer(chosen, {
@@ -49,7 +51,7 @@ describe('reviewReducer', () => {
     ]);
     expect(reviewReducer(confirming, { type: 'CANCELED' })).toEqual({
       name: 'idle',
-      draft: { verdict: null, note: 'kept' },
+      draft: { verdict: null, note: 'kept', filing: EMPTY_FILING },
     });
   });
 
@@ -75,6 +77,35 @@ describe('reviewReducer', () => {
     expect(refused).toMatchObject({ name: 'refused', refusal: 'verdict_missing' });
   });
 
+  it('collects the filing receipt fields while idle and keeps them through a confirmation', () => {
+    const drafted = run([
+      { type: 'FILING_DOCUMENT_CHOSEN', documentId: 'doc-1' },
+      { type: 'FILING_FILE_ID_CHANGED', driveFileId: 'drv-synthetic-0001' },
+      { type: 'FILING_PATH_CHANGED', drivePath: '/Clients/Harbor Light Bakery LLC (Synthetic)' },
+    ]);
+    expect(drafted).toEqual({
+      name: 'idle',
+      draft: {
+        verdict: null,
+        note: '',
+        filing: {
+          documentId: 'doc-1',
+          driveFileId: 'drv-synthetic-0001',
+          drivePath: '/Clients/Harbor Light Bakery LLC (Synthetic)',
+        },
+      },
+    });
+    const confirming = reviewReducer(drafted, {
+      type: 'ACTION_REQUESTED',
+      action: 'record_filing',
+    });
+    expect(confirming).toMatchObject({ name: 'confirming', action: 'record_filing' });
+    expect(reviewReducer(confirming, { type: 'CANCELED' })).toEqual(drafted);
+    expect(reviewReducer(confirming, { type: 'FILING_PATH_CHANGED', drivePath: 'x' })).toBe(
+      confirming,
+    );
+  });
+
   it('ignores events without meaning in the current state', () => {
     const running = run([{ type: 'ACTION_REQUESTED', action: 'approve' }, { type: 'STARTED' }]);
     expect(reviewReducer(running, { type: 'VERDICT_CHOSEN', verdict: 'PASS' })).toBe(running);
@@ -89,6 +120,9 @@ describe('isStaleRefusal', () => {
       'package_changed',
       'digest_mismatch',
       'not_your_review',
+      'case_not_approved',
+      'document_not_approved',
+      'receipt_exists',
     ] as const) {
       expect(isStaleRefusal(refusal)).toBe(true);
     }
@@ -97,6 +131,10 @@ describe('isStaleRefusal', () => {
       'note_too_long',
       'verdict_missing',
       'invalid_text',
+      'document_missing',
+      'document_not_filable',
+      'invalid_file_id',
+      'invalid_path',
     ] as const) {
       expect(isStaleRefusal(refusal)).toBe(false);
     }

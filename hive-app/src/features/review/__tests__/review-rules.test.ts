@@ -1,11 +1,15 @@
+import type { DocumentSummary } from '@/data/supabase/documents';
 import type { CaseStatus } from '@/data/supabase/repositories';
 import type { MembershipRole } from '@/tenancy/types';
 
 import {
   APPROVAL_DESTINATION,
+  FILING_LIMITS,
   NOTE_LIMITS,
   actionsFor,
+  checkFiling,
   checkNote,
+  filableDocuments,
   verdictsFor,
 } from '../review-rules';
 
@@ -22,10 +26,10 @@ const STATUSES: readonly CaseStatus[] = [
 ];
 
 describe('actionsFor', () => {
-  it('gives the preparer freeze on evidence, and resume after a return or an approval', () => {
+  it('gives the preparer freeze on evidence, resume after a return, and filing-or-resume after an approval', () => {
     expect(actionsFor('preparer', 'EVIDENCE_PENDING')).toEqual(['freeze']);
     expect(actionsFor('preparer', 'RETURNED')).toEqual(['resume']);
-    expect(actionsFor('preparer', 'APPROVED')).toEqual(['resume']);
+    expect(actionsFor('preparer', 'APPROVED')).toEqual(['record_filing', 'resume']);
     for (const status of ['READY_FOR_REVIEW', 'IN_REVIEW', 'APPROVAL_PENDING', 'HOLD'] as const) {
       expect(actionsFor('preparer', status)).toEqual([]);
     }
@@ -43,8 +47,11 @@ describe('actionsFor', () => {
     expect(actionsFor('approver', 'IN_REVIEW')).toEqual([]);
   });
 
-  it('gives intake, clients, and nobody nothing at all', () => {
-    for (const role of ['intake', 'client_user', null] as (MembershipRole | null)[]) {
+  it('gives intake the filing receipt on an approved case only, and clients and nobody nothing', () => {
+    for (const status of STATUSES) {
+      expect(actionsFor('intake', status)).toEqual(status === 'APPROVED' ? ['record_filing'] : []);
+    }
+    for (const role of ['client_user', null] as (MembershipRole | null)[]) {
       for (const status of STATUSES) expect(actionsFor(role, status)).toEqual([]);
     }
     expect(actionsFor('approver', null)).toEqual([]);
@@ -72,6 +79,66 @@ describe('checkNote', () => {
       ok: false,
       refusal: 'note_too_long',
     });
+  });
+});
+
+describe('filing receipts (WO-006)', () => {
+  const document = (id: string, status: DocumentSummary['status']): DocumentSummary => ({
+    id,
+    displayName: id + ' (Synthetic).pdf',
+    mimeType: 'application/pdf',
+    byteSize: 1024,
+    status,
+    receivedAt: '2026-09-28T12:00:00Z',
+    checkedAt: status === 'ACCEPTED' ? '2026-09-28T12:01:00Z' : null,
+  });
+
+  it('offers only checked documents for filing', () => {
+    const accepted = document('a', 'ACCEPTED');
+    expect(
+      filableDocuments([
+        document('v', 'VALIDATING'),
+        accepted,
+        document('r', 'REJECTED'),
+        document('q', 'QUARANTINED'),
+        document('e', 'EXPIRED'),
+      ]),
+    ).toEqual([accepted]);
+  });
+
+  it('needs a document, a Drive file id in its shape, and a bounded printable path', () => {
+    const good = {
+      documentId: 'doc-1',
+      driveFileId: ' drv-synthetic-0001 ',
+      drivePath: ' /Clients/Harbor Light Bakery LLC (Synthetic)\u0001 ',
+    };
+    expect(checkFiling(good)).toEqual({
+      ok: true,
+      documentId: 'doc-1',
+      driveFileId: 'drv-synthetic-0001',
+      drivePath: '/Clients/Harbor Light Bakery LLC (Synthetic)',
+    });
+    expect(checkFiling({ ...good, documentId: null })).toEqual({
+      ok: false,
+      refusal: 'document_missing',
+    });
+    for (const driveFileId of ['', '-leading', 'has space', 'x'.repeat(129), 'dot.ted', 'a/b']) {
+      expect(checkFiling({ ...good, driveFileId })).toEqual({
+        ok: false,
+        refusal: 'invalid_file_id',
+      });
+    }
+    expect(checkFiling({ ...good, driveFileId: 'x'.repeat(128) })).toMatchObject({ ok: true });
+    expect(checkFiling({ ...good, drivePath: '   ' })).toEqual({
+      ok: false,
+      refusal: 'invalid_path',
+    });
+    expect(
+      checkFiling({ ...good, drivePath: 'p'.repeat(FILING_LIMITS.pathMaxLength + 1) }),
+    ).toEqual({ ok: false, refusal: 'invalid_path' });
+    expect(
+      checkFiling({ ...good, drivePath: 'p'.repeat(FILING_LIMITS.pathMaxLength) }),
+    ).toMatchObject({ ok: true });
   });
 });
 

@@ -1,14 +1,20 @@
-/** The case review for staff (WO-005).
+/** The case review for staff (WO-005, WO-006).
  *
  * What a reviewer or approver reads before acting: the case and its
  * status, the frozen package (which requests, answers, and documents it
  * holds, and the digest that names it exactly), the verdicts recorded on
- * it, and the approvals bound to it. Then the ONE action the viewer's
- * role may take now, through an explicit confirmation that says what
- * the action means. Review is read-only: nothing here edits evidence.
- * An approval names the package id and digest the screen shows and the
- * HIVE record as its only destination. A refusal says why and what to
- * do; a stale screen is sent to reload, never to act on old state.
+ * it, the approvals bound to it, the ledger objects the case refers to
+ * (identifiers, versions, and digests, never values), and the filing
+ * receipts that say which approved documents were filed to the
+ * permanent record by hand and whether the record was found to hold
+ * those bytes. Then the ONE action the viewer's role may take now,
+ * through an explicit confirmation that says what the action means.
+ * Review is read-only: nothing here edits evidence. An approval names
+ * the package id and digest the screen shows and the HIVE record as its
+ * only destination. A filing receipt names one checked document and the
+ * Drive object the person filed it at; HIVE writes nothing to Drive. A
+ * refusal says why and what to do; a stale screen is sent to reload,
+ * never to act on old state.
  *
  * A client user reaching this route sees only that the page is for staff
  * and the way back; the server refuses them every row regardless. */
@@ -17,11 +23,14 @@ import { StyleSheet, View } from 'react-native';
 
 import type { SafeError } from '@/core/errors';
 import { formatCount } from '@/core/text';
+import type { DocumentSummary } from '@/data/supabase/documents';
 import type { RequestSummary } from '@/data/supabase/repositories';
 import type {
   CaseApproval,
   CaseRecord,
   CaseReview,
+  FilingReceipt,
+  LedgerReference,
   ReviewPackage,
   ReviewVerdict,
 } from '@/data/supabase/reviews';
@@ -33,6 +42,8 @@ import {
   CASE_ACTION_DONE,
   CASE_STATUS_PRESENTATION,
   DESTINATION_LABEL,
+  FILING_STATUS_PRESENTATION,
+  LEDGER_OBJECT_TYPE_LABEL,
   OWNER_LABEL,
   REQUEST_STATUS_PRESENTATION,
   REVIEW_REFUSAL_WORDING,
@@ -57,7 +68,13 @@ import {
 import { layout, radii, spacing } from '@/ui/tokens';
 
 import { type ReviewFlowState, canAct, isBusy, isStaleRefusal } from './review-flow';
-import { type CaseAction, NOTE_LIMITS, noteLength } from './review-rules';
+import {
+  type CaseAction,
+  FILING_LIMITS,
+  NOTE_LIMITS,
+  filableDocuments,
+  noteLength,
+} from './review-rules';
 
 export interface CaseReviewViewProps {
   state: ScopedLoadStateName;
@@ -67,6 +84,12 @@ export interface CaseReviewViewProps {
   approvals: readonly CaseApproval[];
   /** The scope's requests, to name the ones the package froze. */
   requests: readonly RequestSummary[];
+  /** The case's documents, to name the ones a receipt may file or filed. */
+  documents: readonly DocumentSummary[];
+  /** Read-only pointers into the ledger (WO-006). Never values. */
+  references: readonly LedgerReference[];
+  /** What was filed to the permanent record by hand, and whether it held. */
+  receipts: readonly FilingReceipt[];
   role: MembershipRole | null;
   /** The actions the viewer's role may take on the case now. */
   actions: readonly CaseAction[];
@@ -79,6 +102,9 @@ export interface CaseReviewViewProps {
   onBack: () => void;
   onChooseVerdict: (verdict: ReviewVerdict) => void;
   onChangeNote: (note: string) => void;
+  onChooseFilingDocument: (documentId: string) => void;
+  onChangeFileId: (driveFileId: string) => void;
+  onChangePath: (drivePath: string) => void;
   onRequestAction: (action: CaseAction) => void;
   onConfirm: () => void;
   onCancel: () => void;
@@ -94,6 +120,7 @@ const CASE_ACTION_TEST_IDS = {
   record_verdict: 'case-review-action-record-verdict',
   approve: 'case-review-action-approve',
   resume: 'case-review-action-resume',
+  record_filing: 'case-review-action-record-filing',
 } as const;
 
 const VERDICT_TEST_IDS = {
@@ -108,6 +135,7 @@ const RUNNING_LABEL: Record<CaseAction, string> = {
   record_verdict: 'Recording the verdict',
   approve: 'Recording the approval',
   resume: 'Resuming the case',
+  record_filing: 'Recording the filing receipt',
 };
 
 const styles = StyleSheet.create({
@@ -130,10 +158,15 @@ const styles = StyleSheet.create({
   },
   actions: { gap: spacing.md },
   verdicts: { gap: spacing.sm },
+  filing: { gap: spacing.sm },
 });
 
 function shortDigest(digest: string): string {
   return digest.length > 16 ? `${digest.slice(0, 16)}…` : digest;
+}
+
+function documentName(documents: readonly DocumentSummary[], documentId: string): string {
+  return documents.find((document) => document.id === documentId)?.displayName ?? 'Document';
 }
 
 function PackageSection({
@@ -314,6 +347,104 @@ function ApprovalsSection({
   );
 }
 
+/** The ledger objects the case refers to, as the read-only adapter saw
+ * them: what and which version, never what they say. */
+function SourcesSection({
+  references,
+}: {
+  references: readonly LedgerReference[];
+}): React.JSX.Element {
+  const colors = useThemeColors();
+  return (
+    <View style={[styles.section, { borderTopColor: colors.divider }]} testID="case-review-sources">
+      <AppText variant="subheading" accessibilityRole="header">
+        Sources
+      </AppText>
+      <AppText variant="caption" tone="secondary">
+        Read-only references into the ledger. HIVE holds what was referred to and when, never its
+        contents.
+      </AppText>
+      {references.length === 0 ? (
+        <AppText variant="body" tone="secondary" testID="case-review-no-source">
+          No ledger object is referenced by this case.
+        </AppText>
+      ) : (
+        references.map((reference) => (
+          <View
+            key={reference.id}
+            style={[styles.row, { borderTopColor: colors.divider }]}
+            testID={`case-review-source-${reference.id}`}
+          >
+            <AppText variant="bodyStrong">{reference.displayName}</AppText>
+            <AppText variant="caption" tone="secondary">
+              {`${LEDGER_OBJECT_TYPE_LABEL[reference.objectType] ?? reference.objectType} · version ${reference.objectVersion} · as of ${formatServerTimestamp(reference.asOf)}`}
+            </AppText>
+            <AppText variant="caption" tone="secondary">
+              {`Digest ${shortDigest(reference.objectDigest)} · read by ${reference.adapterName}`}
+            </AppText>
+          </View>
+        ))
+      )}
+    </View>
+  );
+}
+
+/** What was filed to the permanent record by hand, and whether the
+ * record was found to hold exactly those bytes. */
+function RecordSection({
+  receipts,
+  documents,
+}: {
+  receipts: readonly FilingReceipt[];
+  documents: readonly DocumentSummary[];
+}): React.JSX.Element {
+  const colors = useThemeColors();
+  return (
+    <View style={[styles.section, { borderTopColor: colors.divider }]} testID="case-review-record">
+      <AppText variant="subheading" accessibilityRole="header">
+        Permanent record
+      </AppText>
+      <AppText variant="caption" tone="secondary">
+        Filings to Drive are made by hand and recorded here. HIVE never writes to Drive.
+      </AppText>
+      {receipts.length === 0 ? (
+        <AppText variant="body" tone="secondary" testID="case-review-no-receipt">
+          Nothing from this case has been recorded as filed.
+        </AppText>
+      ) : (
+        receipts.map((receipt) => {
+          const presentation = FILING_STATUS_PRESENTATION[receipt.status];
+          return (
+            <View
+              key={receipt.id}
+              style={[styles.row, { borderTopColor: colors.divider }]}
+              testID={`case-review-receipt-${receipt.id}`}
+            >
+              <AppText variant="bodyStrong">{documentName(documents, receipt.documentId)}</AppText>
+              <StatusBadge kind={presentation.kind} label={presentation.label} />
+              <AppText variant="caption" tone="secondary">
+                {`${receipt.drivePath} · file ${receipt.driveFileId}`}
+              </AppText>
+              <AppText variant="caption" tone="secondary">
+                {`Filed ${formatServerTimestamp(receipt.filedAt)} by ${OWNER_LABEL[receipt.filedRole]} · claimed digest ${shortDigest(receipt.claimedDigest)}`}
+              </AppText>
+              {receipt.verifiedAt ? (
+                <AppText variant="caption" tone="secondary">
+                  {`Checked ${formatServerTimestamp(receipt.verifiedAt)} by ${receipt.adapterName ?? 'the record adapter'}${
+                    receipt.foundDigest && receipt.status === 'MISMATCH'
+                      ? `, found ${shortDigest(receipt.foundDigest)}`
+                      : ''
+                  }`}
+                </AppText>
+              ) : null}
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
 export function CaseReviewView({
   state,
   caseRecord,
@@ -321,6 +452,9 @@ export function CaseReviewView({
   reviews,
   approvals,
   requests,
+  documents,
+  references,
+  receipts,
   role,
   actions,
   verdicts,
@@ -331,6 +465,9 @@ export function CaseReviewView({
   onBack,
   onChooseVerdict,
   onChangeNote,
+  onChooseFilingDocument,
+  onChangeFileId,
+  onChangePath,
   onRequestAction,
   onConfirm,
   onCancel,
@@ -343,6 +480,9 @@ export function CaseReviewView({
   const busy = isBusy(flow);
   const primary = actions[0] ?? null;
   const showsVerdictForm = actions.includes('record_verdict') && canAct(flow);
+  const showsFilingForm = actions.includes('record_filing') && canAct(flow);
+  const filable = showsFilingForm ? filableDocuments(documents) : [];
+  const filing = flow.draft.filing;
   return (
     <View style={styles.container} testID="case-review">
       <AppText variant="title" accessibilityRole="header">
@@ -392,6 +532,8 @@ export function CaseReviewView({
           <PackageSection current={current} requests={requests} />
           <ReviewsSection reviews={reviews} />
           <ApprovalsSection approvals={approvals} />
+          <SourcesSection references={references} />
+          <RecordSection receipts={receipts} documents={documents} />
 
           <View style={[styles.section, { borderTopColor: colors.divider }]}>
             <AppText variant="subheading" accessibilityRole="header">
@@ -436,6 +578,51 @@ export function CaseReviewView({
               </View>
             ) : null}
 
+            {showsFilingForm ? (
+              <View style={styles.filing} testID="case-review-filing-form">
+                <AppText variant="labelSmall">Document filed</AppText>
+                {filable.length === 0 ? (
+                  <AppText variant="caption" tone="secondary" testID="case-review-no-filable">
+                    No checked document on this case can be filed.
+                  </AppText>
+                ) : (
+                  filable.map((document) => (
+                    <Button
+                      key={document.id}
+                      kind={filing.documentId === document.id ? 'primary' : 'secondary'}
+                      label={
+                        filing.documentId === document.id
+                          ? `${document.displayName} (chosen)`
+                          : document.displayName
+                      }
+                      onPress={() => onChooseFilingDocument(document.id)}
+                      accessibilityHint="Names the document you filed; nothing is recorded until you confirm"
+                      testID={`case-review-filing-doc-${document.id}`}
+                    />
+                  ))
+                )}
+                <TextField
+                  label="Drive file id"
+                  value={filing.driveFileId}
+                  onChangeText={onChangeFileId}
+                  maxLength={128}
+                  helperText="Exactly as Drive shows it. HIVE reads it back; it never writes to Drive."
+                  testID="case-review-filing-file-id"
+                  labelTestID="case-review-filing-file-id-label"
+                />
+                <TextField
+                  label="Drive folder path"
+                  value={filing.drivePath}
+                  onChangeText={onChangePath}
+                  maxLength={FILING_LIMITS.pathMaxLength}
+                  autoCapitalize="sentences"
+                  helperText={`${formatCount(noteLength(filing.drivePath))} of ${formatCount(FILING_LIMITS.pathMaxLength)} characters.`}
+                  testID="case-review-filing-path"
+                  labelTestID="case-review-filing-path-label"
+                />
+              </View>
+            ) : null}
+
             {flow.name === 'confirming' ? (
               <>
                 {flow.action === 'record_verdict' && flow.draft.verdict ? (
@@ -466,6 +653,25 @@ export function CaseReviewView({
                     </AppText>
                     <AppText variant="caption" style={{ color: colors.panelInfoText }}>
                       {`Destination: ${DESTINATION_LABEL['hive-record']}. Expires 30 days after approval.`}
+                    </AppText>
+                  </View>
+                ) : null}
+                {flow.action === 'record_filing' && flow.draft.filing.documentId ? (
+                  <View
+                    style={[styles.panel, { backgroundColor: colors.panelInfoBackground }]}
+                    testID="case-review-confirm-filing"
+                  >
+                    <AppText variant="bodyStrong" style={{ color: colors.panelInfoText }}>
+                      {documentName(documents, flow.draft.filing.documentId)}
+                    </AppText>
+                    <AppText variant="caption" style={{ color: colors.panelInfoText }}>
+                      {`Drive file ${flow.draft.filing.driveFileId.trim()}`}
+                    </AppText>
+                    <AppText variant="caption" style={{ color: colors.panelInfoText }}>
+                      {`At ${flow.draft.filing.drivePath.trim()}`}
+                    </AppText>
+                    <AppText variant="caption" style={{ color: colors.panelInfoText }}>
+                      {`Case version ${caseRecord.version}. The document's checked digest is what the record must hold.`}
                     </AppText>
                   </View>
                 ) : null}

@@ -5,9 +5,10 @@
  * action, kept through a transient failure so "try again" can never move
  * the case twice, and dropped when the transition settles, is canceled,
  * or is dismissed. Every write names the case's version the screen read,
- * and an approval names the exact package id and digest the screen
- * showed, so a case or a package that moved elsewhere is a refusal the
- * screen words, never an action on stale state. A late result from a
+ * an approval names the exact package id and digest the screen showed,
+ * and a filing receipt names the document and the Drive object the
+ * person typed, so a case or a package that moved elsewhere is a refusal
+ * the screen words, never an action on stale state. A late result from a
  * step the person has moved past is dropped by epoch (P2-9).
  */
 import { useCallback, useEffect, useReducer, useRef } from 'react';
@@ -22,8 +23,19 @@ import {
 } from '@/data/supabase/reviews';
 import type { ScopeKey } from '@/tenancy/scope-key';
 
-import { type ReviewFlowState, initialReviewState, reviewReducer } from './review-flow';
-import { APPROVAL_DESTINATION, type CaseAction, checkNote, sanitizeNote } from './review-rules';
+import {
+  type ReviewFlowState,
+  type VerdictDraft,
+  initialReviewState,
+  reviewReducer,
+} from './review-flow';
+import {
+  APPROVAL_DESTINATION,
+  type CaseAction,
+  checkFiling,
+  checkNote,
+  sanitizeNote,
+} from './review-rules';
 
 export interface CaseReviewDeps {
   scope: ScopeKey;
@@ -43,6 +55,9 @@ export interface CaseReviewController {
   readonly state: ReviewFlowState;
   chooseVerdict: (verdict: ReviewVerdict) => void;
   setNote: (note: string) => void;
+  chooseFilingDocument: (documentId: string) => void;
+  setFileId: (driveFileId: string) => void;
+  setPath: (drivePath: string) => void;
   request: (action: CaseAction) => void;
   cancel: () => void;
   confirm: () => void;
@@ -84,6 +99,18 @@ export function useCaseReview(deps: CaseReviewDeps): CaseReviewController {
     dispatch({ type: 'NOTE_CHANGED', note: sanitizeNote(note) });
   }, []);
 
+  const chooseFilingDocument = useCallback((documentId: string) => {
+    dispatch({ type: 'FILING_DOCUMENT_CHOSEN', documentId });
+  }, []);
+
+  const setFileId = useCallback((driveFileId: string) => {
+    dispatch({ type: 'FILING_FILE_ID_CHANGED', driveFileId: sanitizeNote(driveFileId) });
+  }, []);
+
+  const setPath = useCallback((drivePath: string) => {
+    dispatch({ type: 'FILING_PATH_CHANGED', drivePath: sanitizeNote(drivePath) });
+  }, []);
+
   const request = useCallback(
     (action: CaseAction) => {
       if (state.name !== 'idle') return;
@@ -95,6 +122,13 @@ export function useCaseReview(deps: CaseReviewDeps): CaseReviewController {
         const note = checkNote(state.draft.note);
         if (!note.ok) {
           dispatch({ type: 'LOCALLY_REFUSED', action, refusal: note.refusal });
+          return;
+        }
+      }
+      if (action === 'record_filing') {
+        const filing = checkFiling(state.draft.filing);
+        if (!filing.ok) {
+          dispatch({ type: 'LOCALLY_REFUSED', action, refusal: filing.refusal });
           return;
         }
       }
@@ -111,7 +145,7 @@ export function useCaseReview(deps: CaseReviewDeps): CaseReviewController {
   }, [state.name]);
 
   const run = useCallback(
-    (action: CaseAction, draft: { verdict: ReviewVerdict | null; note: string }) => {
+    (action: CaseAction, draft: VerdictDraft) => {
       const idempotencyKey = key.current ?? newUuid(random);
       key.current = idempotencyKey;
       const started = ++epoch.current;
@@ -133,6 +167,17 @@ export function useCaseReview(deps: CaseReviewDeps): CaseReviewController {
               verdict: draft.verdict,
               note: sanitizeNote(draft.note),
             });
+          } else if (action === 'record_filing') {
+            const filing = checkFiling(draft.filing);
+            if (!filing.ok) throw new ReviewRefusedError('document_not_filable');
+            const record = await writer.recordFiling(scope, {
+              ...base,
+              documentId: filing.documentId,
+              driveFileId: filing.driveFileId,
+              drivePath: filing.drivePath,
+            });
+            // A receipt leaves the case where it stands: APPROVED.
+            receipt = { caseStatus: 'APPROVED', caseVersion: record.caseVersion };
           } else {
             if (!currentPackage) throw new ReviewRefusedError('package_missing');
             receipt = await writer.approve(scope, {
@@ -188,5 +233,17 @@ export function useCaseReview(deps: CaseReviewDeps): CaseReviewController {
     dispatch({ type: 'DISMISSED' });
   }, [state.name]);
 
-  return { state, chooseVerdict, setNote, request, cancel, confirm, retry, dismiss };
+  return {
+    state,
+    chooseVerdict,
+    setNote,
+    chooseFilingDocument,
+    setFileId,
+    setPath,
+    request,
+    cancel,
+    confirm,
+    retry,
+    dismiss,
+  };
 }

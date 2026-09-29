@@ -9,6 +9,8 @@ import type { RandomSource } from '@/core/ids';
 import {
   type ApproveInput,
   type CaseTransitionInput,
+  type FilingInput,
+  type FilingRecord,
   ReviewRefusedError,
   type ReviewWriter,
   type TransitionReceipt,
@@ -39,7 +41,10 @@ function makeRandom(): RandomSource {
 }
 
 class FakeWriter implements ReviewWriter {
-  calls: { name: string; input: CaseTransitionInput | VerdictInput | ApproveInput }[] = [];
+  calls: {
+    name: string;
+    input: CaseTransitionInput | VerdictInput | ApproveInput | FilingInput;
+  }[] = [];
   error: unknown = null;
   private async answer(name: string, input: CaseTransitionInput, status: string) {
     this.calls.push({ name, input });
@@ -61,6 +66,17 @@ class FakeWriter implements ReviewWriter {
   approve(_scope: ScopeKey, input: ApproveInput) {
     return this.answer('approve', input, 'APPROVED');
   }
+  async recordFiling(_scope: ScopeKey, input: FilingInput): Promise<FilingRecord> {
+    this.calls.push({ name: 'recordFiling', input });
+    if (this.error) throw this.error;
+    return {
+      receiptId: 'rcpt-1',
+      status: 'RECORDED',
+      claimedDigest: 'a'.repeat(64),
+      packageId: 'pkg-2',
+      caseVersion: input.caseVersion,
+    };
+  }
 }
 
 function Probe({ deps }: { deps: CaseReviewDeps }): React.JSX.Element {
@@ -73,6 +89,22 @@ function Probe({ deps }: { deps: CaseReviewDeps }): React.JSX.Element {
       <Text testID="verdict">{s.draft.verdict ?? ''}</Text>
       <Text testID="note">{s.draft.note}</Text>
       <Text testID="refusal">{s.name === 'refused' ? s.refusal : ''}</Text>
+      <Text testID="file-id">{s.draft.filing.driveFileId}</Text>
+      <Text testID="choose-doc" onPress={() => flow.chooseFilingDocument('doc-1')}>
+        doc
+      </Text>
+      <Text testID="type-file-id" onPress={() => flow.setFileId(' drv-synthetic-0001\u0001 ')}>
+        file
+      </Text>
+      <Text
+        testID="type-path"
+        onPress={() => flow.setPath('/Clients/Harbor Light Bakery LLC (Synthetic)')}
+      >
+        path
+      </Text>
+      <Text testID="filing-request" onPress={() => flow.request('record_filing')}>
+        filing
+      </Text>
       <Text testID="choose-return" onPress={() => flow.chooseVerdict('RETURN')}>
         return
       </Text>
@@ -222,5 +254,36 @@ describe('useCaseReview', () => {
     expect(text('refusal')).toBe('conflict_of_interest');
     await press('dismiss');
     expect(text('name')).toBe('idle');
+  });
+
+  it('refuses a filing without a document before any round trip, then records the exact document and Drive object and leaves the case approved', async () => {
+    const writer = new FakeWriter();
+    const settled = jest.fn();
+    await mount(writer, { onSettled: settled });
+    await press('type-file-id');
+    await press('type-path');
+    expect(text('file-id')).toBe(' drv-synthetic-0001 ');
+    await press('filing-request');
+    expect(text('name')).toBe('refused');
+    expect(text('refusal')).toBe('document_missing');
+    expect(writer.calls).toHaveLength(0);
+    await press('dismiss');
+    await press('choose-doc');
+    await press('filing-request');
+    expect(text('name')).toBe('confirming');
+    await press('confirm');
+    await waitFor(() => expect(text('name')).toBe('done'));
+    expect(writer.calls).toHaveLength(1);
+    expect(writer.calls[0]).toMatchObject({
+      name: 'recordFiling',
+      input: {
+        caseId: caseRecord.id,
+        caseVersion: 3,
+        documentId: 'doc-1',
+        driveFileId: 'drv-synthetic-0001',
+        drivePath: '/Clients/Harbor Light Bakery LLC (Synthetic)',
+      },
+    });
+    expect(settled).toHaveBeenCalledWith({ caseStatus: 'APPROVED', caseVersion: 3 });
   });
 });

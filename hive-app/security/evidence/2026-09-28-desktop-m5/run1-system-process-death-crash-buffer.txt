@@ -1,0 +1,8 @@
+Read with `adb logcat -d -b crash` on Pixel_8 right after the first device run (2026-09-28 18:12 local), before Maestro's next flow cleared the buffer. Two lines of the many, verbatim:
+
+09-28 18:11:44.390 10821 10838 E AndroidRuntime: *** FATAL EXCEPTION IN SYSTEM PROCESS: ReferenceQueueDaemon
+09-28 18:11:44.390 10821 10838 E AndroidRuntime: java.lang.NullPointerException: Attempt to read from field 'java.lang.ref.ReferenceQueue java.lang.ref.Reference.queue' on a null object reference in method 'void java.lang.ref.ReferenceQueue.enqueuePending(java.lang.ref.Reference, java.util.concurrent.atomic.AtomicInteger)'
+09-28 18:11:45.193 18409 18409 E AndroidRuntime: Process: com.android.vending, PID: 18409
+09-28 18:11:45.193 18409 18409 E AndroidRuntime: DeadSystemException: The system died; earlier logs will point to the root cause
+
+Every running app died the same way (Play, GMS, Chrome, the keychain, and the HIVE development build among them). The emulator's system process restarted on its own; `getprop sys.boot_completed` read 1 and `dumpsys meminfo` showed 898,944K free before the second run.

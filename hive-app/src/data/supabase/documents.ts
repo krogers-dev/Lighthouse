@@ -55,6 +55,9 @@ export interface DocumentsLoader {
    * is about, which may sit on another request of the case). A foreign or
    * unknown id is null, never an error, so nothing confirms it exists. */
   getById(scope: ScopeKey, documentId: string): Promise<DocumentSummary | null>;
+  /** Every document of a case, newest first (WO-006: what a filing receipt
+   * may name, resolved to names on the case review). */
+  listByCase(scope: ScopeKey, caseId: string): Promise<readonly DocumentSummary[]>;
 }
 
 export interface UploadReservation {
@@ -282,6 +285,37 @@ export class DocumentsRepository implements ScopedResource, DocumentsLoader, Doc
         receivedAt: row.received_at,
         checkedAt: row.checked_at,
       };
+    } catch (error) {
+      throw mapDbError(error);
+    }
+  }
+
+  async listByCase(scope: ScopeKey, caseId: string): Promise<readonly DocumentSummary[]> {
+    const client = this.getClient();
+    try {
+      const result = await client
+        .from('document_uploads')
+        .select('id, display_name, mime_type, byte_size, status, received_at, checked_at')
+        .eq('environment_id', scope.environmentId)
+        .eq('client_id', scope.clientId)
+        .eq('entity_id', scope.entityId)
+        .eq('case_id', caseId)
+        .order('created_at', { ascending: false });
+      if (result.error) throw result.error;
+      const items: DocumentSummary[] = [];
+      for (const row of result.data) {
+        if (!isDocumentStatus(row.status)) continue;
+        items.push({
+          id: row.id,
+          displayName: row.display_name,
+          mimeType: row.mime_type,
+          byteSize: row.byte_size,
+          status: row.status,
+          receivedAt: row.received_at,
+          checkedAt: row.checked_at,
+        });
+      }
+      return items;
     } catch (error) {
       throw mapDbError(error);
     }

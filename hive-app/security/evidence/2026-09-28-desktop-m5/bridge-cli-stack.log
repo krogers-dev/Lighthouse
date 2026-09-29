@@ -1,0 +1,25 @@
+reset-totp: reviewer.rae@example.invalid is factor-clean (1 deleted, readback verified zero)
+reset-totp: preparer.pat@example.invalid is factor-clean (1 deleted, readback verified zero)
+reset-totp: mixed.same@example.invalid is factor-clean (1 deleted, readback verified zero)
+reset-totp: approver.avery@example.invalid is factor-clean (1 deleted, readback verified zero)
+reset-totp: intake.beth@example.invalid is factor-clean (1 deleted, readback verified zero)
+answer-reset: a1Question is OPEN again with no answer (version 7)
+case-reset: a1 is back to its seeded status with no package (version 16)
+ledger-sync: Account acct-synthetic-operating@3 -> 473c248f-bcbf-48e8-b0fa-05d91211d893 (recorded)
+ledger-sync: JournalEntry je-synthetic-2025-close@2 -> 5a8d135c-9c98-48e2-af8f-fbb0301024fe (recorded)
+ledger-sync: Report report-synthetic-pl-2025@1 -> eba3558d-ebc5-4ad7-ad90-23864394c72e (recorded)
+ledger-sync: a1 carries 3 reference(s) read by HiveSyntheticLedger
+
+PASS tests/live/app-live-bridge.test.ts
+PASS tests/live/screens-live.test.tsx
+PASS tests/live/review-live.test.ts
+PASS tests/live/documents-live.test.ts
+PASS tests/live/answers-live.test.ts
+
+Test Suites: 5 passed, 5 total
+Tests:       10 passed, 10 total
+Snapshots:   0 total
+Time:        10.778 s, estimated 12 s
+Ran all test suites.
+local-supabase: live bridge on the CLI stack passed (10 of 10)
+bridge exit 0

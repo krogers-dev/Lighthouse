@@ -22,6 +22,7 @@ export default function CaseReviewRoute(): React.JSX.Element {
         <CaseReviewScreen
           reviewRepository={runtime.services.reviewRepository}
           requestsRepository={runtime.services.requestsRepository}
+          documentsRepository={runtime.services.documentsRepository}
           random={runtime.services.random}
           caseId={caseId}
           onBack={() => router.push('/dashboard' as never)}

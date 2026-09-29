@@ -192,7 +192,11 @@ export type ActivityEventKind =
   | 'case.held'
   | 'case.approved'
   | 'case.resumed'
-  | 'case.approval_expired';
+  | 'case.approval_expired'
+  | 'source.referenced'
+  | 'record.filed'
+  | 'record.verified'
+  | 'record.mismatch';
 
 export type ActivityActorRole = MembershipRole | 'system';
 

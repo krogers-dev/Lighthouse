@@ -38,7 +38,10 @@ import { requireFactorsClean } from './lib/admin-factors.mjs';
 import { assertAnswerPath } from './lib/answer-path.mjs';
 import { performAnswerReset } from './lib/answer-reset.mjs';
 import { performCaseReset } from './lib/case-reset.mjs';
+import { verifyFilingReceipts } from './lib/filing-verify.mjs';
+import { syncLedgerReferences } from './lib/ledger-sync.mjs';
 import { assertReviewPath } from './lib/review-path.mjs';
+import { assertSourcePath } from './lib/source-path.mjs';
 import { msUntilIatAdvance, verifyRefreshedSession } from './lib/refresh-verify.mjs';
 import { SCOPE, SYNTHETIC_IDENTITIES } from './lib/synthetic-identities.mjs';
 import { totpCode } from './lib/totp.mjs';
@@ -393,6 +396,8 @@ const REACH = {
     case_review_packages: [],
     case_reviews: [],
     case_approvals: [],
+    ledger_references: [],
+    filing_receipts: [],
   },
   aAndB1: {
     environments: [SCOPE.environmentId],
@@ -415,6 +420,8 @@ const REACH = {
     case_review_packages: [],
     case_reviews: [],
     case_approvals: [],
+    ledger_references: [],
+    filing_receipts: [],
   },
 };
 const PROTECTED_TABLES = [
@@ -440,6 +447,11 @@ const PROTECTED_TABLES = [
   'case_review_packages',
   'case_reviews',
   'case_approvals',
+  // Milestone 5 (WO-006): the read-only ledger references and the filing
+  // receipts, staff of the scope at AAL2 only. The seed holds none; the
+  // rows step 4c creates are counted per identity through extraReachByEmail.
+  'ledger_references',
+  'filing_receipts',
 ];
 
 function idsOf(rows) {
@@ -866,6 +878,45 @@ for (const identity of SYNTHETIC_IDENTITIES) {
               },
             },
           );
+          // 4c. Milestone 5 (WO-006): the source adapters' path on the case
+          //     the review path left APPROVED. The named synthetic ledger
+          //     adapter records read-only references through the server
+          //     role; intake records filing receipts at AAL2; the named
+          //     synthetic record adapter verifies them read-only.
+          const intakeToken = await staffAal2Token('intake.beth@example.invalid', 'source path');
+          if (intakeToken) {
+            await assertSourcePath(
+              {
+                rest,
+                rpc,
+                check,
+                uuidV4,
+                extraReach,
+                extraReachByEmail,
+                SCOPE,
+                CASES,
+                DOCUMENTS,
+                sync: () => syncLedgerReferences({ url, serviceKey, gatewayKey, caseKey: 'a1' }),
+                verify: () =>
+                  verifyFilingReceipts({ url, serviceKey, gatewayKey, caseId: CASES.a1 }),
+              },
+              {
+                intake: { email: 'intake.beth@example.invalid', token: intakeToken },
+                intakeAal1: {
+                  email: 'intake.beth@example.invalid',
+                  token: intakeSession.access_token,
+                },
+                preparer: { email: identity.email, token: refreshed.access_token },
+                client: {
+                  email: 'client.owner@example.invalid',
+                  token: clientSession.access_token,
+                },
+                other: { email: 'client.second@example.invalid', token: otherSession.access_token },
+              },
+            );
+          } else {
+            check(false, 'source path: intake could not reach AAL2');
+          }
         } else {
           check(false, 'review path: the sessions it needs are not all available');
         }

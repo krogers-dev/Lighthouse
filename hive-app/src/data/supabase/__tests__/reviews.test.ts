@@ -176,6 +176,157 @@ describe('ReviewRepository reads', () => {
   });
 });
 
+describe('ReviewRepository sources and record (WO-006)', () => {
+  it('reads the ledger references and filing receipts inside the full scope, the case id a filter, and drops rows it cannot name', async () => {
+    const fake = makeFakeClient({
+      rowsByTable: {
+        ledger_references: [
+          {
+            id: 'ref-1',
+            source: 'qbo',
+            realm_id: 'realm-synthetic-a1',
+            object_type: 'Account',
+            object_id: 'acct-synthetic-operating',
+            object_version: '3',
+            display_name: 'Operating account (Synthetic)',
+            as_of: '2026-09-28T12:00:00Z',
+            object_digest: 'a'.repeat(64),
+            adapter_name: 'HiveSyntheticLedger',
+            recorded_at: '2026-09-28T12:05:00Z',
+          },
+        ],
+        filing_receipts: [
+          {
+            id: 'rcpt-1',
+            document_id: 'd1',
+            package_id: 'pkg-1',
+            drive_file_id: 'drv-synthetic-0001',
+            drive_path: '/Clients/Harbor Light Bakery LLC (Synthetic)',
+            claimed_digest: 'b'.repeat(64),
+            filed_role: 'intake',
+            filed_at: '2026-09-28T18:00:00Z',
+            status: 'RECORDED',
+            verified_at: null,
+            found_digest: null,
+            adapter_name: null,
+          },
+          {
+            id: 'rcpt-x',
+            document_id: 'd1',
+            package_id: 'pkg-1',
+            drive_file_id: 'x',
+            drive_path: 'p',
+            claimed_digest: 'b'.repeat(64),
+            filed_role: 'intake',
+            filed_at: '2026-09-28T18:00:00Z',
+            status: 'SOMETHING_ELSE',
+            verified_at: null,
+            found_digest: null,
+            adapter_name: null,
+          },
+        ],
+      },
+    });
+    const r = repo(fake.client);
+    await expect(r.listLedgerReferences(scope, CASE)).resolves.toEqual([
+      {
+        id: 'ref-1',
+        source: 'qbo',
+        realmId: 'realm-synthetic-a1',
+        objectType: 'Account',
+        objectId: 'acct-synthetic-operating',
+        objectVersion: '3',
+        displayName: 'Operating account (Synthetic)',
+        asOf: '2026-09-28T12:00:00Z',
+        objectDigest: 'a'.repeat(64),
+        adapterName: 'HiveSyntheticLedger',
+        recordedAt: '2026-09-28T12:05:00Z',
+      },
+    ]);
+    await expect(r.listFilingReceipts(scope, CASE)).resolves.toEqual([
+      {
+        id: 'rcpt-1',
+        documentId: 'd1',
+        packageId: 'pkg-1',
+        driveFileId: 'drv-synthetic-0001',
+        drivePath: '/Clients/Harbor Light Bakery LLC (Synthetic)',
+        claimedDigest: 'b'.repeat(64),
+        filedRole: 'intake',
+        filedAt: '2026-09-28T18:00:00Z',
+        status: 'RECORDED',
+        verifiedAt: null,
+        foundDigest: null,
+        adapterName: null,
+      },
+    ]);
+    expect(fake.queries.map((query) => query.table)).toEqual([
+      'ledger_references',
+      'filing_receipts',
+    ]);
+    for (const query of fake.queries) {
+      expect(query.filters).toEqual({ ...scopeFilters, case_id: CASE });
+    }
+  });
+
+  it('records a filing receipt with the exact scope, case version, key, document, and Drive object, and decodes the record', async () => {
+    const input = {
+      caseId: CASE,
+      caseVersion: 9,
+      idempotencyKey: 'k9',
+      documentId: 'd1',
+      driveFileId: 'drv-synthetic-0001',
+      drivePath: '/Clients/Harbor Light Bakery LLC (Synthetic)',
+    };
+    const fake = makeFakeClient({
+      rpc: () => ({
+        data: {
+          receipt_id: 'rcpt-1',
+          status: 'RECORDED',
+          claimed_digest: 'b'.repeat(64),
+          package_id: 'pkg-1',
+          case_version: 9,
+        },
+        error: null,
+      }),
+    });
+    await expect(repo(fake.client).recordFiling(scope, input)).resolves.toEqual({
+      receiptId: 'rcpt-1',
+      status: 'RECORDED',
+      claimedDigest: 'b'.repeat(64),
+      packageId: 'pkg-1',
+      caseVersion: 9,
+    });
+    expect(fake.rpcs).toEqual([
+      {
+        name: 'record_filing_receipt',
+        args: {
+          p_environment_id: scope.environmentId,
+          p_client_id: scope.clientId,
+          p_entity_id: scope.entityId,
+          p_case_id: CASE,
+          p_case_version: 9,
+          p_idempotency_key: 'k9',
+          p_document_id: 'd1',
+          p_drive_file_id: 'drv-synthetic-0001',
+          p_drive_path: '/Clients/Harbor Light Bakery LLC (Synthetic)',
+        },
+      },
+    ]);
+    const refused = makeFakeClient({
+      rpc: () => ({ data: null, error: { code: 'P0001', message: 'document_not_approved' } }),
+    });
+    await expect(repo(refused.client).recordFiling(scope, input)).rejects.toMatchObject({
+      refusal: 'document_not_approved',
+    });
+    const malformed = makeFakeClient({
+      rpc: () => ({ data: { receipt_id: 'r', status: 'RECORDED' }, error: null }),
+    });
+    await expect(repo(malformed.client).recordFiling(scope, input)).rejects.toMatchObject({
+      code: 'unknown',
+    });
+  });
+});
+
 describe('ReviewRepository writes', () => {
   const base = { caseId: CASE, caseVersion: 3, idempotencyKey: 'k1' };
   const receipt = { data: { case_status: 'READY_FOR_REVIEW', case_version: 4 }, error: null };

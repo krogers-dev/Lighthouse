@@ -7,8 +7,12 @@
  * starts the review and passes it; approver.avery approves the exact
  * package by id and digest, for the HIVE record, and the approval reads
  * back active with its expiry. Every transition names the case version
- * the repository read. Runs only through the bridge lanes; on the CLI
- * stack the lane resets the case and the three factors first.
+ * the repository read. Then (WO-006) intake.beth reads the references the
+ * named synthetic ledger adapter recorded for the case and records a
+ * filing receipt for an approved, checked document at the synthetic Drive
+ * file that holds its bytes, meeting the refusals on the way. Runs only
+ * through the bridge lanes; on the CLI stack the lane resets the case and
+ * the four factors first and syncs the synthetic ledger.
  */
 import type { AuthState } from '@/auth/machine';
 import { ReviewRefusedError } from '@/data/supabase/reviews';
@@ -19,6 +23,11 @@ import { buildApp, signInWithOtp, waitForState } from './journeys';
 
 const A1_ENTITY = 'aaaaaaaa-1111-4000-8000-000000000001';
 const CASE = 'eeeeeeee-0000-4000-8000-0000000000a1';
+// Milestone 5 (WO-006): the seeded July statement (checked) and the seeded
+// rejected photo, and the synthetic folder intake files under by hand.
+const JULY_STATEMENT = 'd0c0d0c0-0000-4000-8000-0000000000a1';
+const REJECTED_PHOTO = 'd0c0d0c0-0000-4000-8000-0000000000a2';
+const DRIVE_FOLDER = '/Clients/Harbor Light Bakery LLC (Synthetic)/2025 books close (Synthetic)';
 
 function uuidV4(): string {
   const bytes = new Uint8Array(16);
@@ -175,5 +184,79 @@ describe('live bridge: review and approval through the shipped composition', () 
       'approver out',
       (state) => state.name === 'signed_out',
     );
+
+    // Milestone 5 (WO-006): the sources and the permanent record, as intake.
+    const intake = await signInStaff('intake.beth@example.invalid', 'intake');
+    const references = await intake.app.review.listLedgerReferences(intake.scope, CASE);
+    expect(references.map((reference) => reference.objectType).sort()).toEqual([
+      'Account',
+      'JournalEntry',
+      'Report',
+    ]);
+    expect(references.every((reference) => reference.adapterName === 'HiveSyntheticLedger')).toBe(
+      true,
+    );
+    const approvedCase = await intake.app.review.getCase(intake.scope, CASE);
+    const approvedPackage = await intake.app.review.getCurrentPackage(intake.scope, CASE);
+    const documents = await intake.app.documents.listByCase(intake.scope, CASE);
+    expect(documents.find((document) => document.id === JULY_STATEMENT)?.status).toBe('ACCEPTED');
+    await expect(
+      intake.app.review.recordFiling(intake.scope, {
+        caseId: CASE,
+        caseVersion: approvedCase!.version,
+        documentId: REJECTED_PHOTO,
+        driveFileId: 'drv-synthetic-0001',
+        drivePath: DRIVE_FOLDER,
+        idempotencyKey: uuidV4(),
+      }),
+    ).rejects.toMatchObject({ refusal: 'document_not_filable' });
+    const filed = await intake.app.review.recordFiling(intake.scope, {
+      caseId: CASE,
+      caseVersion: approvedCase!.version,
+      documentId: JULY_STATEMENT,
+      driveFileId: 'drv-synthetic-0001',
+      drivePath: DRIVE_FOLDER,
+      idempotencyKey: uuidV4(),
+    });
+    const manifestEntry = approvedPackage!.manifest.documents.find(
+      (document) => document.id === JULY_STATEMENT,
+    );
+    expect(filed).toMatchObject({
+      status: 'RECORDED',
+      packageId: approvedPackage!.id,
+      claimedDigest: manifestEntry!.clientDigest,
+      caseVersion: approvedCase!.version,
+    });
+    await expect(
+      intake.app.review.recordFiling(intake.scope, {
+        caseId: CASE,
+        caseVersion: approvedCase!.version,
+        documentId: JULY_STATEMENT,
+        driveFileId: 'drv-synthetic-0001',
+        drivePath: DRIVE_FOLDER,
+        idempotencyKey: uuidV4(),
+      }),
+    ).rejects.toMatchObject({ refusal: 'receipt_exists' });
+    const receipts = await intake.app.review.listFilingReceipts(intake.scope, CASE);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]).toMatchObject({
+      id: filed.receiptId,
+      documentId: JULY_STATEMENT,
+      driveFileId: 'drv-synthetic-0001',
+      drivePath: DRIVE_FOLDER,
+      filedRole: 'intake',
+      status: 'RECORDED',
+      verifiedAt: null,
+      foundDigest: null,
+    });
+    // The case did not move: a receipt is a record of a filing, not a transition.
+    expect((await intake.app.review.getCase(intake.scope, CASE))?.version).toBe(
+      approvedCase!.version,
+    );
+    const trail = await intake.app.activity.list(intake.scope);
+    expect(trail.items.some((entry) => entry.kind === 'source.referenced')).toBe(true);
+    expect(trail.items.some((entry) => entry.kind === 'record.filed')).toBe(true);
+    await intake.app.controller.signOut();
+    await waitForState(intake.app.controller, 'intake out', (state) => state.name === 'signed_out');
   });
 });

@@ -1,8 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { SafeError } from '@/core/errors';
+import type { DocumentSummary } from '@/data/supabase/documents';
 import type { RequestSummary } from '@/data/supabase/repositories';
-import type { CaseApproval, CaseRecord, CaseReview, ReviewPackage } from '@/data/supabase/reviews';
+import type {
+  CaseApproval,
+  CaseRecord,
+  CaseReview,
+  FilingReceipt,
+  LedgerReference,
+  ReviewPackage,
+} from '@/data/supabase/reviews';
 
 import { CaseReviewView, type CaseReviewViewProps } from '../CaseReviewView';
 import { type ReviewFlowState, initialReviewState } from '../review-flow';
@@ -65,12 +73,57 @@ const approval: CaseApproval = {
   endReason: null,
 };
 
+const filedDocument: DocumentSummary = {
+  id: 'd0c0d0c0-0000-4000-8000-0000000000a1',
+  displayName: 'statement-2025-12 (Synthetic).pdf',
+  mimeType: 'application/pdf',
+  byteSize: 184320,
+  status: 'ACCEPTED',
+  receivedAt: '2026-08-06T14:00:00Z',
+  checkedAt: '2026-08-06T14:03:00Z',
+};
+const FILING_DOC_BUTTON = 'case-review-filing-doc-d0c0d0c0-0000-4000-8000-0000000000a1';
+
+const reference: LedgerReference = {
+  id: 'ref-1',
+  source: 'qbo',
+  realmId: 'realm-synthetic-a1',
+  objectType: 'JournalEntry',
+  objectId: 'je-synthetic-2025-close',
+  objectVersion: '2',
+  displayName: 'Year-end close entry (Synthetic)',
+  asOf: '2026-09-28T12:00:00Z',
+  objectDigest: '12'.repeat(32),
+  adapterName: 'HiveSyntheticLedger',
+  recordedAt: '2026-09-28T12:05:00Z',
+};
+
+const receipt: FilingReceipt = {
+  id: 'rcpt-1',
+  documentId: filedDocument.id,
+  packageId: current.id,
+  driveFileId: 'drv-synthetic-0001',
+  drivePath: '/Clients/Harbor Light Bakery LLC (Synthetic)/2025 books close (Synthetic)',
+  claimedDigest: 'cd'.repeat(32),
+  filedRole: 'intake',
+  filedAt: '2026-09-28T18:00:00Z',
+  status: 'VERIFIED',
+  verifiedAt: '2026-09-28T18:10:00Z',
+  foundDigest: 'cd'.repeat(32),
+  adapterName: 'HiveSyntheticDrive',
+};
+
+const EMPTY_FILING = { documentId: null, driveFileId: '', drivePath: '' };
+
 const handlers = {
   onRetry: jest.fn(),
   onSwitchScope: jest.fn(),
   onBack: jest.fn(),
   onChooseVerdict: jest.fn(),
   onChangeNote: jest.fn(),
+  onChooseFilingDocument: jest.fn(),
+  onChangeFileId: jest.fn(),
+  onChangePath: jest.fn(),
   onRequestAction: jest.fn(),
   onConfirm: jest.fn(),
   onCancel: jest.fn(),
@@ -85,6 +138,9 @@ const base: Omit<CaseReviewViewProps, 'flow'> = {
   reviews: [passed],
   approvals: [],
   requests,
+  documents: [],
+  references: [],
+  receipts: [],
   role: 'approver',
   actions: ['approve', 'record_verdict'],
   verdicts: ['RETURN', 'HOLD'],
@@ -152,7 +208,7 @@ describe('CaseReviewView for staff', () => {
       view({
         name: 'confirming',
         action: 'record_verdict',
-        draft: { verdict: 'RETURN', note: 'Missing page (Synthetic)' },
+        draft: { verdict: 'RETURN', note: 'Missing page (Synthetic)', filing: EMPTY_FILING },
       }),
     );
     expect(screen.getByTestId('case-review-confirm-verdict')).toHaveTextContent(/Verdict: Return/);
@@ -221,6 +277,136 @@ describe('CaseReviewView for staff', () => {
     expect(screen.getByText(/We could not reach HIVE/)).toBeTruthy();
     await fireEvent.press(screen.getByTestId('case-review-retry'));
     expect(handlers.onTryAgain).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the sources and the permanent record as identifiers, versions, and digests, never values', async () => {
+    await render(
+      view(initialReviewState, {
+        references: [reference],
+        receipts: [
+          receipt,
+          {
+            ...receipt,
+            id: 'rcpt-2',
+            driveFileId: 'drv-synthetic-wrong',
+            status: 'MISMATCH',
+            foundDigest: '00'.repeat(32),
+          },
+        ],
+        documents: [filedDocument],
+      }),
+    );
+    const source = screen.getByTestId('case-review-source-ref-1');
+    expect(source).toHaveTextContent(/Year-end close entry \(Synthetic\)/);
+    expect(source).toHaveTextContent(/Journal entry · version 2/);
+    expect(source).toHaveTextContent(/read by HiveSyntheticLedger/);
+    const verified = screen.getByTestId('case-review-receipt-rcpt-1');
+    expect(verified).toHaveTextContent(/statement-2025-12 \(Synthetic\)\.pdf/);
+    expect(verified).toHaveTextContent(/Verified in the record/);
+    expect(verified).toHaveTextContent(/file drv-synthetic-0001/);
+    expect(verified).toHaveTextContent(/Filed .* by Honeybee team/);
+    const mismatched = screen.getByTestId('case-review-receipt-rcpt-2');
+    expect(mismatched).toHaveTextContent(/Did not match the record/);
+    expect(mismatched).toHaveTextContent(/found 0000000000000000…/);
+    expect(screen.queryByTestId('case-review-no-source')).toBeNull();
+    expect(screen.queryByTestId('case-review-no-receipt')).toBeNull();
+  });
+
+  it('says when nothing is referenced or filed', async () => {
+    await render(view(initialReviewState));
+    expect(screen.getByTestId('case-review-no-source')).toBeTruthy();
+    expect(screen.getByTestId('case-review-no-receipt')).toBeTruthy();
+  });
+
+  it('offers intake the filing receipt on an approved case, with only checked documents to choose from', async () => {
+    await render(
+      view(initialReviewState, {
+        caseRecord: { ...caseRecord, status: 'APPROVED' },
+        role: 'intake',
+        actions: ['record_filing'],
+        verdicts: [],
+        approvals: [approval],
+        documents: [
+          filedDocument,
+          {
+            ...filedDocument,
+            id: 'doc-validating',
+            status: 'VALIDATING',
+            displayName: 'later (Synthetic).pdf',
+          },
+        ],
+      }),
+    );
+    expect(screen.getByTestId('case-review-filing-form')).toBeTruthy();
+    expect(screen.getByTestId(FILING_DOC_BUTTON)).toBeTruthy();
+    expect(screen.queryByTestId('case-review-filing-doc-doc-validating')).toBeNull();
+    expect(screen.queryByTestId('case-review-verdict-form')).toBeNull();
+    await fireEvent.press(screen.getByTestId(FILING_DOC_BUTTON));
+    expect(handlers.onChooseFilingDocument).toHaveBeenCalledWith(filedDocument.id);
+    await fireEvent.changeText(
+      screen.getByTestId('case-review-filing-file-id'),
+      'drv-synthetic-0001',
+    );
+    expect(handlers.onChangeFileId).toHaveBeenCalledWith('drv-synthetic-0001');
+    await fireEvent.changeText(screen.getByTestId('case-review-filing-path'), '/Clients');
+    expect(handlers.onChangePath).toHaveBeenCalledWith('/Clients');
+    expect(screen.getByText('Record filing receipt')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('case-review-action-record-filing'));
+    expect(handlers.onRequestAction).toHaveBeenCalledWith('record_filing');
+  });
+
+  it('confirms a filing receipt with the exact document and Drive object, and says HIVE writes nothing to Drive', async () => {
+    const confirming: ReviewFlowState = {
+      name: 'confirming',
+      action: 'record_filing',
+      draft: {
+        verdict: null,
+        note: '',
+        filing: {
+          documentId: filedDocument.id,
+          driveFileId: 'drv-synthetic-0001',
+          drivePath: receipt.drivePath,
+        },
+      },
+    };
+    await render(
+      view(confirming, {
+        caseRecord: { ...caseRecord, status: 'APPROVED' },
+        role: 'intake',
+        actions: ['record_filing'],
+        verdicts: [],
+        documents: [filedDocument],
+      }),
+    );
+    const panel = screen.getByTestId('case-review-confirm-filing');
+    expect(panel).toHaveTextContent(/statement-2025-12 \(Synthetic\)\.pdf/);
+    expect(panel).toHaveTextContent(/Drive file drv-synthetic-0001/);
+    expect(panel).toHaveTextContent(/Case version 7/);
+    expect(screen.getByTestId('case-review-confirm-notice')).toHaveTextContent(
+      /HIVE writes nothing to Drive/,
+    );
+    expect(screen.queryByTestId('case-review-filing-form')).toBeNull();
+    expect(screen.queryByTestId('case-review-action-record-filing')).toBeNull();
+  });
+
+  it('sends a receipt the approval does not cover to refresh, and a bad file id back to editing', async () => {
+    const refused = (refusal: 'document_not_approved' | 'invalid_file_id'): ReviewFlowState => ({
+      name: 'refused',
+      action: 'record_filing',
+      refusal,
+      draft: initialReviewState.draft,
+    });
+    const intake = { role: 'intake' as const, actions: ['record_filing' as const], verdicts: [] };
+    await render(view(refused('document_not_approved'), intake));
+    expect(screen.getByTestId('case-review-refused')).toHaveTextContent(
+      /The approval does not cover that document/,
+    );
+    expect(screen.getByTestId('case-review-refresh')).toBeTruthy();
+    const editable = await render(view(refused('invalid_file_id'), intake));
+    expect(editable.getByTestId('case-review-refused')).toHaveTextContent(
+      /Drive file id could not be used/,
+    );
+    expect(editable.getByTestId('case-review-dismiss')).toBeTruthy();
   });
 
   it('names the preparer and reviewer actions for their statuses', async () => {

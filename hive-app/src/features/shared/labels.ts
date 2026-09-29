@@ -9,7 +9,12 @@
  */
 import type { AnswerStatus } from '@/data/supabase/answers';
 import type { DocumentStatus } from '@/data/supabase/documents';
-import type { ApprovalStatus, ReviewRole, ReviewVerdict } from '@/data/supabase/reviews';
+import type {
+  ApprovalStatus,
+  FilingStatus,
+  ReviewRole,
+  ReviewVerdict,
+} from '@/data/supabase/reviews';
 import type {
   ActivityActorRole,
   ActivityEventKind,
@@ -85,6 +90,12 @@ export const ACTIVITY_KIND_LABEL: Record<ActivityEventKind, string> = {
   'case.approved': 'Approved',
   'case.resumed': 'Work resumed',
   'case.approval_expired': 'Approval expired',
+  // The sources (WO-006): a ledger object referenced, a document filed to
+  // the permanent record by hand, and the read-only check of that filing.
+  'source.referenced': 'Source referenced',
+  'record.filed': 'Filed to the record',
+  'record.verified': 'Filing verified',
+  'record.mismatch': 'Filing did not match',
 };
 
 /** Why a document was not taken, in client language (WO-003). Every
@@ -313,6 +324,8 @@ export function caseActionLabel(action: CaseAction, status: CaseStatus): string 
       if (status === 'HOLD') return 'Lift the hold';
       if (status === 'APPROVED') return 'Reopen for changes';
       return 'Resume work';
+    case 'record_filing':
+      return 'Record filing receipt';
   }
 }
 
@@ -395,6 +408,34 @@ export const REVIEW_REFUSAL_WORDING: Record<ReviewFlowRefusal, { title: string; 
     title: 'Choose a verdict first',
     body: 'Pick Pass, Return, or Hold, then record it.',
   },
+  case_not_approved: {
+    title: 'This case is not approved',
+    body: 'Only evidence covered by an active approval is filed to the record. Refresh the case to see its status.',
+  },
+  document_not_filable: {
+    title: 'That document cannot be filed',
+    body: 'Only a checked document of this case is filed to the record. Choose another document.',
+  },
+  document_not_approved: {
+    title: 'The approval does not cover that document',
+    body: 'It was checked after the package was frozen. Reopen the case for changes and send it for review again before filing it.',
+  },
+  invalid_file_id: {
+    title: 'The Drive file id could not be used',
+    body: 'Enter the file id exactly as Drive shows it: letters, digits, dashes, and underscores.',
+  },
+  invalid_path: {
+    title: 'The Drive path could not be used',
+    body: 'Enter the folder path the document was filed under, up to 240 characters.',
+  },
+  receipt_exists: {
+    title: 'That filing is already on record',
+    body: 'A receipt already names this document at this Drive file. Refresh the case to see it.',
+  },
+  document_missing: {
+    title: 'Choose the document first',
+    body: 'Pick the checked document you filed, then record the receipt.',
+  },
 };
 
 /** What each transition means, said before it is confirmed. */
@@ -419,6 +460,10 @@ export const CASE_ACTION_CONFIRMATION: Record<CaseAction, { title: string; body:
     title: 'Resume work on this case?',
     body: 'The case returns to gathering evidence. An active approval, if any, ends as reopened.',
   },
+  record_filing: {
+    title: 'Record this filing receipt?',
+    body: 'The receipt says you filed exactly this checked document, by its bytes, at this Drive file. HIVE writes nothing to Drive; the record adapter then checks, read-only, that the file holds those bytes.',
+  },
 };
 
 /** What happened, once the server settled it. */
@@ -437,4 +482,26 @@ export const CASE_ACTION_DONE: Record<CaseAction, { title: string; body: string 
     body: 'The approval is on record, bound to this package, for the HIVE record only.',
   },
   resume: { title: 'Work resumed', body: 'The case is back to gathering evidence.' },
+  record_filing: {
+    title: 'Filing receipt recorded',
+    body: 'It shows as recorded until the record adapter verifies the file.',
+  },
+};
+
+/** A filing receipt's state, in staff language (WO-006). */
+export const FILING_STATUS_PRESENTATION: Record<FilingStatus, { kind: StatusKind; label: string }> =
+  {
+    RECORDED: { kind: 'neutral', label: 'Recorded, not yet verified' },
+    VERIFIED: { kind: 'stable', label: 'Verified in the record' },
+    MISMATCH: { kind: 'attention', label: 'Did not match the record' },
+  };
+
+/** Ledger object types, in plain words. Never a value. */
+export const LEDGER_OBJECT_TYPE_LABEL: Record<string, string> = {
+  Account: 'Account',
+  JournalEntry: 'Journal entry',
+  Invoice: 'Invoice',
+  Bill: 'Bill',
+  Payment: 'Payment',
+  Report: 'Report',
 };

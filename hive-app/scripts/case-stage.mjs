@@ -8,10 +8,12 @@
  *   node scripts/local-supabase.mjs stage-case a1 ready-for-review
  *   node scripts/local-supabase.mjs stage-case a1 in-review
  *   node scripts/local-supabase.mjs stage-case a1 approval-pending
+ *   node scripts/local-supabase.mjs stage-case a1 approved
  *
  * Starts from the seeded status (run `reset-case a1` first when the case
  * has moved). preparer.pat freezes the package; reviewer.rae starts the
- * review and, for approval-pending, records PASS. The TOTP factors these
+ * review and, for approval-pending, records PASS; for approved,
+ * approver.avery then approves the exact package. The TOTP factors these
  * sign-ins enroll stay enrolled; `reset-totp <email>` removes them, and
  * the enrollment runner does so itself for reviewer.rae. Loopback only;
  * synthetic identities only.
@@ -30,7 +32,7 @@ const mailpitUrl = process.env.HIVE_LOCAL_MAILPIT_URL ?? 'http://127.0.0.1:54324
 const caseKey = process.env.HIVE_STAGE_CASE ?? '';
 const wanted = process.env.HIVE_STAGE_STATE ?? '';
 
-const STATES = ['ready-for-review', 'in-review', 'approval-pending'];
+const STATES = ['ready-for-review', 'in-review', 'approval-pending', 'approved'];
 
 if (!url || !serviceKey || !clientKey) {
   console.error(
@@ -145,7 +147,7 @@ if (wanted !== 'ready-for-review') {
       `start_case_review answered ${started.status}: ${JSON.stringify(started.body?.message ?? '')}`,
     );
   console.log(`case-stage: ${caseKey} review started (IN_REVIEW)`);
-  if (wanted === 'approval-pending') {
+  if (wanted === 'approval-pending' || wanted === 'approved') {
     current = await caseVersion(reviewer.accessToken);
     const passed = await rpc(
       'record_case_verdict',
@@ -163,5 +165,40 @@ if (wanted !== 'ready-for-review') {
         `record_case_verdict answered ${passed.status}: ${JSON.stringify(passed.body?.message ?? '')}`,
       );
     console.log(`case-stage: ${caseKey} passed review (APPROVAL_PENDING)`);
+  }
+  if (wanted === 'approved') {
+    const approver = await signInStaffAal2({
+      url,
+      clientKey,
+      serviceKey,
+      gatewayKey,
+      mailpitUrl,
+      email: 'approver.avery@example.invalid',
+    });
+    current = await caseVersion(approver.accessToken);
+    const packages = await rest(
+      `/case_review_packages?select=id,manifest_digest&case_id=eq.${target.caseId}&superseded_at=is.null`,
+      approver.accessToken,
+    );
+    const pkg = packages.body?.[0];
+    if (packages.status !== 200 || !pkg)
+      fail(`the current package could not be read (${packages.status})`);
+    const approved = await rpc(
+      'approve_case_package',
+      {
+        ...scopeArgs,
+        p_case_version: current.version,
+        p_package_id: pkg.id,
+        p_package_digest: pkg.manifest_digest,
+        p_destination: 'hive-record',
+        p_idempotency_key: uuidV4(),
+      },
+      approver.accessToken,
+    );
+    if (approved.status !== 200)
+      fail(
+        `approve_case_package answered ${approved.status}: ${JSON.stringify(approved.body?.message ?? '')}`,
+      );
+    console.log(`case-stage: ${caseKey} approved, bound to the exact package (APPROVED)`);
   }
 }

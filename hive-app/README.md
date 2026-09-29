@@ -198,14 +198,15 @@ it to the same reader); the storage service's policy admits exactly the
 reserved path from the phone's real session; and `expo-crypto`'s digest
 on the device matches what the server's scanner recomputes.
 
-### Milestones 3 and 4 on the desktop
+### Milestones 3, 4, and 5 on the desktop
 
-The answer flow (WO-004) and the review flow (WO-005) each move a seeded
-row exactly once, so their lanes come with a checked, loopback-only
-reset, and the review flow with a staging command that signs the staff
-in for real and calls the reviewed transitions. Records:
-`docs/plans/2026-09-28-wo-004-review-and-response.md` and
-`docs/plans/2026-09-28-wo-005-review-and-approval.md`.
+The answer flow (WO-004), the review flow (WO-005), and the sources flow
+(WO-006) each move seeded rows, so their lanes come with a checked,
+loopback-only reset, and with staging commands that sign the staff in
+for real and call the reviewed transitions. Records:
+`docs/plans/2026-09-28-wo-004-review-and-response.md`,
+`docs/plans/2026-09-28-wo-005-review-and-approval.md`, and
+`docs/plans/2026-09-28-wo-006-source-adapters.md`.
 
 1. `node scripts/local-supabase.mjs reset-answer a1Question` puts the
    seeded November question back to OPEN with no answer;
@@ -219,7 +220,17 @@ in for real and calls the reviewed transitions. Records:
    enrolls, signs out, logs in on the same factor, and reviews the case
    on the session that login proved). ✅ the case ends "Awaiting
    approval" with the verdict on record.
-3. `node scripts/local-supabase.mjs e2e` and
+3. `node scripts/local-supabase.mjs reset-case a1`, then
+   `stage-case a1 approved` (preparer, reviewer, and approver sign in for
+   real; the case ends APPROVED), then `sync-ledger a1` (the named
+   synthetic ledger adapter records three references through the
+   server-role interface), then `stage-filing a1` (intake.beth records
+   two receipts at AAL2), then `verify-filings a1` (the named synthetic
+   record adapter settles one VERIFIED and one MISMATCH, read-only), then
+   `npm run maestro:enroll -- --then case-sources.yaml` (reviewer.rae
+   reads the Sources and Permanent record sections on glass). ✅ the
+   case reads "Approved" with three references and two settled receipts.
+4. `node scripts/local-supabase.mjs e2e` and
    `node scripts/local-supabase.mjs bridge` reset what they need
    themselves. The harness's exact-reach proofs hold on a fresh
    `npx supabase db reset` + `seed`.

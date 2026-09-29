@@ -1,8 +1,10 @@
 /** The checked case reset for the local lanes (WO-005).
  *
  * The review lanes move the seeded case through freeze, review, and
- * approval, and leave it there. This is the recovery: remove the case's
- * approvals, verdicts, and packages (in that order; nothing cascades),
+ * approval, and the source lanes add references and filing receipts, and
+ * leave it there. This is the recovery: remove the case's receipts,
+ * references, approvals, verdicts, and packages (in that order; nothing
+ * cascades),
  * put the case back to the status the seed gave it, and drop the
  * workflow entries the transitions added to the trail. Synthetic lanes
  * only: the target must be a seeded case named here, never an
@@ -28,6 +30,11 @@ export const WORKFLOW_EVENT_KINDS = [
   'case.approved',
   'case.resumed',
   'case.approval_expired',
+  // Milestone 5 (WO-006): the source kinds the receipts and references add.
+  'source.referenced',
+  'record.filed',
+  'record.verified',
+  'record.mismatch',
 ];
 
 export function resolveCaseResetTarget(caseKey) {
@@ -79,7 +86,13 @@ export async function performCaseReset({ url, serviceKey, gatewayKey = serviceKe
   };
   const minimal = { Prefer: 'return=minimal' };
 
-  for (const table of ['case_approvals', 'case_reviews', 'case_review_packages']) {
+  for (const table of [
+    'filing_receipts',
+    'ledger_references',
+    'case_approvals',
+    'case_reviews',
+    'case_review_packages',
+  ]) {
     const removed = await rest(`/${table}?case_id=eq.${target.caseId}`, {
       method: 'DELETE',
       headers: minimal,

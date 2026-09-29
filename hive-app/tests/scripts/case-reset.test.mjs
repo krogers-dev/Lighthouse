@@ -41,7 +41,7 @@ test('readback must show the seeded status and no package', () => {
   ]);
 });
 
-test('performCaseReset removes approvals, verdicts, and packages in that order, restores the status, drops the trail, and verifies', async () => {
+test('performCaseReset removes receipts, references, approvals, verdicts, and packages in that order, restores the status, drops the trail, and verifies', async () => {
   const calls = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, options = {}) => {
@@ -61,6 +61,8 @@ test('performCaseReset removes approvals, verdicts, and packages in that order, 
     });
     assert.deepEqual(result, { ok: true, key: 'a1', version: 9 });
     assert.deepEqual(calls, [
+      'DELETE /filing_receipts?case_id=eq.eeeeeeee-0000-4000-8000-0000000000a1',
+      'DELETE /ledger_references?case_id=eq.eeeeeeee-0000-4000-8000-0000000000a1',
       'DELETE /case_approvals?case_id=eq.eeeeeeee-0000-4000-8000-0000000000a1',
       'DELETE /case_reviews?case_id=eq.eeeeeeee-0000-4000-8000-0000000000a1',
       'DELETE /case_review_packages?case_id=eq.eeeeeeee-0000-4000-8000-0000000000a1',

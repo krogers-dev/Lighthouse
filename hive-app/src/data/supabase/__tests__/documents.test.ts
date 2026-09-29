@@ -374,3 +374,43 @@ describe('DocumentsRepository.getById (WO-004)', () => {
     await expect(repo(makeFakeClient({}).client).getById(scope, 'missing')).resolves.toBeNull();
   });
 });
+
+describe('DocumentsRepository.listByCase (WO-006)', () => {
+  it('reads every document of a case inside the full scope, newest first, never a bare reservation', async () => {
+    const fake = makeFakeClient({
+      rows: [
+        {
+          id: 'd1',
+          display_name: 'statement-2025-12 (Synthetic).pdf',
+          mime_type: 'application/pdf',
+          byte_size: 184320,
+          status: 'ACCEPTED',
+          received_at: '2026-08-06T14:00:00Z',
+          checked_at: '2026-08-06T14:03:00Z',
+        },
+        {
+          id: 'u1',
+          display_name: 'x',
+          mime_type: 'application/pdf',
+          byte_size: 1,
+          status: 'UPLOADING',
+          received_at: null,
+          checked_at: null,
+        },
+      ],
+    });
+    const caseId = 'eeeeeeee-0000-4000-8000-0000000000a1';
+    const items = await repo(fake.client).listByCase(scope, caseId);
+    expect(items.map((item) => item.id)).toEqual(['d1']);
+    expect(fake.queries[0]).toEqual({
+      table: 'document_uploads',
+      filters: {
+        environment_id: scope.environmentId,
+        client_id: scope.clientId,
+        entity_id: scope.entityId,
+        case_id: caseId,
+      },
+      order: { column: 'created_at', ascending: false },
+    });
+  });
+});

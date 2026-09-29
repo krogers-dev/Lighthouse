@@ -46,12 +46,14 @@ select is(
     'document_uploads',
     'entities',
     'environments',
+    'filing_receipts',
+    'ledger_references',
     'memberships',
     'request_answer_citations',
     'request_answers',
     'requests'
   ],
-  'authenticated can select exactly the fifteen granted tables, by name');
+  'authenticated can select exactly the seventeen granted tables, by name');
 
 -- 4. audit receipts accept no client read at all.
 select ok(

@@ -152,8 +152,12 @@ test('EVERY real flow in .maestro/ validates cleanly', () => {
   // Plus the Milestone 4 review flow (WO-005): a reviewer at AAL2 opens
   // the frozen case from Home, starts the review, and records PASS.
   //
+  // Plus the Milestone 5 sources flow (WO-006): a reviewer at AAL2 opens
+  // the approved case and reads its ledger references and its filing
+  // receipts, one verified and one that did not match.
+  //
   // Exact, not a floor: an accidental extra flow should be noticed.
-  assert.equal(flowCount, 21);
+  assert.equal(flowCount, 22);
   assert.ok(scriptCount >= 4);
 });
 

@@ -511,6 +511,135 @@ export interface Database {
         };
         Relationships: [];
       };
+      filing_receipts: {
+        Row: {
+          id: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          document_id: string;
+          package_id: string;
+          drive_file_id: string;
+          drive_path: string;
+          claimed_digest: string;
+          filed_by: string;
+          filed_role: string;
+          filed_at: string;
+          status: string;
+          verified_at: string | null;
+          found_digest: string | null;
+          adapter_name: string | null;
+          idempotency_key: string;
+          version: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          document_id: string;
+          package_id: string;
+          drive_file_id: string;
+          drive_path: string;
+          claimed_digest: string;
+          filed_by: string;
+          filed_role: string;
+          filed_at?: string;
+          status?: string;
+          verified_at?: string | null;
+          found_digest?: string | null;
+          adapter_name?: string | null;
+          idempotency_key: string;
+          version?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          environment_id?: string;
+          client_id?: string;
+          entity_id?: string;
+          case_id?: string;
+          document_id?: string;
+          package_id?: string;
+          drive_file_id?: string;
+          drive_path?: string;
+          claimed_digest?: string;
+          filed_by?: string;
+          filed_role?: string;
+          filed_at?: string;
+          status?: string;
+          verified_at?: string | null;
+          found_digest?: string | null;
+          adapter_name?: string | null;
+          idempotency_key?: string;
+          version?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      ledger_references: {
+        Row: {
+          id: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          source: string;
+          realm_id: string;
+          object_type: string;
+          object_id: string;
+          object_version: string;
+          display_name: string;
+          as_of: string;
+          object_digest: string;
+          adapter_name: string;
+          recorded_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          environment_id: string;
+          client_id: string;
+          entity_id: string;
+          case_id: string;
+          source: string;
+          realm_id: string;
+          object_type: string;
+          object_id: string;
+          object_version: string;
+          display_name: string;
+          as_of: string;
+          object_digest: string;
+          adapter_name: string;
+          recorded_at?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          environment_id?: string;
+          client_id?: string;
+          entity_id?: string;
+          case_id?: string;
+          source?: string;
+          realm_id?: string;
+          object_type?: string;
+          object_id?: string;
+          object_version?: string;
+          display_name?: string;
+          as_of?: string;
+          object_digest?: string;
+          adapter_name?: string;
+          recorded_at?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       memberships: {
         Row: {
           id: string;
@@ -757,6 +886,34 @@ export interface Database {
         };
         Returns: Json;
       };
+      record_filing_receipt: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_case_id: string;
+          p_case_version: number;
+          p_document_id: string;
+          p_drive_file_id: string;
+          p_drive_path: string;
+          p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
+      record_ledger_reference: {
+        Args: {
+          p_case_id: string;
+          p_realm_id: string;
+          p_object_type: string;
+          p_object_id: string;
+          p_object_version: string;
+          p_display_name: string;
+          p_as_of: string;
+          p_object_digest: string;
+          p_adapter_name: string;
+        };
+        Returns: Json;
+      };
       resume_case: {
         Args: {
           p_environment_id: string;
@@ -797,6 +954,14 @@ export interface Database {
           p_answer_id: string;
           p_answer_version: number;
           p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
+      verify_filing_receipt: {
+        Args: {
+          p_receipt_id: string;
+          p_found_digest: string;
+          p_adapter_name: string;
         };
         Returns: Json;
       };

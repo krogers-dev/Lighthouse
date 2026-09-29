@@ -341,11 +341,14 @@ async function bridge() {
   // The review journey (WO-005) enrolls three more staff identities and
   // moves the seeded case to APPROVED; the answer journey (WO-004) settles
   // the seeded question. Put every one of them back before the suites run.
-  for (const email of ['preparer.pat', 'mixed.same', 'approver.avery']) {
+  // The source journey (WO-006) enrolls intake as well, and reads the
+  // references the synthetic ledger adapter recorded: reset, then sync.
+  for (const email of ['preparer.pat', 'mixed.same', 'approver.avery', 'intake.beth']) {
     await resetTotp(`${email}@example.invalid`);
   }
   await resetAnswer('a1Question');
   await resetCase('a1');
+  await syncLedger('a1');
   const child = spawnSync(
     'npx',
     ['--no-install', 'jest', '--config', 'jest.live.config.js', '--colors=false'],
@@ -397,10 +400,34 @@ async function resetCase(caseKey) {
 async function stageCase(caseKey, state) {
   if (!caseKey || !state) {
     fail(
-      'usage: local-supabase.mjs stage-case <caseKey> <ready-for-review|in-review|approval-pending>',
+      'usage: local-supabase.mjs stage-case <caseKey> <ready-for-review|in-review|approval-pending|approved>',
     );
   }
   await runHarness('case-stage.mjs', { HIVE_STAGE_CASE: caseKey, HIVE_STAGE_STATE: state });
+}
+
+/** The source adapters' lane tooling (WO-006). The named synthetic ledger
+ * adapter records its read-only references for the seeded case through
+ * the server-role interface; intake records the seeded filing receipts
+ * through a real AAL2 sign-in; the named synthetic record adapter checks
+ * every recorded receipt, read-only. No live ledger or Drive is touched:
+ * integrations are HOLD. */
+async function syncLedger(caseKey) {
+  if (!caseKey) {
+    fail('usage: local-supabase.mjs sync-ledger <caseKey>');
+  }
+  await runHarness('ledger-sync.mjs', { HIVE_SYNC_CASE: caseKey });
+}
+
+async function stageFiling(caseKey) {
+  if (!caseKey) {
+    fail('usage: local-supabase.mjs stage-filing <caseKey>');
+  }
+  await runHarness('filing-stage.mjs', { HIVE_STAGE_CASE: caseKey });
+}
+
+async function verifyFilings(caseKey) {
+  await runHarness('filing-verify.mjs', caseKey ? { HIVE_VERIFY_CASE: caseKey } : {});
 }
 
 /** The local quarantine tooling (WO-003): the named synthetic scan over
@@ -459,6 +486,15 @@ if (isMain) {
     case 'stage-case':
       await stageCase(process.argv[3], process.argv[4]);
       break;
+    case 'sync-ledger':
+      await syncLedger(process.argv[3]);
+      break;
+    case 'stage-filing':
+      await stageFiling(process.argv[3]);
+      break;
+    case 'verify-filings':
+      await verifyFilings(process.argv[3]);
+      break;
     case 'scan-quarantine':
       await scanQuarantine();
       break;
@@ -470,7 +506,7 @@ if (isMain) {
       break;
     default:
       fail(
-        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|scan-quarantine|sweep-uploads|stop>',
+        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|sync-ledger <caseKey>|stage-filing <caseKey>|verify-filings [caseKey]|scan-quarantine|sweep-uploads|stop>',
       );
   }
 }
