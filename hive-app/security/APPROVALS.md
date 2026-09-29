@@ -155,11 +155,12 @@ stand-ins, and the live integrations stay HOLD with their own adapter PASS.
 
 ### Milestone 6 — store release candidate, preparation within the HOLD boundary (WO-007, 2026-09-28)
 
-**Provisional — awaiting Kody's one-line ratification.** Built on his word
-("I ratify the Milestone 5 decisions, start Milestone 6"). Nothing here
-signs, submits, publishes, deploys, creates an account, accepts a term,
-or touches live data; every such step is a named HOLD row in
-`docs/release/signing-and-submission.md`.
+**Ratified 2026-09-29 by Kody, in writing: "I ratify the Milestone 6
+decisions"** (given at candidate `4404483`). Nothing here signs, submits,
+publishes, deploys, creates an account, accepts a term, or touches live
+data; every such step is a named HOLD row in
+`docs/release/signing-and-submission.md`, and each stays HOLD until Kody
+grants it in writing.
 
 | Decision                         | As built                                                                                                                                                                                                                                                                                            | Where it lives                                                                        |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
