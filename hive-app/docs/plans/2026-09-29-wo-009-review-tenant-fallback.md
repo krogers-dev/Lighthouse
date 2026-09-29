@@ -3,8 +3,8 @@
 **Status: built 2026-09-29 on Kody's desktop at his written instruction
 ("Go with the fallback, build it now"), after his choice of the same day
 ("your recommended fallback") recorded in the WO-008 plan's open finding.
-Every decision is provisional and recorded in `security/APPROVALS.md` for
-his one-line ratification. Nothing here touches a HOLD item: the hosted
+Every decision is recorded in `security/APPROVALS.md`; Kody ratified them
+the same day ("ratified") at candidate `e14ead7`. Nothing here touches a HOLD item: the hosted
 projects receive one migration each, as every migration before it.**
 
 **Owner:** Kody (acceptance, security). **Wording:** Stacie.

@@ -1,7 +1,8 @@
 # HIVE notification policy (draft for Kody and Stacie, 2026-09-29)
 
 **Status: drafted at Kody's instruction ("Build a notification policy for
-us"), for his and Stacie's approval before any notification is built.
+us") and approved by him on 2026-09-29 ("approved"); Stacie may adjust
+the wording before the notification work starts.
 Nothing in the app sends a notification today; the brief excluded them
 from the first milestones on purpose. This policy is the rule the
 notification work (the second step of the live-information direction)

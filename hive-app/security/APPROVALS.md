@@ -267,7 +267,8 @@ configuration check.
 
 **Built at Kody's written instruction ("Go with the fallback, build it
 now"), after his choice of the same day ("your recommended fallback").
-Pending ratification: one line from Kody.**
+Ratified 2026-09-29 by Kody, in writing ("ratified"), at candidate
+`e14ead7`.**
 
 | Decision                           | As built                                                                                                                                                                                                                                                                                                                    | Where it lives                                                           |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -277,6 +278,15 @@ Pending ratification: one line from Kody.**
 | The schedule                       | pg_cron, every minute, created by the migration where the extension exists (the CLI stack, both hosted projects); a notice and the tooling's `sweep-review-window` where it does not                                                                                                                                        | the migration; `scripts/review-window.mjs`; `scripts/local-supabase.mjs` |
 | The server role's sweep            | `review_sweep(as_of)` may end windows sooner (a later moment), never rewrite the past (a moment more than a minute back is refused)                                                                                                                                                                                         | the migration; pgTAP 014 (18)                                            |
 | Hosted rollout                     | the migration pushed to staging and production like every migration before it; the schedule present on both                                                                                                                                                                                                                 | `security/evidence/2026-09-29-desktop-wo-009/`                           |
+
+### The notification policy (2026-09-29)
+
+**Drafted at Kody's written instruction ("Build a notification policy for
+us") and approved by him the same day in writing ("approved"), at
+candidate `e14ead7`.** The policy is `docs/release/notification-policy.md`;
+its table of exact notification texts is the fixture the notification work
+is built and tested to, and Stacie may adjust the wording before that work
+starts. Nothing sends a notification yet.
 
 ### Live client information: the direction (2026-09-29)
 
