@@ -95,13 +95,15 @@ does not record: **Sign In / Providers**: user sign-ups off; Email provider
 on with OTP length 6 and expiry 3600; minimum password length 12, no
 character requirements. **Emails**: Magic Link subject "Your HIVE sign-in
 code", body exactly `supabase/templates/magic_link.html`. **Rate limits**:
-30 emails per hour. Status 2026-09-29: Kody signed in to the dashboard; the session's own
-permission policy refuses to change a hosted project's settings, so the
-clicks are Kody's, from this list, with the tab open at Sign In / Providers;
-until then the project still has its defaults (sign-ups enabled, a link
-template), which admit nothing: anonymous sign-ins are off, confirmations
-are on, no delivery reaches anyone outside the project team, and every
-protected row is behind RLS with no membership to grant.
+30 emails per hour. Status 2026-09-29, read back from the dashboard after Kody's own clicks
+(`security/evidence/2026-09-29-hosted-staging/dashboard-*.jpg`): sign-ups
+off, manual linking off, anonymous sign-ins off, confirmations on, minimum
+password length 12 with no character requirements, code length 6, expiry 3600. Two values the dashboard locks until a custom SMTP provider exists:
+the email rate limit stays at the built-in mailer's 2 per hour (team
+addresses only) and every template stays the default, whose sign-in
+message carries a link the app never follows. So no hosted sign-in is
+possible yet, and nothing is admitted meanwhile: every protected row is
+behind RLS with no membership to grant.
 
 ## 3. Email delivery (the recorded HOLD dependency, unchanged)
 

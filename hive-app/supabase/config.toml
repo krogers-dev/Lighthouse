@@ -473,7 +473,9 @@ minimum_password_length = 12
 
 [remotes.staging.auth.rate_limit]
 # Codes per hour across the project once a real mail path exists (the local
-# value serves the harness only).
+# value serves the harness only). Until a custom SMTP provider exists the
+# built-in mailer pins the project at 2 per hour, team addresses only, and
+# locks the templates (dashboard, 2026-09-29); this value applies then.
 email_sent = 30
 
 [remotes.staging.auth.email]

@@ -16,7 +16,7 @@ not in this folder or anywhere in the repository.
 | 5    | `HIVE_DB_URL=<pooler URL> node scripts/db-types.mjs check`                                       | ✅ committed types match the hosted schema — `db-types-check.log`                                                                              |
 | 6    | `supabase config push` with `[remotes.staging]` (override loaded), twice, then with hooks masked | ❌ by the platform: HTTP 402, the password-verification hook cannot be configured on this organization, even off — `config-push.log`            |
 | 7    | `supabase projects api-keys`; `security/approved-config.json` release profile                    | ✅ origin and publishable key approved; `config:check --profile release` fails on exactly the two public contacts                               |
-| 8    | the dashboard auth settings from Kody's own session                                              | ⏳ Kody signed in; the session's permission policy refused the change itself (modifying a shared resource), so the clicks are his, from the values recorded in `supabase/config.toml` under `[remotes.staging]`        |
+| 8    | the dashboard auth settings from Kody's own session                                              | ✅ by Kody's own clicks (the session's permission policy refused the change itself), read back: sign-ups off, code length 6, minimum password length 12 — `dashboard-user-signups.jpg`, `dashboard-email-provider.jpg`; ⏳ the email rate limit (2 per hour, built-in mailer) and the templates stay locked until a custom SMTP provider exists — `dashboard-rate-limits.jpg` |
 
 ## What this proves
 
