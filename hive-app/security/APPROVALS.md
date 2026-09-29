@@ -236,7 +236,11 @@ account created: the organization and the CLI login are Kody's).
 email delivery provider and the acceptance were recorded, at candidate
 `102e01f`), together with his written choice of the review-tenant fallback
 ("your recommended fallback"), his confirmation that the acceptance email
-reached his inbox ("confirmed"), and "go device".
+reached his inbox ("confirmed"), and "go device". **Ratified again
+2026-09-29, in writing ("ratified"), at candidate `5eebbcc`**, covering the
+rows added after the first line: the production project, the policy as
+published with counsel's approval, the live pages, and the passing release
+configuration check.
 
 | Decision                            | As built                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Where it lives                                                                                            |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |

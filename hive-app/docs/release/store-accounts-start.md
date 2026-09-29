@@ -16,6 +16,12 @@ not, request one there, free; a new number takes days to a few weeks, so
 this comes first. Have ready: the exact legal entity name, its registered
 address, and a phone number.
 
+**Status 2026-09-29:** no existing number was found, and Kody submitted the
+free D-U-N-S application himself the same day (Dun & Bradstreet case
+DFC-692444); the number arrives by email. Both store sign-ups wait for it,
+and each must be started signed in as `info@myhbcfo.com`, because the
+creating account owns the developer account permanently.
+
 ## 1. Apple Developer Program (the iPhone side)
 
 - Where: <https://developer.apple.com/programs/enroll/>.
