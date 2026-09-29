@@ -257,8 +257,13 @@ organization, Free plan until Kody upgrades it (section 8). Sections 1 and
 4 are done: thirteen migrations by `db push --db-url`, the committed types
 matching, no seed of any kind, the release profile of the manifest now
 naming its origin and publishable key (`security/evidence/2026-09-29-hosted-production/`).
-Still Kody's clicks on its dashboard, the same list as section 2 plus the
-SMTP settings of section 3 with a second Resend key named "HIVE
-production" and the code template; then the Pro upgrade before any real
-client. `[remotes.production]` in `config.toml` records the values.
+Its dashboard settings were entered by Kody the same day ("production
+set") and read back: sign-ups off, code length 6, minimum password length
+12, custom SMTP from `hive@myhbcfo.com` through Resend with the key "HIVE
+production", 30 emails per hour, the code template. The four-step
+acceptance then PASSED against production and the test identity was
+deleted, leaving 0 users
+(`security/evidence/2026-09-29-hosted-production/hosted-otp-acceptance.md`).
+Still Kody's: the Pro upgrade before any real client, and the first
+invitations. `[remotes.production]` in `config.toml` records the values.
 Staging stays the review and rehearsal environment.

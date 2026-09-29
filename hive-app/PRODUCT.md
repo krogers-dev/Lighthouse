@@ -200,7 +200,8 @@ checkpoint, milestone, release candidate, or production release.
   Honeybee's own domain, the code template live, and the acceptance below
   passed against the staging project
   (`security/evidence/2026-09-29-hosted-staging/hosted-otp-acceptance.md`).
-  The production project repeats it before release.
+  The production project passed the same acceptance later the same day
+  (`security/evidence/2026-09-29-hosted-production/hosted-otp-acceptance.md`).
 
   Acceptance is black-box, against the hosted stack, before any hosted
   sign-in is offered to a real recipient:

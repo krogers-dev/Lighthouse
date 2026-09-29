@@ -13,18 +13,23 @@ written anywhere.
 | 3    | `HIVE_DB_URL=<pooler URL> node scripts/db-types.mjs check`              | ✅ committed types match the production schema — `db-types-check.log`                                                                     |
 | 4    | state read as `postgres`                                                | ✅ no users, no environments, no memberships, every protected table under RLS — `state.log`; **no seed of any kind, by rule**              |
 | 5    | `supabase projects api-keys` (publishable only); the manifest           | ✅ the release profile now names the production origin and its publishable key; staging stays the rehearsal environment                    |
-| 6    | the dashboard auth settings, the SMTP key, the template                 | ⏳ Kody's own clicks on the production dashboard, the same list as staging; the CLI cannot push them on this organization (the hook rule) |
+| 6    | the dashboard auth settings, the SMTP key, the template                 | ✅ by Kody's own clicks ("production set"), read back — `dashboard-user-signups.jpg`, `dashboard-email-provider.jpg`, `dashboard-smtp-settings.jpg`, `dashboard-rate-limits.jpg` |
+| 7    | the four-step hosted OTP acceptance, black-box through the public sign-in path | ✅ PASS, the test identity deleted afterwards, 0 users — `hosted-otp-acceptance.md`                                              |
+| 8    | the two public pages and the release check                              | ✅ `config:check --profile release` OK on the four release values — `config-check-release.log`, `site-pages.log`                    |
 
 ## What this proves
 
 - The production schema is the migrations, nothing else: same
   thirteen files, same types, empty of data.
 - The release configuration points at the real target, and
-  `config:check --profile release` fails on exactly one remaining value,
-  the public deletion page's address.
+  `config:check --profile release` passes on the four release values
+  (the origin and key, the support address, the live deletion page).
+- Sign-in on production works end to end: the acceptance passed and left
+  no account behind.
 
 ## What this does not prove
 
-- Sign-in on production: its auth settings and SMTP are not yet set
-  (step 6), and pgTAP is not run there because the suites need the
-  synthetic seed that production never carries; staging holds that proof.
+- pgTAP on production: the suites need the synthetic seed that production
+  never carries; staging holds that proof on the same migrations.
+- The app on a device against production: nothing to sign in as until
+  Kody invites the first staff identity.
