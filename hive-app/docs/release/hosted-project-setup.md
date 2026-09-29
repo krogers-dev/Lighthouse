@@ -98,12 +98,11 @@ code", body exactly `supabase/templates/magic_link.html`. **Rate limits**:
 30 emails per hour. Status 2026-09-29, read back from the dashboard after Kody's own clicks
 (`security/evidence/2026-09-29-hosted-staging/dashboard-*.jpg`): sign-ups
 off, manual linking off, anonymous sign-ins off, confirmations on, minimum
-password length 12 with no character requirements, code length 6, expiry 3600. Two values the dashboard locks until a custom SMTP provider exists:
-the email rate limit stays at the built-in mailer's 2 per hour (team
-addresses only) and every template stays the default, whose sign-in
-message carries a link the app never follows. So no hosted sign-in is
-possible yet, and nothing is admitted meanwhile: every protected row is
-behind RLS with no membership to grant.
+password length 12 with no character requirements, code length 6, expiry 3600. With the SMTP provider of section 3 in place the same day, the email
+rate limit reads 30 per hour and the Magic Link template is the code
+template, both read back (`dashboard-rate-limits.jpg`,
+`dashboard-template-preview.jpg`). Every protected row stays behind RLS
+with no membership to grant.
 
 ## 3. Email delivery (the recorded HOLD dependency, unchanged)
 
@@ -128,7 +127,18 @@ sending API key in Resend and enters it himself in the dashboard's SMTP
 settings: sender `HIVE <hive@myhbcfo.com>`, host `smtp.resend.com`, port
 465, username `resend`, password the key, which this session never sees.
 The provider sees the recipient address and the code, never client
-content. Acceptance, black-box, before any hosted sign-in is
+content.
+
+**Executed 2026-09-29: the domain verified by Resend, the SMTP settings
+entered by Kody (read back: sender `HIVE <hive@myhbcfo.com>`, host
+`smtp.resend.com`, port 465, a 60-second per-user interval, the password
+stored hidden), and the four-step acceptance below PASSED** against
+staging through the public sign-in path with the publishable key, with
+`kody@myhbcfo.com` as the owned QA recipient (his own address, supplied
+by him; not the project-team login). The identity was created from this
+session through the Auth Admin API with the secret key held in memory
+only, and stays on staging with no membership. The record with every
+status code: `security/evidence/2026-09-29-hosted-staging/hosted-otp-acceptance.md`. Acceptance, black-box, before any hosted sign-in is
 offered to a real recipient:
 
 1. request a code for an owned QA recipient that is NOT a project-team

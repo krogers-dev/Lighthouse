@@ -196,6 +196,12 @@ checkpoint, milestone, release candidate, or production release.
   Email Hook** — configured, owned, and reviewed by us — regardless of
   plan tier.
 
+  **Met on staging 2026-09-29**: Resend as the custom SMTP provider on
+  Honeybee's own domain, the code template live, and the acceptance below
+  passed against the staging project
+  (`security/evidence/2026-09-29-hosted-staging/hosted-otp-acceptance.md`).
+  The production project repeats it before release.
+
   Acceptance is black-box, against the hosted stack, before any hosted
   sign-in is offered to a real recipient:
   1. request a code for an **owned QA recipient that is NOT a project-team

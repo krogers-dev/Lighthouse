@@ -16,7 +16,10 @@ not in this folder or anywhere in the repository.
 | 5    | `HIVE_DB_URL=<pooler URL> node scripts/db-types.mjs check`                                       | ✅ committed types match the hosted schema — `db-types-check.log`                                                                              |
 | 6    | `supabase config push` with `[remotes.staging]` (override loaded), twice, then with hooks masked | ❌ by the platform: HTTP 402, the password-verification hook cannot be configured on this organization, even off — `config-push.log`            |
 | 7    | `supabase projects api-keys`; `security/approved-config.json` release profile                    | ✅ origin and publishable key approved; `config:check --profile release` fails on exactly the two public contacts                               |
-| 8    | the dashboard auth settings from Kody's own session                                              | ✅ by Kody's own clicks (the session's permission policy refused the change itself), read back: sign-ups off, code length 6, minimum password length 12 — `dashboard-user-signups.jpg`, `dashboard-email-provider.jpg`; ⏳ the email rate limit (2 per hour, built-in mailer) and the templates stay locked until a custom SMTP provider exists — `dashboard-rate-limits.jpg` |
+| 8    | the dashboard auth settings from Kody's own session                                              | ✅ by Kody's own clicks (the session's permission policy refused the change itself), read back: sign-ups off, code length 6, minimum password length 12 — `dashboard-user-signups.jpg`, `dashboard-email-provider.jpg`; the rate limit (locked at 2 per hour by the built-in mailer, `dashboard-rate-limits.jpg`) and the templates unlocked with step 10 |
+| 9    | Resend: the domain `myhbcfo.com` added from this session; its three DNS records entered by Kody at Squarespace | ✅ verified by Resend (`resend-domain-verified.jpg`); the records served by the authoritative name server, Google's mail records untouched   |
+| 10   | the dashboard SMTP settings entered by Kody                                                        | ✅ read back with the password hidden — `dashboard-smtp-settings.jpg`; the Magic Link template pasted by Kody — `dashboard-template-preview.jpg`; the rate limit reads 30 per hour |
+| 11   | the four-step hosted OTP acceptance, black-box through the public sign-in path                   | ✅ PASS — `hosted-otp-acceptance.md`, `resend-email-delivered.jpg`                                                                             |
 
 ## What this proves
 
@@ -31,8 +34,8 @@ not in this folder or anywhere in the repository.
 
 ## What this does not prove
 
-- No hosted sign-in has happened: sign-ups are still at the project
-  default until the dashboard step, and no email can reach a recipient
-  until Kody's SMTP provider exists.
+- The app on a device has not signed in against staging yet: the QA
+  identity holds no membership, so the app would land on its no-access
+  state until a synthetic scope is granted, a separate recorded step.
 - The review tenant is not on staging; its hook is a Teams/Enterprise
   feature (open finding in the WO-008 plan).
