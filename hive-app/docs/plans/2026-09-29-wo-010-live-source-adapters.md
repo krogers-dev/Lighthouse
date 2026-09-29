@@ -99,6 +99,15 @@ reading the same tables through the same row-level security.
 
 ## 6. Doors (Kody's), in order
 
+**Status 2026-09-29, read from Kody's own sessions:** an Intuit account
+exists on `info@myhbcfo.com` and signs in to the developer portal, but the
+portal's own pages (Workspaces, Sandboxes, Account profile) never render
+for it, the state before the developer onboarding is completed; that step,
+which accepts the Intuit Developer Terms and creates the first workspace,
+is Kody's. Google Cloud was reached only as far as a password prompt for
+the Wealth MX account; the project should be created under a
+`myhbcfo.com` address, and whether one exists there is not yet known.
+
 1. **Intuit developer account** at developer.intuit.com, an app for HIVE
    with the accounting permission, and its sandbox company: the
    development target. Later, Honeybee's live QuickBooks company is
