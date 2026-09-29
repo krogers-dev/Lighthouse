@@ -1,8 +1,9 @@
 # Privacy policy: the facts about HIVE (prepared 2026-09-29)
 
 **Status: a fact sheet for whoever writes the privacy policy (Kody and
-Stacie, with counsel if they choose). This is not the policy and does
-not draft it; it lists what the app does, from the reconciled disclosure
+Stacie, with counsel if they choose). On 2026-09-29 Kody instructed a
+default policy to be drafted from it: `privacy-policy-draft.md`, theirs to
+review and publish. This sheet is not the policy; it lists what the app does, from the reconciled disclosure
 (`privacy-disclosures.json`, checked against the code by
 `privacy:reconcile`).** Every statement below is proven by a gate, a
 migration, or a test named beside it.

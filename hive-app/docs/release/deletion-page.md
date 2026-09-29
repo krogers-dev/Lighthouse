@@ -21,8 +21,8 @@ and you can ask for your account to be deleted at any time.
    confirm.
 
 You can withdraw the request from the same place until Honeybee
-completes it. If you can no longer sign in, email the support address
-shown in the app and ask for the deletion.
+completes it. If you can no longer sign in, email info@myhbcfo.com and ask for the
+deletion.
 
 ### What deletion removes
 
@@ -44,5 +44,7 @@ Honeybee completes the deletion and confirms it by email.
 
 ---
 
-_Fields Kody supplies before publishing: the support address, the
-record-keeping policy's public reference, and the page's own URL._
+_Fields Kody supplies before publishing: the record-keeping policy's
+public reference and the page's own URL (suggested
+`https://hive.myhbcfo.com/delete-account`). The support address is
+`info@myhbcfo.com` (decided 2026-09-29)._

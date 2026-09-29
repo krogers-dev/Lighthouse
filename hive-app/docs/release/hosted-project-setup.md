@@ -187,7 +187,12 @@ stay local.
 
 ## 7. The public contacts and pages (Kody)
 
-- `EXPO_PUBLIC_SUPPORT_EMAIL`: a real address on Honeybee's domain.
+- `EXPO_PUBLIC_SUPPORT_EMAIL`: **`info@myhbcfo.com`** (decided 2026-09-29:
+  Honeybee's existing address; the release check passes on it). Kody makes
+  `hive@myhbcfo.com`, the sender of the code emails, an alias of that
+  account in Google Workspace so replies land in the same place: Google
+  Admin, Directory, Users, the `info` account, "Alternate email addresses",
+  add `hive`, save (or, if `info` is a group, Groups, the group, Aliases).
 - `EXPO_PUBLIC_DELETION_INFO_URL`: the public page whose content is
   drafted in `docs/release/deletion-page.md`, hosted on Honeybee's site. The zone shows `hive.myhbcfo.com` already served by
   ChatGPT-hosted pages, a natural home for it.
