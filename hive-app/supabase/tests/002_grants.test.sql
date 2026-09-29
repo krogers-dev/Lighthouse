@@ -35,6 +35,7 @@ select is(
       and has_table_privilege(
         'authenticated', format('%I.%I', t.schemaname, t.tablename), 'SELECT')),
   array[
+    'account_deletion_requests',
     'activity_events',
     'case_approvals',
     'case_attention_items',
@@ -53,7 +54,7 @@ select is(
     'request_answers',
     'requests'
   ],
-  'authenticated can select exactly the seventeen granted tables, by name');
+  'authenticated can select exactly the eighteen granted tables, by name');
 
 -- 4. audit receipts accept no client read at all.
 select ok(

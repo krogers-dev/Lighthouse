@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -7,6 +8,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { getRuntime } from '@/app-runtime';
 import { AuthProvider } from '@/auth/provider';
+import { readServiceStatus } from '@/core/service-status';
+import { ServiceGate } from '@/features/service/ServiceGate';
 import { AppText, FontProvider, Notice, Screen, useHiveFonts, type FontStatus } from '@/ui';
 
 /** The splash stays up while the bundled faces register, and not one
@@ -16,6 +19,16 @@ import { AppText, FontProvider, Notice, Screen, useHiveFonts, type FontStatus } 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 const SPLASH_RELEASE_CEILING_MS = 4000;
+
+/** The public service status, read with the same two public values the
+ * app carries and nothing else (WO-007). Stable identity: the gate reads
+ * once at mount and again on every return to the foreground. */
+function readStatus() {
+  const runtime = getRuntime();
+  return runtime.ok ? readServiceStatus(runtime.services.env) : Promise.resolve(null);
+}
+
+const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
 
 function useSplashRelease(fontStatus: FontStatus): void {
   React.useEffect(() => {
@@ -207,45 +220,50 @@ export default function RootLayout(): React.JSX.Element {
   return (
     <FontProvider status={fontStatus}>
       <SafeAreaProvider>
-        <AuthProvider controller={runtime.services.controller}>
-          {/* The header band is Deep Black in both themes, so the status
+        {/* A readable "paused" or an app below the minimum version shows one
+            explicit screen instead of the app; the server refuses on its own
+            regardless (WO-007). */}
+        <ServiceGate read={readStatus} appVersion={APP_VERSION}>
+          <AuthProvider controller={runtime.services.controller}>
+            {/* The header band is Deep Black in both themes, so the status
               bar icons are always light. */}
-          <StatusBar style="light" />
-          {/* Frequent navigation is not animated (motion contract). */}
-          <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
-          {/* QA-only completion acknowledgments (RETURN-3 area 8; find 20):
+            <StatusBar style="light" />
+            {/* Frequent navigation is not animated (motion contract). */}
+            <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
+            {/* QA-only completion acknowledgments (RETURN-3 area 8; find 20):
             rendered only in QA dev builds after the respective write
             completes, so the Maestro flow waits for the ack before
             stopping the app. Both expressions are dead code in release
             bundles (__DEV__). */}
-          {qaBuild && qa.corrupted ? (
-            <AppText
-              variant="caption"
-              testID="qa-corrupt-ack"
-              accessibilityLabel="QA acknowledgment"
-            >
-              QA: stored session corrupted
-            </AppText>
-          ) : null}
-          {qaBuild && qa.expired ? (
-            <AppText
-              variant="caption"
-              testID="qa-expired-ack"
-              accessibilityLabel="QA acknowledgment"
-            >
-              QA: stored session expired
-            </AppText>
-          ) : null}
-          {qaBuild && qa.syntheticArmed ? (
-            <AppText
-              variant="caption"
-              testID="qa-synthetic-document-ack"
-              accessibilityLabel="QA acknowledgment"
-            >
-              QA: synthetic document armed
-            </AppText>
-          ) : null}
-        </AuthProvider>
+            {qaBuild && qa.corrupted ? (
+              <AppText
+                variant="caption"
+                testID="qa-corrupt-ack"
+                accessibilityLabel="QA acknowledgment"
+              >
+                QA: stored session corrupted
+              </AppText>
+            ) : null}
+            {qaBuild && qa.expired ? (
+              <AppText
+                variant="caption"
+                testID="qa-expired-ack"
+                accessibilityLabel="QA acknowledgment"
+              >
+                QA: stored session expired
+              </AppText>
+            ) : null}
+            {qaBuild && qa.syntheticArmed ? (
+              <AppText
+                variant="caption"
+                testID="qa-synthetic-document-ack"
+                accessibilityLabel="QA acknowledgment"
+              >
+                QA: synthetic document armed
+              </AppText>
+            ) : null}
+          </AuthProvider>
+        </ServiceGate>
       </SafeAreaProvider>
     </FontProvider>
   );

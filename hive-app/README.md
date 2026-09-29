@@ -198,6 +198,34 @@ it to the same reader); the storage service's policy admits exactly the
 reserved path from the phone's real session; and `expo-crypto`'s digest
 on the device matches what the server's scanner recomputes.
 
+### Milestone 6 on the desktop
+
+The release controls (WO-007) are proven on the same stack; the release
+itself is HOLD at every step that needs an account, a signature, or a
+destination (`docs/release/signing-and-submission.md`). Records:
+`docs/plans/2026-09-28-wo-007-store-release-candidate.md` and
+`docs/release/`.
+
+1. `node scripts/local-supabase.mjs pause-service maintenance`, then
+   `maestro test .maestro/service-paused.yaml` (the app shows the paused
+   screen and "Try again" keeps it), then
+   `node scripts/local-supabase.mjs resume-service` and any flow that
+   reaches Home (`sign-in.yaml`) to see it recover. ✅ nothing was
+   removed; the same rows are back.
+2. With `EXPO_PUBLIC_DELETION_INFO_URL` in `.env.local` (a reserved
+   synthetic host is fine in development) and Metro restarted, signed in
+   as client.owner: `maestro test .maestro/account-deletion.yaml`. Recover
+   an open request with
+   `node scripts/local-supabase.mjs reset-deletion client.owner@example.invalid`.
+3. `node scripts/local-supabase.mjs drill-backup` (twenty-one tables
+   restored with identical counts), then the deletion drill on the
+   identity with no memberships:
+   `node scripts/local-supabase.mjs request-deletion nomember.norman@example.invalid`,
+   `node scripts/local-supabase.mjs complete-deletion nomember.norman@example.invalid`,
+   then `seed` to restore it.
+4. `npm run privacy:reconcile` and `npm run config:check -- --profile release`
+   (the latter fails today by design, naming each HOLD).
+
 ### Milestones 3, 4, and 5 on the desktop
 
 The answer flow (WO-004), the review flow (WO-005), and the sources flow

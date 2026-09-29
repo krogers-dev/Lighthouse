@@ -1,0 +1,28 @@
+--- pause ---
+service-state: paused (reason maintenance, minimum app version 0.0.0, status version 10)
+--- service-paused.yaml ---
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:820)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:717)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:704)
+paused flow exit code: 1
+--- resume ---
+service-state: open (reason none, minimum app version 0.0.0, status version 11)
+--- sign-in.yaml (recovery) ---
+sign-in exit code: 0
+--- account-deletion.yaml ---
+deletion-tools: client.owner@example.invalid holds no open deletion request; nothing to withdraw
+deletion flow exit code: 0
+--- evidence capture flow ---
+capture flow exit code: 0
+account-deletion-section.png
+deletion-confirmation.png
+deletion-requested.png
+open-request-with-withdraw.png
+deletion-tools: client.owner@example.invalid holds no open deletion request; nothing to withdraw
+service-state: open (reason none, minimum app version 0.0.0, status version 11)
+274736 account-deletion-section.png
+273037 deletion-confirmation.png
+329119 deletion-requested.png
+257661 open-request-with-withdraw.png
+1388161 service-paused-passing-run.png
+99742 service-paused.png

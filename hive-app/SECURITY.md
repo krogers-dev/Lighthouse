@@ -244,6 +244,45 @@ in server-controlled tables).
   server-role interface, loopback only, the bearer in memory; the case
   reset removes receipts and references with the rest of the workflow.
 
+## Controls added in Milestone 6 (WO-007)
+
+- **The service kill switch preserves everything.** `set_service_state` is
+  the server role's alone (run as the server role, never security
+  definer), idempotent by key, appending every change to
+  `service_status_changes`. While paused, a restrictive `*_service_open`
+  policy on all seventeen protected tables returns zero rows for every
+  command to every client role, and the two actor helpers every reviewed
+  transition resolves through refuse first with `service_paused`. No row
+  is removed or moved; pgTAP counts cases and audit receipts before and
+  after. The status reaches the app through one public function with no
+  user data; an unreadable status lets the app proceed because the server
+  refuses on its own.
+- **The deletion request is the person's, the completion is the server
+  role's, and the records are the firm's.** `account_deletion_requests`
+  admits own-row reads only and no direct write; the request and the
+  withdrawal are `security definer` functions keyed to `auth.uid()`
+  (staff at AAL2), idempotent, one open request per subject, with one
+  audit receipt per scope held. Completion removes memberships and marks
+  the request; the auth user is removed through the platform's admin API
+  by the operator tooling; the request keeps a pseudonymous subject after
+  the account is gone; the record tables' actor columns keep their uuids
+  and no longer reference `auth.users`, so a deletion can never cascade
+  into the business's records or fail because they exist.
+- **Disclosures that cannot drift.** `privacy:reconcile` fails the build
+  when a dependency looks like an analytics, crash, advertising, or
+  tracking SDK, when a permission or usage description is declared that
+  the disclosure does not name, when the iOS privacy manifest says
+  anything other than the disclosure, when export compliance drifts, when
+  a host is written into the app's code, or when the data classification
+  stops excluding financial values.
+- **A release configuration names real contacts or fails.**
+  `config:check --profile release` requires the support address and the
+  public deletion page and refuses reserved or testing domains for both.
+- **Drills.** The backup drill restores a dump inside the container and
+  compares twenty-one tables, the audit history among them; the deletion
+  drill completes a request for the identity with no memberships and
+  reads back that the account is gone and the record stands.
+
 ## Deliberately not used (per brief)
 
 Root/jailbreak detection, device attestation, certificate pinning,

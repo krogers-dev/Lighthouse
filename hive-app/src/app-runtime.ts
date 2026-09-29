@@ -25,6 +25,7 @@ import {
   type HiveSupabaseClient,
   type SessionWriteGate,
 } from '@/data/supabase/client';
+import { AccountRepository } from '@/data/supabase/account';
 import { AnswersRepository } from '@/data/supabase/answers';
 import { ReviewRepository } from '@/data/supabase/reviews';
 import { DocumentsRepository } from '@/data/supabase/documents';
@@ -51,6 +52,8 @@ export interface AppServices {
   documentsRepository: DocumentsRepository;
   answersRepository: AnswersRepository;
   reviewRepository: ReviewRepository;
+  /** The person's own account controls (WO-007). */
+  accountRepository: AccountRepository;
   /** The device bindings the add-document flow runs on (WO-003). */
   documentPorts: AddDocumentPorts;
   /** The device's random source, for the keys a write makes (WO-004). */
@@ -74,6 +77,7 @@ export function getRuntime(): RuntimeResult {
         EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
         EXPO_PUBLIC_SUPABASE_CLIENT_KEY: process.env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY,
         EXPO_PUBLIC_SUPPORT_EMAIL: process.env.EXPO_PUBLIC_SUPPORT_EMAIL,
+        EXPO_PUBLIC_DELETION_INFO_URL: process.env.EXPO_PUBLIC_DELETION_INFO_URL,
       },
       __DEV__ ? 'development' : 'release',
     );
@@ -156,6 +160,7 @@ export function getRuntime(): RuntimeResult {
   const documentsRepository = new DocumentsRepository(clientAccessor, registry);
   const answersRepository = new AnswersRepository(clientAccessor, registry);
   const reviewRepository = new ReviewRepository(clientAccessor, registry);
+  const accountRepository = new AccountRepository(clientAccessor, registry);
   const documentPorts: AddDocumentPorts = {
     // In a QA build the picker can be armed by the synthetic-document deep
     // link for one pick (a device flow cannot drive the platform's file
@@ -177,6 +182,7 @@ export function getRuntime(): RuntimeResult {
       documentsRepository,
       answersRepository,
       reviewRepository,
+      accountRepository,
       documentPorts,
       random: expoCryptoRandomSource,
       env,

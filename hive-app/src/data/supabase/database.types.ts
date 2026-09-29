@@ -13,6 +13,45 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      account_deletion_requests: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          subject_ref: string;
+          status: string;
+          requested_at: string;
+          withdrawn_at: string | null;
+          completed_at: string | null;
+          idempotency_key: string;
+          withdraw_idempotency_key: string | null;
+          version: number;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          subject_ref: string;
+          status: string;
+          requested_at?: string;
+          withdrawn_at?: string | null;
+          completed_at?: string | null;
+          idempotency_key: string;
+          withdraw_idempotency_key?: string | null;
+          version?: number;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          subject_ref?: string;
+          status?: string;
+          requested_at?: string;
+          withdrawn_at?: string | null;
+          completed_at?: string | null;
+          idempotency_key?: string;
+          withdraw_idempotency_key?: string | null;
+          version?: number;
+        };
+        Relationships: [];
+      };
       activity_events: {
         Row: {
           id: string;
@@ -802,6 +841,63 @@ export interface Database {
         };
         Relationships: [];
       };
+      service_status: {
+        Row: {
+          id: number;
+          state: string;
+          reason_code: string;
+          min_app_version: string;
+          version: number;
+          changed_at: string;
+        };
+        Insert: {
+          id: number;
+          state: string;
+          reason_code: string;
+          min_app_version: string;
+          version?: number;
+          changed_at?: string;
+        };
+        Update: {
+          id?: number;
+          state?: string;
+          reason_code?: string;
+          min_app_version?: string;
+          version?: number;
+          changed_at?: string;
+        };
+        Relationships: [];
+      };
+      service_status_changes: {
+        Row: {
+          id: string;
+          occurred_at: string;
+          state: string;
+          reason_code: string;
+          min_app_version: string;
+          idempotency_key: string;
+          status_version: number;
+        };
+        Insert: {
+          id?: string;
+          occurred_at?: string;
+          state: string;
+          reason_code: string;
+          min_app_version: string;
+          idempotency_key: string;
+          status_version: number;
+        };
+        Update: {
+          id?: string;
+          occurred_at?: string;
+          state?: string;
+          reason_code?: string;
+          min_app_version?: string;
+          idempotency_key?: string;
+          status_version?: number;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -837,6 +933,12 @@ export interface Database {
           p_mime_type: string;
           p_byte_size: number;
           p_client_digest: string;
+        };
+        Returns: Json;
+      };
+      complete_account_deletion: {
+        Args: {
+          p_user_id: string;
         };
         Returns: Json;
       };
@@ -914,6 +1016,12 @@ export interface Database {
         };
         Returns: Json;
       };
+      request_account_deletion: {
+        Args: {
+          p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
       resume_case: {
         Args: {
           p_environment_id: string;
@@ -935,6 +1043,19 @@ export interface Database {
           p_body: string;
           p_cited_document_ids: string[];
           p_answer_version?: number;
+        };
+        Returns: Json;
+      };
+      service_status_read: {
+        Args: Record<string, never>;
+        Returns: Json;
+      };
+      set_service_state: {
+        Args: {
+          p_state: string;
+          p_reason_code: string;
+          p_min_app_version: string;
+          p_idempotency_key: string;
         };
         Returns: Json;
       };
@@ -962,6 +1083,12 @@ export interface Database {
           p_receipt_id: string;
           p_found_digest: string;
           p_adapter_name: string;
+        };
+        Returns: Json;
+      };
+      withdraw_account_deletion: {
+        Args: {
+          p_idempotency_key: string;
         };
         Returns: Json;
       };

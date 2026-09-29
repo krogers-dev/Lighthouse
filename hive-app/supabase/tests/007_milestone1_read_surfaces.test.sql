@@ -48,12 +48,12 @@ select ok(
   'activity_events has row level security enabled');                       -- 2
 select is(
   (select count(*)::int from pg_policies
-   where schemaname = 'public' and tablename = 'requests' and permissive = 'RESTRICTIVE'), 1,
-  'requests carries the restrictive staff-AAL2 layer');                    -- 3
+   where schemaname = 'public' and tablename = 'requests' and permissive = 'RESTRICTIVE'), 2,
+  'requests carries the restrictive staff-AAL2 layer and the service gate');                    -- 3
 select is(
   (select count(*)::int from pg_policies
-   where schemaname = 'public' and tablename = 'activity_events' and permissive = 'RESTRICTIVE'), 1,
-  'activity_events carries the restrictive staff-AAL2 layer');             -- 4
+   where schemaname = 'public' and tablename = 'activity_events' and permissive = 'RESTRICTIVE'), 2,
+  'activity_events carries the restrictive staff-AAL2 layer and the service gate');             -- 4
 select is(
   (select count(*)::int from information_schema.role_table_grants
    where table_schema = 'public' and table_name = 'requests'

@@ -1,0 +1,129 @@
+appId: com.myhbcfo.hive.development
+name: A client asks for their account to be deleted through one confirmation, sees the open request, and withdraws it
+tags:
+  - milestone6
+# Pre-steps: the seeded stack up, the service open, the app signed in as
+# client.owner@example.invalid (sign-in.yaml), the person holding no open
+# deletion request, and the development bundle carrying the public
+# deletion page (EXPO_PUBLIC_DELETION_INFO_URL in .env.local; a reserved
+# synthetic host is allowed in development and refused in a release
+# configuration). Between runs on the same stack, if a run left a request
+# open, withdraw it AS the person through the checked loopback command:
+#   node scripts/local-supabase.mjs reset-deletion client.owner@example.invalid
+# What this proves on glass: the Account screen explains what deletion
+# removes and what the firm keeps; the request goes through one explicit
+# confirmation; the open request shows with its date and the way to
+# withdraw it; withdrawal goes through its own confirmation; and the
+# control returns. Every step is the person's own; nothing is deleted by
+# this flow (completion is the operator's, proven in pgTAP and the drill).
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- tapOn:
+    id: 'nav-account'
+- assertVisible:
+    id: 'settings-screen'
+- scrollUntilVisible:
+    element:
+      id: 'settings-deletion-section'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 50
+    centerElement: false
+- assertVisible: 'Delete your account'
+- scrollUntilVisible:
+    element:
+      id: 'settings-deletion-request'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'settings-deletion-request'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-deletion-confirm-notice'
+    timeout: 10000
+- assertVisible: 'Warning: Request account deletion\?'
+- scrollUntilVisible:
+    element:
+      id: 'settings-deletion-confirm'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'settings-deletion-confirm'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-deletion-done'
+    timeout: 30000
+- assertVisible: 'Done: Deletion requested'
+- scrollUntilVisible:
+    element:
+      id: 'settings-deletion-ok'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'settings-deletion-ok'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-deletion-requested'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: 'settings-deletion-withdraw'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'settings-deletion-withdraw'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-deletion-confirm-notice'
+    timeout: 10000
+- assertVisible: 'Warning: Withdraw the deletion request\?'
+- scrollUntilVisible:
+    element:
+      id: 'settings-deletion-confirm'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'settings-deletion-confirm'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-deletion-done'
+    timeout: 30000
+- assertVisible: 'Done: Request withdrawn'
+- scrollUntilVisible:
+    element:
+      id: 'settings-deletion-ok'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'settings-deletion-ok'
+- extendedWaitUntil:
+    visible:
+      id: 'settings-deletion-request'
+    timeout: 15000

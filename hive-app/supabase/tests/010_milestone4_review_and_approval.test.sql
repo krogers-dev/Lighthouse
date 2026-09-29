@@ -120,14 +120,14 @@ select ok((select relrowsecurity from pg_class where oid = 'public.case_reviews'
 select ok((select relrowsecurity from pg_class where oid = 'public.case_approvals'::regclass),
   'case_approvals has row level security enabled');                        -- 3
 select is((select count(*)::int from pg_policies
-   where schemaname = 'public' and tablename = 'case_review_packages' and permissive = 'RESTRICTIVE'), 1,
-  'case_review_packages carries the restrictive staff-AAL2 layer');        -- 4
+   where schemaname = 'public' and tablename = 'case_review_packages' and permissive = 'RESTRICTIVE'), 2,
+  'case_review_packages carries the restrictive staff-AAL2 layer and the service gate');        -- 4
 select is((select count(*)::int from pg_policies
-   where schemaname = 'public' and tablename = 'case_reviews' and permissive = 'RESTRICTIVE'), 1,
-  'case_reviews carries the restrictive staff-AAL2 layer');                -- 5
+   where schemaname = 'public' and tablename = 'case_reviews' and permissive = 'RESTRICTIVE'), 2,
+  'case_reviews carries the restrictive staff-AAL2 layer and the service gate');                -- 5
 select is((select count(*)::int from pg_policies
-   where schemaname = 'public' and tablename = 'case_approvals' and permissive = 'RESTRICTIVE'), 1,
-  'case_approvals carries the restrictive staff-AAL2 layer');              -- 6
+   where schemaname = 'public' and tablename = 'case_approvals' and permissive = 'RESTRICTIVE'), 2,
+  'case_approvals carries the restrictive staff-AAL2 layer and the service gate');              -- 6
 select is((select count(*)::int from information_schema.role_table_grants
    where table_schema = 'public'
      and table_name in ('case_review_packages', 'case_reviews', 'case_approvals')

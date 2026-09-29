@@ -349,6 +349,8 @@ async function bridge() {
   await resetAnswer('a1Question');
   await resetCase('a1');
   await syncLedger('a1');
+  await serviceState('resume');
+  await deletionTool('reset', 'client.owner@example.invalid');
   const child = spawnSync(
     'npx',
     ['--no-install', 'jest', '--config', 'jest.live.config.js', '--colors=false'],
@@ -430,6 +432,36 @@ async function verifyFilings(caseKey) {
   await runHarness('filing-verify.mjs', caseKey ? { HIVE_VERIFY_CASE: caseKey } : {});
 }
 
+/** The release controls (WO-007): the service kill switch through the
+ * server-role interface (pausing removes nothing; every client and staff
+ * read returns zero rows and every transition is refused until resumed),
+ * the deletion lane tooling (the person's own withdrawal, and the
+ * operator's completion through the admin API), and the backup drill. */
+async function serviceState(mode, reason) {
+  await runHarness('service-state.mjs', {
+    HIVE_SERVICE_MODE: mode,
+    ...(reason ? { HIVE_SERVICE_REASON: reason } : {}),
+  });
+}
+
+async function deletionTool(mode, email) {
+  if (!email) {
+    fail(`usage: local-supabase.mjs ${mode}-deletion <synthetic-email>`);
+  }
+  await runHarness('deletion-tools.mjs', { HIVE_DELETION_MODE: mode, HIVE_DELETION_EMAIL: email });
+}
+
+function drillBackup() {
+  const child = spawnSync('node', [path.join(appRoot, 'scripts', 'backup-drill.mjs')], {
+    cwd: appRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'inherit', 'pipe'],
+  });
+  if (child.status !== 0) {
+    fail('backup-drill.mjs failed', redactSecrets(child.stderr ?? ''));
+  }
+}
+
 /** The local quarantine tooling (WO-003): the named synthetic scan over
  * every quarantined document, and the sweep that expires stale rows and
  * empties quarantine of what it has judged. Loopback only, privileged
@@ -495,6 +527,27 @@ if (isMain) {
     case 'verify-filings':
       await verifyFilings(process.argv[3]);
       break;
+    case 'service-status':
+      await serviceState('read');
+      break;
+    case 'pause-service':
+      await serviceState('pause', process.argv[3]);
+      break;
+    case 'resume-service':
+      await serviceState('resume');
+      break;
+    case 'request-deletion':
+      await deletionTool('request', process.argv[3]);
+      break;
+    case 'reset-deletion':
+      await deletionTool('reset', process.argv[3]);
+      break;
+    case 'complete-deletion':
+      await deletionTool('complete', process.argv[3]);
+      break;
+    case 'drill-backup':
+      drillBackup();
+      break;
     case 'scan-quarantine':
       await scanQuarantine();
       break;
@@ -506,7 +559,7 @@ if (isMain) {
       break;
     default:
       fail(
-        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|sync-ledger <caseKey>|stage-filing <caseKey>|verify-filings [caseKey]|scan-quarantine|sweep-uploads|stop>',
+        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|sync-ledger <caseKey>|stage-filing <caseKey>|verify-filings [caseKey]|service-status|pause-service [maintenance|incident]|resume-service|request-deletion <email>|reset-deletion <email>|complete-deletion <email>|drill-backup|scan-quarantine|sweep-uploads|stop>',
       );
   }
 }

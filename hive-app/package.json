@@ -34,6 +34,8 @@
     "verify:toolchain": "node scripts/verify-toolchain.mjs",
     "preflight:device": "node scripts/preflight-device.mjs",
     "eas:guard": "node scripts/eas-guard.mjs",
+    "privacy:reconcile": "node scripts/privacy-reconcile.mjs",
+    "drill:backup": "node scripts/backup-drill.mjs",
     "audit:gate": "node scripts/audit-gate.mjs",
     "secrets:scan": "node scripts/secret-scan.mjs",
     "supabase:local": "node scripts/local-supabase.mjs",

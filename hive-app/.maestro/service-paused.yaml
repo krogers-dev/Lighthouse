@@ -1,0 +1,36 @@
+appId: com.myhbcfo.hive.development
+name: A paused service shows one explicit screen instead of the app, and try again keeps it until the service is resumed
+tags:
+  - milestone6
+# Pre-steps: the seeded stack up and the service PAUSED through the
+# server-role switch:
+#   node scripts/local-supabase.mjs pause-service maintenance
+# What this proves on glass: whatever state the app was in, launching it
+# while the service is paused shows the paused screen and nothing of the
+# app; the reason is worded; "Try again" reads the status again and, with
+# the service still paused, keeps the screen. Recovery is proven by the
+# next flow after
+#   node scripts/local-supabase.mjs resume-service
+# (sign-in.yaml, or any flow that reaches Home). Nothing is retained by
+# the paused screen and nothing identifies anyone in the status read.
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: 'service-paused'
+    timeout: 30000
+- assertVisible: 'Warning: HIVE is paused for maintenance'
+- assertVisible: 'Honeybee is doing planned maintenance. Your information is safe and nothing has changed. Try again in a little while.'
+- assertNotVisible:
+    id: 'dashboard-workspace'
+- assertNotVisible:
+    id: 'sign-in-email'
+- tapOn:
+    id: 'service-retry'
+- extendedWaitUntil:
+    visible:
+      id: 'service-paused'
+    timeout: 15000
+- assertVisible:
+    id: 'service-retry'

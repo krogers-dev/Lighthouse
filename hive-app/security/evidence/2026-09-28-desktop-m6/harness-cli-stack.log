@@ -1,0 +1,375 @@
+ok - client.owner@example.invalid: OTP request accepted
+ok - client.owner@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - client.owner@example.invalid: token verified to a session (no link followed)
+ok - client.owner@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000001
+ok - client.owner@example.invalid: first factor yields AAL1
+ok - intake.beth@example.invalid: OTP request accepted
+ok - intake.beth@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - intake.beth@example.invalid: token verified to a session (no link followed)
+ok - intake.beth@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000002
+ok - intake.beth@example.invalid: first factor yields AAL1
+ok - preparer.pat@example.invalid: OTP request accepted
+ok - preparer.pat@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - preparer.pat@example.invalid: token verified to a session (no link followed)
+ok - preparer.pat@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000003
+ok - preparer.pat@example.invalid: first factor yields AAL1
+ok - reviewer.rae@example.invalid: OTP request accepted
+ok - reviewer.rae@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - reviewer.rae@example.invalid: token verified to a session (no link followed)
+ok - reviewer.rae@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000004
+ok - reviewer.rae@example.invalid: first factor yields AAL1
+ok - approver.avery@example.invalid: OTP request accepted
+ok - approver.avery@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - approver.avery@example.invalid: token verified to a session (no link followed)
+ok - approver.avery@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000005
+ok - approver.avery@example.invalid: first factor yields AAL1
+ok - client.second@example.invalid: OTP request accepted
+ok - client.second@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - client.second@example.invalid: token verified to a session (no link followed)
+ok - client.second@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000006
+ok - client.second@example.invalid: first factor yields AAL1
+ok - nomember.norman@example.invalid: OTP request accepted
+ok - nomember.norman@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - nomember.norman@example.invalid: token verified to a session (no link followed)
+ok - nomember.norman@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000007
+ok - nomember.norman@example.invalid: first factor yields AAL1
+ok - mixed.cross@example.invalid: OTP request accepted
+ok - mixed.cross@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - mixed.cross@example.invalid: token verified to a session (no link followed)
+ok - mixed.cross@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000008
+ok - mixed.cross@example.invalid: first factor yields AAL1
+ok - mixed.same@example.invalid: OTP request accepted
+ok - mixed.same@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - mixed.same@example.invalid: token verified to a session (no link followed)
+ok - mixed.same@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000009
+ok - mixed.same@example.invalid: first factor yields AAL1
+ok - client.owner@example.invalid: OTP request accepted
+ok - client.owner@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - client.owner@example.invalid: token verified to a session (no link followed)
+ok - client.owner@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000001
+ok - client.owner@example.invalid: first factor yields AAL1
+ok - client.owner@example.invalid: repeated OTP request yields a fresh working code
+ok - unknown email is rejected for OTP
+ok - unknown email did not create an account
+ok - client.owner@example.invalid: begin_document_upload reserves a quarantine path
+ok - client.owner@example.invalid: the same idempotency key returns the same reservation
+ok - client.owner@example.invalid: completion before the object exists is refused (transfer_incomplete)
+ok - reviewer.rae@example.invalid: staff cannot reserve a document upload (403)
+ok - client.second@example.invalid: cannot write under another client's reserved path (400)
+ok - client.owner@example.invalid: cannot write at an unreserved path (400)
+ok - client.owner@example.invalid: the object lands at the reserved path (200)
+ok - client.owner@example.invalid: the uploader cannot read the quarantined object back (400)
+ok - client.owner@example.invalid: a second write at the same path is refused (400)
+ok - client.owner@example.invalid: completion verifies the object and quarantines the document
+ok - client.owner@example.invalid: the document reads back as QUARANTINED through PostgREST
+ok - client.owner@example.invalid: the activity trail carries "document received" (no free text)
+ok - client.owner@example.invalid: a client cannot begin a scan (403)
+ok - client.second@example.invalid: the new document is invisible to another client (zero rows)
+ok - answer path: the seeded question starts OPEN with no answer (checked reset)
+ok - client.owner@example.invalid: the November question is OPEN
+ok - client.owner@example.invalid: the question carries its source link to the checked November statement
+ok - client.owner@example.invalid: the source document resolves inside the scope, on another request of the case
+ok - client.owner@example.invalid: save_request_answer_draft creates a draft at version 1
+ok - client.owner@example.invalid: saving as if no draft existed, when one does, is refused (answer_changed)
+ok - client.owner@example.invalid: a document on another request cannot be cited (invalid_document)
+ok - reviewer.rae@example.invalid: staff cannot write a draft (403)
+ok - client.owner@example.invalid: the draft carries its one citation
+ok - client.second@example.invalid: the draft is invisible to another client (zero rows)
+ok - reviewer.rae@example.invalid: staff at AAL1 see no draft (zero rows)
+ok - client.owner@example.invalid: a blank draft can be saved (version 2)
+ok - client.owner@example.invalid: but not submitted (empty_answer)
+ok - client.owner@example.invalid: the final draft, citing the question's own checked document, is version 3
+ok - client.owner@example.invalid: the final draft carries exactly one citation row
+ok - client.owner@example.invalid: submitting a stale version is refused (answer_changed)
+ok - client.second@example.invalid: cannot submit someone else's answer (403, indistinguishable from none)
+ok - client.owner@example.invalid: an explicit submission settles the answer, stamped with server time
+ok - client.owner@example.invalid: the same submission key replays the same receipt
+ok - client.owner@example.invalid: a second submission is refused (already_submitted)
+ok - client.owner@example.invalid: a submitted answer takes no more drafts (already_submitted)
+ok - client.owner@example.invalid: the request moved to ANSWERED and its version moved with it
+ok - client.owner@example.invalid: the case status did not move (EVIDENCE_PENDING)
+ok - client.owner@example.invalid: the trail gained one "request answered" by the client (no free text)
+ok - client.owner@example.invalid: audit receipts are not readable by a client (403)
+ok - client.second@example.invalid: the submitted answer is invisible to another client (zero rows)
+ok - preparer.pat@example.invalid: factor-clean before enrollment (0 deleted, readback zero)
+ok - preparer.pat@example.invalid: OTP request accepted
+ok - preparer.pat@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - preparer.pat@example.invalid: token verified to a session (no link followed)
+ok - preparer.pat@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000003
+ok - preparer.pat@example.invalid: first factor yields AAL1
+ok - preparer.pat@example.invalid AAL1: zero rows from environments
+ok - preparer.pat@example.invalid AAL1: zero rows from clients
+ok - preparer.pat@example.invalid AAL1: zero rows from entities
+ok - preparer.pat@example.invalid AAL1: zero rows from cases
+ok - preparer.pat@example.invalid AAL1: zero rows from case_attention_items
+ok - preparer.pat@example.invalid AAL1: zero rows from case_next_actions
+ok - preparer.pat@example.invalid AAL1: zero rows from requests
+ok - preparer.pat@example.invalid AAL1: zero rows from activity_events
+ok - preparer.pat@example.invalid AAL1: zero rows from document_uploads
+ok - preparer.pat@example.invalid AAL1: zero rows from request_answers
+ok - preparer.pat@example.invalid AAL1: zero rows from request_answer_citations
+ok - preparer.pat@example.invalid AAL1: zero rows from case_review_packages
+ok - preparer.pat@example.invalid AAL1: zero rows from case_reviews
+ok - preparer.pat@example.invalid AAL1: zero rows from case_approvals
+ok - preparer.pat@example.invalid AAL1: zero rows from ledger_references
+ok - preparer.pat@example.invalid AAL1: zero rows from filing_receipts
+ok - preparer.pat@example.invalid AAL1: zero rows from account_deletion_requests
+ok - preparer.pat@example.invalid AAL1: membership rows are exactly the canonical tuples (2)
+ok - preparer.pat@example.invalid enroll: TOTP enrollment returns a secret
+ok - preparer.pat@example.invalid enroll: TOTP verify succeeds
+ok - preparer.pat@example.invalid enroll: verified session is AAL2
+ok - preparer.pat@example.invalid enroll: AAL2 sub is still the canonical id
+ok - preparer.pat@example.invalid AAL2: refresh token present
+ok - preparer.pat@example.invalid AAL2: refresh exchange succeeds
+ok - preparer.pat@example.invalid AAL2: refresh verified (later iat, rotated tokens, canonical sub, session retained, aal2)
+ok - reviewer.rae@example.invalid: factor-clean before enrollment (0 deleted, readback zero)
+ok - reviewer.rae@example.invalid: OTP request accepted
+ok - reviewer.rae@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - reviewer.rae@example.invalid: token verified to a session (no link followed)
+ok - reviewer.rae@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000004
+ok - reviewer.rae@example.invalid: first factor yields AAL1
+ok - reviewer.rae@example.invalid review path: TOTP enrollment returns a secret
+ok - reviewer.rae@example.invalid review path: TOTP verify succeeds
+ok - reviewer.rae@example.invalid review path: verified session is AAL2
+ok - reviewer.rae@example.invalid review path: AAL2 sub is still the canonical id
+ok - reviewer.rae@example.invalid review path: refresh token present
+ok - reviewer.rae@example.invalid review path: refresh exchange succeeds
+ok - reviewer.rae@example.invalid review path: refresh verified (later iat, rotated tokens, canonical sub, session retained, aal2)
+ok - approver.avery@example.invalid: factor-clean before enrollment (0 deleted, readback zero)
+ok - approver.avery@example.invalid: OTP request accepted
+ok - approver.avery@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - approver.avery@example.invalid: token verified to a session (no link followed)
+ok - approver.avery@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000005
+ok - approver.avery@example.invalid: first factor yields AAL1
+ok - approver.avery@example.invalid review path: TOTP enrollment returns a secret
+ok - approver.avery@example.invalid review path: TOTP verify succeeds
+ok - approver.avery@example.invalid review path: verified session is AAL2
+ok - approver.avery@example.invalid review path: AAL2 sub is still the canonical id
+ok - approver.avery@example.invalid review path: refresh token present
+ok - approver.avery@example.invalid review path: refresh exchange succeeds
+ok - approver.avery@example.invalid review path: refresh verified (later iat, rotated tokens, canonical sub, session retained, aal2)
+ok - review path: the seeded case starts EVIDENCE_PENDING with no package (checked reset)
+ok - preparer.pat@example.invalid: case A1 is EVIDENCE_PENDING
+ok - preparer.pat@example.invalid: a stale case version is a conflict (case_changed)
+ok - intake.beth@example.invalid: staff at AAL1 cannot freeze (403)
+ok - client.owner@example.invalid: a client cannot freeze (403)
+ok - preparer.pat@example.invalid: freeze_case_package sends the case for review
+ok - preparer.pat@example.invalid: the same key replays the same package
+ok - client.owner@example.invalid: a client reads no package (zero rows)
+ok - intake.beth@example.invalid: staff at AAL1 read no package (zero rows)
+ok - reviewer.rae@example.invalid: the reviewer at AAL2 reads the package
+ok - client.owner@example.invalid: the client sees the case status the workflow moved
+ok - approver.avery@example.invalid: an approver holds no reviewer membership (403)
+ok - reviewer.rae@example.invalid: start_case_review takes the package into review
+ok - reviewer.rae@example.invalid: a verdict is exactly PASS, RETURN, or HOLD
+ok - reviewer.rae@example.invalid: RETURN sends the case back
+ok - preparer.pat@example.invalid: the preparer resumes a returned case
+ok - preparer.pat@example.invalid: the next package is number 2
+ok - reviewer.rae@example.invalid: PASS moves the case to APPROVAL_PENDING
+ok - reviewer.rae@example.invalid: a reviewer holds no approver membership (403)
+ok - approver.avery@example.invalid: an approval names the exact digest (digest_mismatch)
+ok - approver.avery@example.invalid: only the HIVE record is a destination (invalid_destination)
+ok - approver.avery@example.invalid: the approval settles the case, with an expiry
+ok - approver.avery@example.invalid: the same key replays the same approval
+ok - approver.avery@example.invalid: an approved case is not approved twice
+ok - approver.avery@example.invalid: the approval reads back ACTIVE, bound to the package digest
+ok - client.owner@example.invalid: a client reads no approval (zero rows)
+ok - client.second@example.invalid: another client cannot see the case at all
+ok - client.owner@example.invalid: the client sees the case APPROVED
+ok - client.owner@example.invalid: the trail carries the workflow as enumerated kinds (no text)
+ok - intake.beth@example.invalid: factor-clean before enrollment (0 deleted, readback zero)
+ok - intake.beth@example.invalid: OTP request accepted
+ok - intake.beth@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - intake.beth@example.invalid: token verified to a session (no link followed)
+ok - intake.beth@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000002
+ok - intake.beth@example.invalid: first factor yields AAL1
+ok - intake.beth@example.invalid source path: TOTP enrollment returns a secret
+ok - intake.beth@example.invalid source path: TOTP verify succeeds
+ok - intake.beth@example.invalid source path: verified session is AAL2
+ok - intake.beth@example.invalid source path: AAL2 sub is still the canonical id
+ok - intake.beth@example.invalid source path: refresh token present
+ok - intake.beth@example.invalid source path: refresh exchange succeeds
+ok - intake.beth@example.invalid source path: refresh verified (later iat, rotated tokens, canonical sub, session retained, aal2)
+ok - intake.beth@example.invalid: case A1 stands APPROVED for the source path
+ok - client.owner@example.invalid: a client cannot record a ledger reference (403)
+ok - intake.beth@example.invalid: staff cannot record a ledger reference; the interface is the server role's (403)
+ok - server role: HiveSyntheticLedger records three references for A1
+ok - server role: a second sync replays the same references, never a duplicate
+ok - intake.beth@example.invalid: staff of the scope at AAL2 read the three references, each named to the adapter
+ok - client.owner@example.invalid: a client reads no ledger reference (zero rows)
+ok - intake.beth@example.invalid: staff at AAL1 read no ledger reference (zero rows)
+ok - client.second@example.invalid: another client reads no ledger reference (zero rows)
+ok - client.owner@example.invalid: a client cannot record a filing receipt (403)
+ok - intake.beth@example.invalid: staff at AAL1 cannot record a filing receipt (403)
+ok - intake.beth@example.invalid: a stale case version is a conflict (case_changed)
+ok - intake.beth@example.invalid: a rejected document is not filable (document_not_filable)
+ok - intake.beth@example.invalid: a Drive file id has one shape (invalid_file_id)
+ok - intake.beth@example.invalid: a Drive path is bounded and printable (invalid_path)
+ok - intake.beth@example.invalid: the receipt is RECORDED, claiming the document's checked digest, on the same case version
+ok - intake.beth@example.invalid: the same key replays the same receipt
+ok - intake.beth@example.invalid: a second receipt for the same document at the same file is refused (receipt_exists)
+ok - intake.beth@example.invalid: another checked document's receipt at another file is recorded
+ok - client.owner@example.invalid: a client reads no filing receipt (zero rows)
+ok - preparer.pat@example.invalid: staff of the scope read both receipts, RECORDED until verified
+ok - intake.beth@example.invalid: staff cannot verify a receipt; the interface is the server role's (403)
+ok - server role: HiveSyntheticDrive checks both recorded receipts
+ok - intake.beth@example.invalid: the receipt whose file holds the claimed bytes is VERIFIED, named to the adapter
+ok - intake.beth@example.invalid: the receipt whose file holds other bytes is MISMATCH, with what was found
+ok - server role: a second verification pass finds nothing left to check
+ok - client.owner@example.invalid: filing moved nothing on the case (APPROVED, same version)
+ok - client.owner@example.invalid: the trail carries the source events as enumerated kinds (no text)
+ok - client.owner@example.invalid: a client cannot flip the service switch (403)
+ok - preparer.pat@example.invalid: staff cannot flip the service switch (403)
+ok - server role: the service reads open before the drill
+ok - client.owner@example.invalid: reads case A1 while the service is open
+ok - server role: pauses the service
+ok - server role: the same key replays the same change
+ok - anon: reads the paused status with its reason code through the one public function
+ok - client.owner@example.invalid: paused, reads zero cases
+ok - client.owner@example.invalid: paused, reads zero requests
+ok - preparer.pat@example.invalid: paused, staff at AAL2 read zero cases
+ok - preparer.pat@example.invalid: paused, even their own memberships read as zero rows
+ok - preparer.pat@example.invalid: paused, a transition is refused before anything else (service_paused)
+ok - client.owner@example.invalid: paused, may still ask for their account to be deleted (REQUESTED)
+ok - server role: resumes the service
+ok - client.owner@example.invalid: resumed, reads case A1 again; nothing was removed
+ok - client.owner@example.invalid: the same key replays the same request
+ok - client.owner@example.invalid: one open request at a time (already_requested)
+ok - client.owner@example.invalid: reads their own open request and nothing else
+ok - client.second@example.invalid: reads no request of anyone else (zero rows)
+ok - client.second@example.invalid: cannot withdraw a request that is not theirs (no_open_request)
+ok - anon: cannot request a deletion (401)
+ok - client.owner@example.invalid: withdraws the open request (WITHDRAWN)
+ok - client.owner@example.invalid: the same key replays the withdrawal
+ok - client.owner@example.invalid: may ask again, as a new request
+ok - client.owner@example.invalid: withdraws again, leaving no open request
+ok - server role: the service ends the drill open
+ok - preparer.pat@example.invalid AAL2 (refreshed token): environments ids are exactly {11111111-0000-4000-8000-000000000001}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): clients ids are exactly {aaaaaaaa-0000-4000-8000-000000000001, bbbbbbbb-0000-4000-8000-000000000001}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): entities ids are exactly {aaaaaaaa-1111-4000-8000-000000000001, bbbbbbbb-1111-4000-8000-000000000001}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): cases ids are exactly {eeeeeeee-0000-4000-8000-0000000000a1, eeeeeeee-0000-4000-8000-0000000000a2, eeeeeeee-0000-4000-8000-0000000000b1}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): case_attention_items ids are exactly {ffffffff-0000-4000-8000-0000000000a1, ffffffff-0000-4000-8000-0000000000b1}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): case_next_actions ids are exactly {ffffffff-1111-4000-8000-0000000000a1, ffffffff-1111-4000-8000-0000000000b1}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): requests ids are exactly {dddddddd-0000-4000-8000-0000000000a1, dddddddd-0000-4000-8000-0000000000a2, dddddddd-0000-4000-8000-0000000000a3, dddddddd-0000-4000-8000-0000000000b1}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): activity_events ids are exactly {cccccccc-1111-4000-8000-0000000000a1, cccccccc-1111-4000-8000-0000000000a2, cccccccc-1111-4000-8000-0000000000a3, cccccccc-1111-4000-8000-0000000000b1, 8e5bc15b-d700-4c7e-b941-e00a63dd75eb, eec43834-83cc-4618-8391-2e6bc45f4e9c, c2032f4f-cef0-40e0-bdbb-8b1001775e71, 5ac1c1c7-9e9d-4eda-bc95-e310e81efc88, ebe562b9-d6d2-4a6d-b039-f3afab83f28f, 4dac7e63-9016-4fbf-81dd-f975d82cd5af, 5e3979e2-619a-489d-9ddd-421b89a82bec, 74bc868d-7077-4232-a359-15a497edc746, 8f2e0626-d0ab-4845-846f-ba1c17b4cddb, eed3bc2a-6494-401a-90d3-9fc33c4ccc22, a02aaed2-2a62-484a-a209-13ee5b120037, 494a1204-106f-4caa-ae03-313735cd0451, 31b3bf5a-9577-4abe-9812-ce750e676497, ed623e32-f86e-4ef8-8f63-7cf5f00aef05, b17ec9bf-ed05-4a39-a4e6-923758ef6db5, 783c066a-a2de-4f96-96d6-7cb7f51eed1e, a5ef83cc-c216-412b-bc60-5a97f3b5a662}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): document_uploads ids are exactly {d0c0d0c0-0000-4000-8000-0000000000a1, d0c0d0c0-0000-4000-8000-0000000000a2, d0c0d0c0-0000-4000-8000-0000000000a3, d0c0d0c0-0000-4000-8000-0000000000a4, d0c0d0c0-0000-4000-8000-0000000000b1, 8566ee45-23e1-464b-8dd6-6bf13d39ca01}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): request_answers ids are exactly {1f17465a-f519-4a1d-a4dd-0b34d692b33a}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): request_answer_citations ids are exactly {5bcfd4fe-038f-4f92-a556-20d729f4bada}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): case_review_packages ids are exactly {46c2b816-efa2-4872-bc2a-8ea53ebea948, 36a475e3-1162-4e6b-b900-12034c85a0ba}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): case_reviews ids are exactly {a5264494-9c08-4df5-a20a-8b4ab02c3a3d, 53a233b9-c290-4144-bce2-2cb421748641}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): case_approvals ids are exactly {cbdb7984-3fa2-4f5c-abe2-835c69a540de}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): ledger_references ids are exactly {4c7885e8-5640-4b40-8fcc-d67c8da2dbfa, f85e420f-da74-480c-8a32-0c3412dc2a6f, 039ac042-4c5b-4617-8d58-ac4ce5614299}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): filing_receipts ids are exactly {350fd374-2adf-4fb5-b7c3-13cf4a9ae8dd, a76b1260-62e2-4ce0-81b6-41f779c838c8}
+ok - preparer.pat@example.invalid AAL2 (refreshed token): account_deletion_requests ids are exactly {}
+ok - preparer.pat@example.invalid: OTP request accepted
+ok - preparer.pat@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - preparer.pat@example.invalid: token verified to a session (no link followed)
+ok - preparer.pat@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000003
+ok - preparer.pat@example.invalid: first factor yields AAL1
+ok - preparer.pat@example.invalid: repeat login finds the verified factor
+ok - preparer.pat@example.invalid: repeat login reaches AAL2 against the existing factor
+ok - mixed.cross@example.invalid: factor-clean before enrollment (0 deleted, readback zero)
+ok - mixed.cross@example.invalid: OTP request accepted
+ok - mixed.cross@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - mixed.cross@example.invalid: token verified to a session (no link followed)
+ok - mixed.cross@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000008
+ok - mixed.cross@example.invalid: first factor yields AAL1
+ok - mixed.cross@example.invalid AAL1: zero rows from environments
+ok - mixed.cross@example.invalid AAL1: zero rows from clients
+ok - mixed.cross@example.invalid AAL1: zero rows from entities
+ok - mixed.cross@example.invalid AAL1: zero rows from cases
+ok - mixed.cross@example.invalid AAL1: zero rows from case_attention_items
+ok - mixed.cross@example.invalid AAL1: zero rows from case_next_actions
+ok - mixed.cross@example.invalid AAL1: zero rows from requests
+ok - mixed.cross@example.invalid AAL1: zero rows from activity_events
+ok - mixed.cross@example.invalid AAL1: zero rows from document_uploads
+ok - mixed.cross@example.invalid AAL1: zero rows from request_answers
+ok - mixed.cross@example.invalid AAL1: zero rows from request_answer_citations
+ok - mixed.cross@example.invalid AAL1: zero rows from case_review_packages
+ok - mixed.cross@example.invalid AAL1: zero rows from case_reviews
+ok - mixed.cross@example.invalid AAL1: zero rows from case_approvals
+ok - mixed.cross@example.invalid AAL1: zero rows from ledger_references
+ok - mixed.cross@example.invalid AAL1: zero rows from filing_receipts
+ok - mixed.cross@example.invalid AAL1: zero rows from account_deletion_requests
+ok - mixed.cross@example.invalid AAL1: membership rows are exactly the canonical tuples (2)
+ok - mixed.cross@example.invalid enroll: TOTP enrollment returns a secret
+ok - mixed.cross@example.invalid enroll: TOTP verify succeeds
+ok - mixed.cross@example.invalid enroll: verified session is AAL2
+ok - mixed.cross@example.invalid enroll: AAL2 sub is still the canonical id
+ok - mixed.cross@example.invalid AAL2: refresh token present
+ok - mixed.cross@example.invalid AAL2: refresh exchange succeeds
+ok - mixed.cross@example.invalid AAL2: refresh verified (later iat, rotated tokens, canonical sub, session retained, aal2)
+ok - mixed.cross@example.invalid AAL2: environments ids are exactly {11111111-0000-4000-8000-000000000001}
+ok - mixed.cross@example.invalid AAL2: clients ids are exactly {aaaaaaaa-0000-4000-8000-000000000001, bbbbbbbb-0000-4000-8000-000000000001}
+ok - mixed.cross@example.invalid AAL2: entities ids are exactly {aaaaaaaa-1111-4000-8000-000000000001, bbbbbbbb-1111-4000-8000-000000000001}
+ok - mixed.cross@example.invalid AAL2: cases ids are exactly {eeeeeeee-0000-4000-8000-0000000000a1, eeeeeeee-0000-4000-8000-0000000000a2, eeeeeeee-0000-4000-8000-0000000000b1}
+ok - mixed.cross@example.invalid AAL2: case_attention_items ids are exactly {ffffffff-0000-4000-8000-0000000000a1, ffffffff-0000-4000-8000-0000000000b1}
+ok - mixed.cross@example.invalid AAL2: case_next_actions ids are exactly {ffffffff-1111-4000-8000-0000000000a1, ffffffff-1111-4000-8000-0000000000b1}
+ok - mixed.cross@example.invalid AAL2: requests ids are exactly {dddddddd-0000-4000-8000-0000000000a1, dddddddd-0000-4000-8000-0000000000a2, dddddddd-0000-4000-8000-0000000000a3, dddddddd-0000-4000-8000-0000000000b1}
+ok - mixed.cross@example.invalid AAL2: activity_events ids are exactly {cccccccc-1111-4000-8000-0000000000a1, cccccccc-1111-4000-8000-0000000000a2, cccccccc-1111-4000-8000-0000000000a3, cccccccc-1111-4000-8000-0000000000b1, 8e5bc15b-d700-4c7e-b941-e00a63dd75eb, eec43834-83cc-4618-8391-2e6bc45f4e9c, c2032f4f-cef0-40e0-bdbb-8b1001775e71, 5ac1c1c7-9e9d-4eda-bc95-e310e81efc88, ebe562b9-d6d2-4a6d-b039-f3afab83f28f, 4dac7e63-9016-4fbf-81dd-f975d82cd5af, 5e3979e2-619a-489d-9ddd-421b89a82bec, 74bc868d-7077-4232-a359-15a497edc746, 8f2e0626-d0ab-4845-846f-ba1c17b4cddb, eed3bc2a-6494-401a-90d3-9fc33c4ccc22, a02aaed2-2a62-484a-a209-13ee5b120037, 494a1204-106f-4caa-ae03-313735cd0451, 31b3bf5a-9577-4abe-9812-ce750e676497, ed623e32-f86e-4ef8-8f63-7cf5f00aef05, b17ec9bf-ed05-4a39-a4e6-923758ef6db5, 783c066a-a2de-4f96-96d6-7cb7f51eed1e, a5ef83cc-c216-412b-bc60-5a97f3b5a662}
+ok - mixed.cross@example.invalid AAL2: document_uploads ids are exactly {d0c0d0c0-0000-4000-8000-0000000000a1, d0c0d0c0-0000-4000-8000-0000000000a2, d0c0d0c0-0000-4000-8000-0000000000a3, d0c0d0c0-0000-4000-8000-0000000000a4, d0c0d0c0-0000-4000-8000-0000000000b1, 8566ee45-23e1-464b-8dd6-6bf13d39ca01}
+ok - mixed.cross@example.invalid AAL2: request_answers ids are exactly {1f17465a-f519-4a1d-a4dd-0b34d692b33a}
+ok - mixed.cross@example.invalid AAL2: request_answer_citations ids are exactly {5bcfd4fe-038f-4f92-a556-20d729f4bada}
+ok - mixed.cross@example.invalid AAL2: case_review_packages ids are exactly {}
+ok - mixed.cross@example.invalid AAL2: case_reviews ids are exactly {}
+ok - mixed.cross@example.invalid AAL2: case_approvals ids are exactly {}
+ok - mixed.cross@example.invalid AAL2: ledger_references ids are exactly {}
+ok - mixed.cross@example.invalid AAL2: filing_receipts ids are exactly {}
+ok - mixed.cross@example.invalid AAL2: account_deletion_requests ids are exactly {}
+ok - mixed.cross@example.invalid AAL2: zero rows for the unrelated entity B2
+ok - mixed.cross@example.invalid AAL2: entity B2 itself stays invisible
+ok - mixed.same@example.invalid: factor-clean before enrollment (0 deleted, readback zero)
+ok - mixed.same@example.invalid: OTP request accepted
+ok - mixed.same@example.invalid: fresh message with exact recipient/subject and exactly one distinct six-digit token (ok)
+ok - mixed.same@example.invalid: token verified to a session (no link followed)
+ok - mixed.same@example.invalid: JWT sub equals the CANONICAL id cccccccc-0000-4000-8000-000000000009
+ok - mixed.same@example.invalid: first factor yields AAL1
+ok - mixed.same@example.invalid AAL1: zero rows from environments
+ok - mixed.same@example.invalid AAL1: zero rows from clients
+ok - mixed.same@example.invalid AAL1: zero rows from entities
+ok - mixed.same@example.invalid AAL1: zero rows from cases
+ok - mixed.same@example.invalid AAL1: zero rows from case_attention_items
+ok - mixed.same@example.invalid AAL1: zero rows from case_next_actions
+ok - mixed.same@example.invalid AAL1: zero rows from requests
+ok - mixed.same@example.invalid AAL1: zero rows from activity_events
+ok - mixed.same@example.invalid AAL1: zero rows from document_uploads
+ok - mixed.same@example.invalid AAL1: zero rows from request_answers
+ok - mixed.same@example.invalid AAL1: zero rows from request_answer_citations
+ok - mixed.same@example.invalid AAL1: zero rows from case_review_packages
+ok - mixed.same@example.invalid AAL1: zero rows from case_reviews
+ok - mixed.same@example.invalid AAL1: zero rows from case_approvals
+ok - mixed.same@example.invalid AAL1: zero rows from ledger_references
+ok - mixed.same@example.invalid AAL1: zero rows from filing_receipts
+ok - mixed.same@example.invalid AAL1: zero rows from account_deletion_requests
+ok - mixed.same@example.invalid AAL1: membership rows are exactly the canonical tuples (2)
+ok - mixed.same@example.invalid enroll: TOTP enrollment returns a secret
+ok - mixed.same@example.invalid enroll: TOTP verify succeeds
+ok - mixed.same@example.invalid enroll: verified session is AAL2
+ok - mixed.same@example.invalid enroll: AAL2 sub is still the canonical id
+ok - mixed.same@example.invalid AAL2: refresh token present
+ok - mixed.same@example.invalid AAL2: refresh exchange succeeds
+ok - mixed.same@example.invalid AAL2: refresh verified (later iat, rotated tokens, canonical sub, session retained, aal2)
+ok - mixed.same@example.invalid AAL2: environments ids are exactly {11111111-0000-4000-8000-000000000001}
+ok - mixed.same@example.invalid AAL2: clients ids are exactly {aaaaaaaa-0000-4000-8000-000000000001}
+ok - mixed.same@example.invalid AAL2: entities ids are exactly {aaaaaaaa-1111-4000-8000-000000000001}
+ok - mixed.same@example.invalid AAL2: cases ids are exactly {eeeeeeee-0000-4000-8000-0000000000a1, eeeeeeee-0000-4000-8000-0000000000a2}
+ok - mixed.same@example.invalid AAL2: case_attention_items ids are exactly {ffffffff-0000-4000-8000-0000000000a1}
+ok - mixed.same@example.invalid AAL2: case_next_actions ids are exactly {ffffffff-1111-4000-8000-0000000000a1}
+ok - mixed.same@example.invalid AAL2: requests ids are exactly {dddddddd-0000-4000-8000-0000000000a1, dddddddd-0000-4000-8000-0000000000a2, dddddddd-0000-4000-8000-0000000000a3}
+ok - mixed.same@example.invalid AAL2: activity_events ids are exactly {cccccccc-1111-4000-8000-0000000000a1, cccccccc-1111-4000-8000-0000000000a2, cccccccc-1111-4000-8000-0000000000a3, 8e5bc15b-d700-4c7e-b941-e00a63dd75eb, eec43834-83cc-4618-8391-2e6bc45f4e9c, c2032f4f-cef0-40e0-bdbb-8b1001775e71, 5ac1c1c7-9e9d-4eda-bc95-e310e81efc88, ebe562b9-d6d2-4a6d-b039-f3afab83f28f, 4dac7e63-9016-4fbf-81dd-f975d82cd5af, 5e3979e2-619a-489d-9ddd-421b89a82bec, 74bc868d-7077-4232-a359-15a497edc746, 8f2e0626-d0ab-4845-846f-ba1c17b4cddb, eed3bc2a-6494-401a-90d3-9fc33c4ccc22, a02aaed2-2a62-484a-a209-13ee5b120037, 494a1204-106f-4caa-ae03-313735cd0451, 31b3bf5a-9577-4abe-9812-ce750e676497, ed623e32-f86e-4ef8-8f63-7cf5f00aef05, b17ec9bf-ed05-4a39-a4e6-923758ef6db5, 783c066a-a2de-4f96-96d6-7cb7f51eed1e, a5ef83cc-c216-412b-bc60-5a97f3b5a662}
+ok - mixed.same@example.invalid AAL2: document_uploads ids are exactly {d0c0d0c0-0000-4000-8000-0000000000a1, d0c0d0c0-0000-4000-8000-0000000000a2, d0c0d0c0-0000-4000-8000-0000000000a3, d0c0d0c0-0000-4000-8000-0000000000a4, 8566ee45-23e1-464b-8dd6-6bf13d39ca01}
+ok - mixed.same@example.invalid AAL2: request_answers ids are exactly {1f17465a-f519-4a1d-a4dd-0b34d692b33a}
+ok - mixed.same@example.invalid AAL2: request_answer_citations ids are exactly {5bcfd4fe-038f-4f92-a556-20d729f4bada}
+ok - mixed.same@example.invalid AAL2: case_review_packages ids are exactly {46c2b816-efa2-4872-bc2a-8ea53ebea948, 36a475e3-1162-4e6b-b900-12034c85a0ba}
+ok - mixed.same@example.invalid AAL2: case_reviews ids are exactly {a5264494-9c08-4df5-a20a-8b4ab02c3a3d, 53a233b9-c290-4144-bce2-2cb421748641}
+ok - mixed.same@example.invalid AAL2: case_approvals ids are exactly {cbdb7984-3fa2-4f5c-abe2-835c69a540de}
+ok - mixed.same@example.invalid AAL2: ledger_references ids are exactly {4c7885e8-5640-4b40-8fcc-d67c8da2dbfa, f85e420f-da74-480c-8a32-0c3412dc2a6f, 039ac042-4c5b-4617-8d58-ac4ce5614299}
+ok - mixed.same@example.invalid AAL2: filing_receipts ids are exactly {350fd374-2adf-4fb5-b7c3-13cf4a9ae8dd, a76b1260-62e2-4ce0-81b6-41f779c838c8}
+ok - mixed.same@example.invalid AAL2: account_deletion_requests ids are exactly {}
+ok - mixed.same@example.invalid AAL2: zero rows for the unrelated client B
+ok - mixed.same@example.invalid AAL2: zero case rows for the unrelated entity B1
+ok - client.owner@example.invalid AAL1: refresh token present
+ok - client.owner@example.invalid AAL1: refresh exchange succeeds
+ok - client.owner@example.invalid AAL1: refresh verified (later iat, rotated tokens, canonical sub, session retained, aal1)
+e2e-local-auth: 373 passed, 0 failed
+harness exit 0

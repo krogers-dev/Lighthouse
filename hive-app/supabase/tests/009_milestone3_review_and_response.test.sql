@@ -70,12 +70,12 @@ select ok(
   'request_answer_citations has row level security enabled');              -- 2
 select is(
   (select count(*)::int from pg_policies
-   where schemaname = 'public' and tablename = 'request_answers' and permissive = 'RESTRICTIVE'), 1,
-  'request_answers carries the restrictive staff-AAL2 layer');             -- 3
+   where schemaname = 'public' and tablename = 'request_answers' and permissive = 'RESTRICTIVE'), 2,
+  'request_answers carries the restrictive staff-AAL2 layer and the service gate');             -- 3
 select is(
   (select count(*)::int from pg_policies
-   where schemaname = 'public' and tablename = 'request_answer_citations' and permissive = 'RESTRICTIVE'), 1,
-  'request_answer_citations carries the restrictive staff-AAL2 layer');    -- 4
+   where schemaname = 'public' and tablename = 'request_answer_citations' and permissive = 'RESTRICTIVE'), 2,
+  'request_answer_citations carries the restrictive staff-AAL2 layer and the service gate');    -- 4
 select is(
   (select count(*)::int from information_schema.role_table_grants
    where table_schema = 'public' and table_name = 'request_answers'

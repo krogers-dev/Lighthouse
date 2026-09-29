@@ -40,6 +40,7 @@ import { performAnswerReset } from './lib/answer-reset.mjs';
 import { performCaseReset } from './lib/case-reset.mjs';
 import { verifyFilingReceipts } from './lib/filing-verify.mjs';
 import { syncLedgerReferences } from './lib/ledger-sync.mjs';
+import { assertReleaseControlsPath } from './lib/release-controls-path.mjs';
 import { assertReviewPath } from './lib/review-path.mjs';
 import { assertSourcePath } from './lib/source-path.mjs';
 import { msUntilIatAdvance, verifyRefreshedSession } from './lib/refresh-verify.mjs';
@@ -398,6 +399,7 @@ const REACH = {
     case_approvals: [],
     ledger_references: [],
     filing_receipts: [],
+    account_deletion_requests: [],
   },
   aAndB1: {
     environments: [SCOPE.environmentId],
@@ -422,6 +424,7 @@ const REACH = {
     case_approvals: [],
     ledger_references: [],
     filing_receipts: [],
+    account_deletion_requests: [],
   },
 };
 const PROTECTED_TABLES = [
@@ -452,6 +455,10 @@ const PROTECTED_TABLES = [
   // rows step 4c creates are counted per identity through extraReachByEmail.
   'ledger_references',
   'filing_receipts',
+  // Milestone 6 (WO-007): a person's own deletion requests, own rows only.
+  // The seed holds none; the rows step 4d creates are counted for the one
+  // person who made them through extraReachByEmail.
+  'account_deletion_requests',
 ];
 
 function idsOf(rows) {
@@ -917,6 +924,29 @@ for (const identity of SYNTHETIC_IDENTITIES) {
           } else {
             check(false, 'source path: intake could not reach AAL2');
           }
+          // 4d. Milestone 6 (WO-007): the release controls. The server-role
+          //     switch pauses the service (zero rows, refused transitions,
+          //     nothing removed) and resumes it; the person asks for their
+          //     account to be deleted, replays, withdraws, and asks again.
+          await assertReleaseControlsPath(
+            {
+              rest,
+              rpc,
+              check,
+              uuidV4,
+              extraReachByEmail,
+              CASES,
+              url,
+              serviceKey,
+              gatewayKey,
+              clientKey,
+            },
+            {
+              client: { email: 'client.owner@example.invalid', token: clientSession.access_token },
+              other: { email: 'client.second@example.invalid', token: otherSession.access_token },
+              staff: { email: identity.email, token: refreshed.access_token },
+            },
+          );
         } else {
           check(false, 'review path: the sessions it needs are not all available');
         }

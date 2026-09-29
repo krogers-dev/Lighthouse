@@ -7,6 +7,8 @@
  * activity is stored as enumerated kinds rather than sentences: changing
  * the words below changes the app, and nothing else.
  */
+import type { ServiceReason } from '@/core/service-status';
+import type { AccountRefusal } from '@/data/supabase/account';
 import type { AnswerStatus } from '@/data/supabase/answers';
 import type { DocumentStatus } from '@/data/supabase/documents';
 import type {
@@ -505,3 +507,72 @@ export const LEDGER_OBJECT_TYPE_LABEL: Record<string, string> = {
   Payment: 'Payment',
   Report: 'Report',
 };
+
+/** The service gate (WO-007): why HIVE is not open right now. The reason
+ * is a code from the server, never text; every code has its sentence. */
+export const SERVICE_GATE_WORDING: {
+  paused: Record<ServiceReason, { title: string; body: string }>;
+  updateRequired: { title: string; body: string };
+} = {
+  paused: {
+    none: {
+      title: 'HIVE is paused',
+      body: 'Honeybee has paused HIVE for now. Your information is safe and nothing has changed. Try again in a little while.',
+    },
+    maintenance: {
+      title: 'HIVE is paused for maintenance',
+      body: 'Honeybee is doing planned maintenance. Your information is safe and nothing has changed. Try again in a little while.',
+    },
+    incident: {
+      title: 'HIVE is paused',
+      body: 'Honeybee has paused HIVE while it looks into a problem. Your information is safe and nothing has changed. Try again later.',
+    },
+  },
+  updateRequired: {
+    title: 'Update HIVE to continue',
+    body: 'This version of HIVE is no longer supported. Install the update from your app store, then open HIVE again.',
+  },
+};
+
+/** Account deletion (WO-007). The explanation separates access deletion
+ * from the records the firm keeps for the business; the retention basis
+ * itself is Kody's to approve and Stacie's to word. */
+export const DELETION_WORDING = {
+  explanation:
+    'Requesting deletion removes your access to HIVE and the account you sign in with. Records Honeybee Accounting keeps for the business you work with, including documents and answers you provided, are kept under its record-keeping policy and are not deleted by this request. Honeybee completes the deletion and confirms it by email.',
+  infoLink: 'How account deletion works',
+  request: 'Request account deletion',
+  withdraw: 'Withdraw the request',
+  confirm: {
+    request: {
+      title: 'Request account deletion?',
+      body: 'Honeybee will remove your access and your sign-in account. You can withdraw the request until it is completed.',
+    },
+    withdraw: {
+      title: 'Withdraw the deletion request?',
+      body: 'Your access stays exactly as it is.',
+    },
+  },
+  done: {
+    request: {
+      title: 'Deletion requested',
+      body: 'Honeybee will complete it and confirm by email. You can withdraw the request until then.',
+    },
+    withdraw: { title: 'Request withdrawn', body: 'Your access stays exactly as it is.' },
+  },
+  refusals: {
+    already_requested: {
+      title: 'A deletion request is already open',
+      body: 'Refresh to see it.',
+    },
+    no_open_request: {
+      title: 'There is no open request to withdraw',
+      body: 'Refresh to see the current state.',
+    },
+    invalid_idempotency_key: { title: 'The action could not be prepared', body: 'Try again.' },
+  } satisfies Record<AccountRefusal, { title: string; body: string }>,
+} as const;
+
+export function deletionRequestedLine(requestedAt: string): string {
+  return `Requested ${formatServerTimestamp(requestedAt)}. Honeybee will complete it and confirm by email.`;
+}

@@ -115,11 +115,11 @@ select ok((select relrowsecurity from pg_class where oid = 'public.ledger_refere
 select ok((select relrowsecurity from pg_class where oid = 'public.filing_receipts'::regclass),
   'filing_receipts has row level security enabled');                       -- 2
 select is((select count(*)::int from pg_policies
-   where schemaname = 'public' and tablename = 'ledger_references' and permissive = 'RESTRICTIVE'), 1,
-  'ledger_references carries the restrictive staff-AAL2 layer');           -- 3
+   where schemaname = 'public' and tablename = 'ledger_references' and permissive = 'RESTRICTIVE'), 2,
+  'ledger_references carries the restrictive staff-AAL2 layer and the service gate');           -- 3
 select is((select count(*)::int from pg_policies
-   where schemaname = 'public' and tablename = 'filing_receipts' and permissive = 'RESTRICTIVE'), 1,
-  'filing_receipts carries the restrictive staff-AAL2 layer');             -- 4
+   where schemaname = 'public' and tablename = 'filing_receipts' and permissive = 'RESTRICTIVE'), 2,
+  'filing_receipts carries the restrictive staff-AAL2 layer and the service gate');             -- 4
 select is((select count(*)::int from information_schema.role_table_grants
    where table_schema = 'public' and table_name in ('ledger_references', 'filing_receipts')
      and grantee = 'authenticated' and privilege_type <> 'SELECT'), 0,

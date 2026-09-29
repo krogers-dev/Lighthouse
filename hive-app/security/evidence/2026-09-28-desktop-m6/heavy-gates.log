@@ -1,0 +1,19 @@
+== typecheck
+exit 0
+== eslint
+exit 0
+== jest
+Test Suites: 62 passed, 62 total
+Tests:       732 passed, 732 total
+exit 0
+== test:scripts
+# tests 408
+# pass 372
+# fail 0
+# skipped 36
+exit 0
+== export:candidate
+bundle:inspect OK
+export:candidate: run record written to security\evidence\candidate-export.json
+export:candidate OK — authorized synthetic candidate lane passed (synthetic nonfunctional configuration; NOT a functional build)
+exit 0

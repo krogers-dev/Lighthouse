@@ -19,6 +19,10 @@ export interface EnvironmentConfig {
    * Account (2026-09-07 wording review). Optional and public; absent means
    * the screens describe the existing channel instead of inventing one. */
   readonly supportEmail?: string;
+  /** The public web page that explains account deletion (a store
+   * requirement, WO-007). Optional and public; the in-app deletion control
+   * renders only when it is set, because the store rule wants both. */
+  readonly deletionInfoUrl?: string;
 }
 
 export type EnvSource = Readonly<Record<string, string | undefined>>;
@@ -49,6 +53,8 @@ const SUPPORT_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Reserved and testing domains never ship to a client as the way to reach
  * the firm; they are fine in development, where everything is synthetic. */
 const RESERVED_SUPPORT_DOMAIN = /\.(invalid|test|example|localhost)$|[@.]example\.(com|net|org)$/i;
+/** The same reserved names, as a hostname. */
+const RESERVED_HOSTNAME = /(^|\.)(invalid|test|example|localhost)$|(^|\.)example\.(com|net|org)$/i;
 
 export function isLoopbackUrl(rawUrl: string): boolean {
   try {
@@ -157,6 +163,26 @@ export function validateEnvironment(source: EnvSource, variant: BuildVariant): E
     }
   }
 
+  const rawDeletion = source['EXPO_PUBLIC_DELETION_INFO_URL']?.trim() ?? '';
+  let deletionInfoUrl: string | undefined;
+  if (rawDeletion.length > 0) {
+    let deletionUrl: URL | undefined;
+    try {
+      deletionUrl = new URL(rawDeletion);
+    } catch {
+      deletionUrl = undefined;
+    }
+    if (!deletionUrl || deletionUrl.protocol !== 'https:' || rawDeletion.length > 512) {
+      problems.push('EXPO_PUBLIC_DELETION_INFO_URL must be an https:// URL');
+    } else if (variant !== 'development' && RESERVED_HOSTNAME.test(deletionUrl.hostname)) {
+      problems.push(
+        'EXPO_PUBLIC_DELETION_INFO_URL uses a reserved or testing domain, which is only permitted in development',
+      );
+    } else {
+      deletionInfoUrl = deletionUrl.toString();
+    }
+  }
+
   if (problems.length > 0 || !parsedUrl || !keyKind) {
     throw new EnvironmentValidationError(problems);
   }
@@ -167,5 +193,6 @@ export function validateEnvironment(source: EnvSource, variant: BuildVariant): E
     keyKind,
     variant,
     ...(supportEmail ? { supportEmail } : {}),
+    ...(deletionInfoUrl ? { deletionInfoUrl } : {}),
   };
 }

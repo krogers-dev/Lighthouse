@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "preparedOn": "2026-09-28",
+  "status": "prepared and reconciled against the code by scripts/privacy-reconcile.mjs; the store forms themselves are HOLD until Kody submits them",
+  "tracking": false,
+  "thirdPartySdks": [],
+  "collectedDataTypes": [
+    {
+      "type": "EmailAddress",
+      "iosType": "NSPrivacyCollectedDataTypeEmailAddress",
+      "linkedToUser": true,
+      "usedForTracking": false,
+      "purposes": ["AppFunctionality"],
+      "basis": "the sign-in identity of an invited person (docs/data-classification.md: actor emails)"
+    },
+    {
+      "type": "UserID",
+      "iosType": "NSPrivacyCollectedDataTypeUserID",
+      "linkedToUser": true,
+      "usedForTracking": false,
+      "purposes": ["AppFunctionality"],
+      "basis": "the account id that memberships, records, and audit receipts name"
+    },
+    {
+      "type": "OtherUserContent",
+      "iosType": "NSPrivacyCollectedDataTypeOtherUserContent",
+      "linkedToUser": true,
+      "usedForTracking": false,
+      "purposes": ["AppFunctionality"],
+      "basis": "documents a client adds to a request and answers a client gives (synthetic in every lane until live data is authorized)"
+    }
+  ],
+  "notCollected": [
+    "PreciseLocation",
+    "CoarseLocation",
+    "Contacts",
+    "PhotosOrVideos beyond the one file the person picks",
+    "HealthAndFitness",
+    "FinancialInfo (amounts, balances, and account numbers are excluded from every shape)",
+    "BrowsingHistory",
+    "SearchHistory",
+    "DeviceID",
+    "AdvertisingData",
+    "CrashData",
+    "PerformanceData",
+    "OtherDiagnosticData"
+  ],
+  "permissions": {
+    "android": ["android.permission.INTERNET"],
+    "iosUsageDescriptions": []
+  },
+  "outboundHosts": "the configured Supabase origin only (EXPO_PUBLIC_SUPABASE_URL); no host is written into the code",
+  "encryption": {
+    "iosNonExemptEncryption": false,
+    "basis": "standard TLS through the platform's networking only; no proprietary or additional encryption"
+  },
+  "accessedApiTypes": [],
+  "financialFeatures": "none: HIVE holds no financial values and moves no money; the store's financial-features declaration is Kody's to answer and is HOLD",
+  "accountDeletion": {
+    "inApp": "Account > Delete your account (renders only with the public deletion page configured)",
+    "publicPage": "EXPO_PUBLIC_DELETION_INFO_URL (HOLD: Kody supplies the page)"
+  }
+}

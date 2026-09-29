@@ -131,6 +131,54 @@ export function checkQaHooks(env, profile) {
  * missing value is a FAILURE in every profile, never a silent pass. When
  * the approved-config manifest is supplied, the configured URL must also
  * be one of that profile's exact approved origins. */
+/** The two public contacts a store release needs (WO-007): the support
+ * address and the public page that explains account deletion. Absent or
+ * reserved in a release configuration is a HOLD finding, not a silent
+ * pass; development may carry synthetic values. */
+const RESERVED_HOST = /(^|[@.])(invalid|test|example|localhost)$|(^|[@.])example\.(com|net|org)$/i;
+
+export function checkReleaseContacts(env, profile) {
+  if (profile !== 'release') return [];
+  const problems = [];
+  const support = (env.EXPO_PUBLIC_SUPPORT_EMAIL ?? '').trim();
+  if (support === '') {
+    problems.push(
+      'release configuration is missing EXPO_PUBLIC_SUPPORT_EMAIL (HOLD: Kody supplies the support address)',
+    );
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(support)) {
+    problems.push(
+      'release configuration has an EXPO_PUBLIC_SUPPORT_EMAIL that is not an email address',
+    );
+  } else if (RESERVED_HOST.test(support.slice(support.lastIndexOf('@') + 1))) {
+    problems.push(
+      'release configuration uses a reserved or testing domain for EXPO_PUBLIC_SUPPORT_EMAIL',
+    );
+  }
+  const deletion = (env.EXPO_PUBLIC_DELETION_INFO_URL ?? '').trim();
+  if (deletion === '') {
+    problems.push(
+      'release configuration is missing EXPO_PUBLIC_DELETION_INFO_URL (HOLD: Kody supplies the public deletion page)',
+    );
+  } else {
+    let parsed = null;
+    try {
+      parsed = new URL(deletion);
+    } catch {
+      parsed = null;
+    }
+    if (!parsed || parsed.protocol !== 'https:') {
+      problems.push(
+        'release configuration has an EXPO_PUBLIC_DELETION_INFO_URL that is not an https URL',
+      );
+    } else if (RESERVED_HOST.test(parsed.hostname)) {
+      problems.push(
+        'release configuration uses a reserved or testing domain for EXPO_PUBLIC_DELETION_INFO_URL',
+      );
+    }
+  }
+  return problems;
+}
+
 export function checkEnvValues(env, profile, manifest = null) {
   const problems = [];
   const url = env.EXPO_PUBLIC_SUPABASE_URL ?? '';
@@ -219,11 +267,16 @@ if (isMain) {
     EXPO_PUBLIC_SUPABASE_CLIENT_KEY:
       process.env.EXPO_PUBLIC_SUPABASE_CLIENT_KEY ?? envLocal.EXPO_PUBLIC_SUPABASE_CLIENT_KEY,
     EXPO_PUBLIC_QA_HOOKS: process.env.EXPO_PUBLIC_QA_HOOKS ?? envLocal.EXPO_PUBLIC_QA_HOOKS,
+    EXPO_PUBLIC_SUPPORT_EMAIL:
+      process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? envLocal.EXPO_PUBLIC_SUPPORT_EMAIL,
+    EXPO_PUBLIC_DELETION_INFO_URL:
+      process.env.EXPO_PUBLIC_DELETION_INFO_URL ?? envLocal.EXPO_PUBLIC_DELETION_INFO_URL,
   };
   const problems = [
     ...checkAppConfig(appJson.expo, profile),
     ...checkEnvValues(effectiveEnv, profile, manifest),
     ...checkQaHooks(effectiveEnv, profile),
+    ...checkReleaseContacts(effectiveEnv, profile),
   ];
   if (problems.length > 0) {
     for (const p of problems) console.error(`FAIL ${p}`);

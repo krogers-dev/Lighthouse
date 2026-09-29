@@ -229,3 +229,57 @@ describe('EXPO_PUBLIC_SUPPORT_EMAIL (2026-09-07 wording review)', () => {
     expect(dev.supportEmail).toBe('team@example.invalid');
   });
 });
+
+describe('EXPO_PUBLIC_DELETION_INFO_URL (WO-007)', () => {
+  const base = {
+    EXPO_PUBLIC_SUPABASE_URL: 'https://example-project.supabase.co',
+    EXPO_PUBLIC_SUPABASE_CLIENT_KEY: PUBLISHABLE,
+  };
+
+  it('is optional: absent means no deletion control, not a failure', () => {
+    expect(validateEnvironment(base, 'release').deletionInfoUrl).toBeUndefined();
+    expect(
+      validateEnvironment({ ...base, EXPO_PUBLIC_DELETION_INFO_URL: ' ' }, 'release')
+        .deletionInfoUrl,
+    ).toBeUndefined();
+  });
+
+  it('accepts an https page in release and keeps it exactly', () => {
+    const config = validateEnvironment(
+      { ...base, EXPO_PUBLIC_DELETION_INFO_URL: ' https://honeybee-synthetic.co/hive/delete ' },
+      'release',
+    );
+    expect(config.deletionInfoUrl).toBe('https://honeybee-synthetic.co/hive/delete');
+  });
+
+  it('refuses anything that is not an https URL', () => {
+    for (const bad of ['not a url', 'http://honeybee-synthetic.co/delete', 'ftp://x.y/z']) {
+      expectProblems(
+        () => validateEnvironment({ ...base, EXPO_PUBLIC_DELETION_INFO_URL: bad }, 'release'),
+        'EXPO_PUBLIC_DELETION_INFO_URL must be an https:// URL',
+      );
+    }
+  });
+
+  it('refuses a reserved or testing host outside development, and allows it there', () => {
+    for (const reserved of [
+      'https://example.invalid/delete',
+      'https://hive.test/delete',
+      'https://www.example.com/delete',
+    ]) {
+      expectProblems(
+        () => validateEnvironment({ ...base, EXPO_PUBLIC_DELETION_INFO_URL: reserved }, 'release'),
+        'reserved or testing domain',
+      );
+    }
+    const dev = validateEnvironment(
+      {
+        EXPO_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+        EXPO_PUBLIC_SUPABASE_CLIENT_KEY: PUBLISHABLE,
+        EXPO_PUBLIC_DELETION_INFO_URL: 'https://example.invalid/hive/delete-account',
+      },
+      'development',
+    );
+    expect(dev.deletionInfoUrl).toBe('https://example.invalid/hive/delete-account');
+  });
+});

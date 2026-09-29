@@ -156,8 +156,12 @@ test('EVERY real flow in .maestro/ validates cleanly', () => {
   // the approved case and reads its ledger references and its filing
   // receipts, one verified and one that did not match.
   //
+  // Plus the two Milestone 6 release-control flows (WO-007): the paused
+  // service's explicit screen, and a client's deletion request made and
+  // withdrawn through confirmations.
+  //
   // Exact, not a floor: an accidental extra flow should be noticed.
-  assert.equal(flowCount, 22);
+  assert.equal(flowCount, 24);
   assert.ok(scriptCount >= 4);
 });
 

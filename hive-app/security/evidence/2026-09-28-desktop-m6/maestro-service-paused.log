@@ -1,0 +1,11 @@
+﻿Running on Pixel_8
+ > Flow A paused service shows one explicit screen instead of the app, and try again keeps it until the service is resumed
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that id: service-paused is visible... COMPLETED
+Assert that "Warning: HIVE is paused for maintenance" is visible... COMPLETED
+Assert that "Honeybee is doing planned maintenance. Your information is safe and nothing has changed. Try again in a little while." is visible... COMPLETED
+Assert that id: dashboard-workspace is not visible... COMPLETED
+Assert that id: sign-in-email is not visible... COMPLETED
+Tap on id: service-retry... COMPLETED
+Assert that id: service-paused is visible... COMPLETED
+Assert that id: service-retry is visible... COMPLETED
