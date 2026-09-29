@@ -104,9 +104,16 @@ exists on `info@myhbcfo.com` and signs in to the developer portal, but the
 portal's own pages (Workspaces, Sandboxes, Account profile) never render
 for it, the state before the developer onboarding is completed; that step,
 which accepts the Intuit Developer Terms and creates the first workspace,
-is Kody's. Google Cloud was reached only as far as a password prompt for
-the Wealth MX account; the project should be created under a
-`myhbcfo.com` address, and whether one exists there is not yet known.
+is Kody's. Google Cloud: a `myhbcfo.com` organization exists with two projects,
+"Honeybee Multi-Google MCP" (`utility-canto-505505-m5`, with the Drive,
+Gmail, Calendar, and BigQuery interfaces among 25 enabled, the project
+behind Honeybee's Google connectors) and "My First Project"
+(`silent-hook-505505-r0`). The console blocks the `info@myhbcfo.com` account's
+access pages until 2-step verification is turned on for it (a Google rule
+since 2026-09-08), so that is the first step, Kody's; then a dedicated
+`hive` project in the same organization is recommended over reusing the
+connectors' project, so HIVE's service account and its Drive grant stand
+on their own.
 
 1. **Intuit developer account** at developer.intuit.com, an app for HIVE
    with the accounting permission, and its sandbox company: the
