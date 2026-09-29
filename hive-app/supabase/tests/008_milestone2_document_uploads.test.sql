@@ -7,6 +7,8 @@
 -- A1-answered one ACCEPTED, request B1-open one ACCEPTED. No seeded row is
 -- in quarantine, so the transfers below are the suite's own.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(84);
 
 -- Definer rights: the suite resolves ids while impersonating client roles,

@@ -10,6 +10,8 @@
 -- hold their roles on A1; mixed.same holds client_user and reviewer on
 -- A1; mixed.cross holds client_user on A1 and preparer on B1.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(90);
 
 create function pg_temp.user_id_for(p_email text)

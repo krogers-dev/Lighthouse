@@ -450,3 +450,43 @@ enabled = true
 # declarative_schema_path = "./schemas"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# ---------------------------------------------------------------------------
+# Hosted staging: hive-staging (ref zhdvmllscjyepwucbtzq, us-east-2), created
+# 2026-09-29 under Kody's general grant. `supabase config push` applies these
+# overrides on top of the values above when the linked project is this one,
+# and it applies WITHOUT a confirmation prompt. Every hosted auth setting
+# lives here, never only in the dashboard: a later push puts the local value
+# back for anything this block does not name.
+# ---------------------------------------------------------------------------
+[remotes.staging]
+project_id = "zhdvmllscjyepwucbtzq"
+
+[remotes.staging.auth]
+# No link is ever followed (the app enters codes), so the site URL stays the
+# hosted default until Honeybee's own site is named; no redirect targets.
+site_url = "http://localhost:3000"
+additional_redirect_urls = []
+# The review code is twelve to twenty digits (WO-008); nothing shorter is a
+# password on a hosted project.
+minimum_password_length = 12
+
+[remotes.staging.auth.rate_limit]
+# Codes per hour across the project once a real mail path exists (the local
+# value serves the harness only).
+email_sent = 30
+
+[remotes.staging.auth.email]
+# One code per minute per address on a real mail path (the local lane's one
+# second exists for the harness only); confirmations keep the hosted default.
+max_frequency = "1m0s"
+enable_confirmations = true
+
+[remotes.staging.auth.hook.password_verification_attempt]
+# The review-tenant hook (WO-008) is a Teams/Enterprise feature of the
+# hosted platform; the Honeybee organization is on the Free plan (the API
+# answered 402 on 2026-09-29), so the hook stays off here until the plan
+# permits it. Nothing on this project holds a password meanwhile: sign-in
+# is by emailed code only.
+enabled = false
+uri = ""

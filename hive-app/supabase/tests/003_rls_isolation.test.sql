@@ -2,6 +2,8 @@
 -- wrong-entity, forged-ID, membership-creation, boundary-mutation, and
 -- audit-access attempts all deny with zero protected fields.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(29);
 
 create function pg_temp.user_id_for(p_email text)

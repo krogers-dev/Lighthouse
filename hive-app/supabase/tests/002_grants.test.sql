@@ -2,6 +2,8 @@
 -- only where granted; the privileged schema and its functions are
 -- unreachable from client roles.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(12);
 
 -- 1. anon holds no privilege of any kind on any public table.

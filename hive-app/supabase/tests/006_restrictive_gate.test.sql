@@ -6,6 +6,8 @@
 -- regression: an allow-all permissive policy is added inside this
 -- transaction and the AAL1 staff denial must still hold.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(11);
 
 create function pg_temp.user_id_for(p_email text)

@@ -12,14 +12,19 @@
  * the tables and the public functions HIVE uses, from the catalog, with a
  * stable ordering so output is reproducible byte-for-byte.
  *
- * Two ways to reach the database, tried in this order:
+ * Three ways to reach the database:
+ *   0. a hosted project, when HIVE_DB_URL names it (2026-09-29): the CLI
+ *      stack's container supplies the psql client, the connection travels
+ *      as libpq environment variables passed through by name, and the URL
+ *      (its password included) is never printed and never on a command
+ *      line;
  *   1. the plain-PostgreSQL lane (scripts/db-local.mjs): psql at
  *      HIVE_PG_BIN against 127.0.0.1:HIVE_PG_PORT;
  *   2. the pinned CLI stack: `docker exec` into its database container
  *      (supabase_db_<project_id> from supabase/config.toml), which is the
  *      lane on a Windows desktop, where no psql binary exists on the host
  *      (2026-09-28).
- * HIVE_DB_LANE=cli or HIVE_DB_LANE=local forces one.
+ * HIVE_DB_LANE=cli or HIVE_DB_LANE=local forces one of the local lanes.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -215,22 +220,65 @@ function runCliLane(sql) {
   );
 }
 
+/** The libpq environment for a connection URL: host, port, user, database
+ * and password as separate variables, so the URL never has to be an
+ * argument. Percent-encoding in the URL is undone here. */
+export function pgEnvFromUrl(url) {
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'postgresql:' && parsed.protocol !== 'postgres:') {
+    throw new Error('HIVE_DB_URL must be a postgresql:// URL');
+  }
+  return {
+    PGHOST: parsed.hostname,
+    PGPORT: parsed.port || '5432',
+    PGUSER: decodeURIComponent(parsed.username),
+    PGPASSWORD: decodeURIComponent(parsed.password),
+    PGDATABASE: decodeURIComponent(parsed.pathname.replace(/^\//, '')) || 'postgres',
+  };
+}
+
+const PG_ENV_NAMES = ['PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGDATABASE'];
+
+function runUrlLane(sql) {
+  const container = cliDatabaseContainer(
+    readFileSync(path.join(appRoot, 'supabase', 'config.toml'), 'utf8'),
+  );
+  if (!container) {
+    return { status: 1, stderr: 'supabase/config.toml carries no project_id' };
+  }
+  const pgEnv = pgEnvFromUrl(process.env.HIVE_DB_URL);
+  // `-e NAME` without a value copies the variable from this process's
+  // environment into the container: the value is never on a command line.
+  const passthrough = PG_ENV_NAMES.flatMap((name) => ['-e', name]);
+  return spawnSync('docker', ['exec', '-i', ...passthrough, container, 'psql', ...PSQL_ARGS], {
+    encoding: 'utf8',
+    input: sql,
+    shell: isWindows,
+    env: { ...process.env, ...pgEnv },
+  });
+}
+
 function chooseLane() {
+  if (process.env.HIVE_DB_URL) return 'url';
   const forced = process.env.HIVE_DB_LANE;
   if (forced === 'cli' || forced === 'local') return forced;
   return existsSync(path.join(PG_BIN, isWindows ? 'psql.exe' : 'psql')) ? 'local' : 'cli';
 }
 
+const LANE_HELP = {
+  url: 'db-types: could not reach the database HIVE_DB_URL names (the URL itself is never printed).',
+  local:
+    'db-types: could not reach the local database. Run `node scripts/db-local.mjs reset` first.',
+  cli: 'db-types: could not reach the CLI stack database. Run `node scripts/local-supabase.mjs up` first.',
+};
+
 function query(sql) {
   const lane = chooseLane();
-  const result = lane === 'local' ? runLocalLane(sql) : runCliLane(sql);
+  const result =
+    lane === 'url' ? runUrlLane(sql) : lane === 'local' ? runLocalLane(sql) : runCliLane(sql);
   if (result.status !== 0) {
     console.error(result.stderr ?? result.error?.message ?? '');
-    console.error(
-      lane === 'local'
-        ? 'db-types: could not reach the local database. Run `node scripts/db-local.mjs reset` first.'
-        : 'db-types: could not reach the CLI stack database. Run `node scripts/local-supabase.mjs up` first.',
-    );
+    console.error(LANE_HELP[lane]);
     process.exit(1);
   }
   return JSON.parse(result.stdout.trim());

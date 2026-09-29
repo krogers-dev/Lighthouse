@@ -9,6 +9,8 @@
 -- link to the checked statement on the ANSWERED request of the same
 -- case; request A1-open is OPEN; no answer exists anywhere.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(62);
 
 create function pg_temp.user_id_for(p_email text)

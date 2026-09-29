@@ -12,10 +12,10 @@
       "notes": "Authorized SYNTHETIC candidate lane: production-mode export with development configuration; never a functional production build."
     },
     "release": {
-      "approvedOrigins": [],
+      "approvedOrigins": ["https://zhdvmllscjyepwucbtzq.supabase.co"],
       "clientKeyPolicy": "exact",
-      "clientKey": null,
-      "notes": "HOLD: no production configuration is approved. Kody adds the exact origin and exact publishable key here upon approval."
+      "clientKey": "sb_publishable_UotRTTviAPLoaauoXvlpXA_Ci0gCWMd",
+      "notes": "Approved 2026-09-29 under Kody's general grant and his \"do what you recommend\" for the staging project: the hosted STAGING project hive-staging (ref zhdvmllscjyepwucbtzq, us-east-2, Honeybee Accounting organization, free plan) is the release-profile origin until a production project is named; its publishable key is public by design. A custom domain or a production project is added only as its own exact origin here after review."
     }
   }
 }

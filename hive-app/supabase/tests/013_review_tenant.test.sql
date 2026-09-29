@@ -7,6 +7,8 @@
 -- A1; nomember.norman exists with no memberships. The suite registers
 -- client.owner as the review identity for its own duration (rolled back).
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(30);
 
 create function pg_temp.user_id_for(p_email text)

@@ -2,6 +2,8 @@
 -- immutable scope columns, append-only audit. Runs as the cluster
 -- superuser deliberately: these must hold even for privileged writers.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(12);
 
 -- 1. Scope columns are NOT NULL.

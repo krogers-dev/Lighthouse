@@ -12,6 +12,8 @@
 -- a2; intake.beth holds intake on A1; preparer.pat, reviewer.rae, and
 -- approver.avery hold their roles on A1.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(54);
 
 create function pg_temp.user_id_for(p_email text)

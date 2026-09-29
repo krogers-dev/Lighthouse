@@ -11,6 +11,8 @@
 -- preparer.pat holds preparer on A1; case A1 is EVIDENCE_PENDING at
 -- version 1 and request a1 is OPEN at version 1.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(47);
 
 create function pg_temp.user_id_for(p_email text)

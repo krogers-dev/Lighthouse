@@ -5,6 +5,8 @@
 -- reach at aal2. Direct-SQL equivalents of the PostgREST attack path;
 -- the live-JWT PostgREST variant runs in scripts/e2e-local-auth.mjs.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(12);
 
 create function pg_temp.user_id_for(p_email text)

@@ -3,6 +3,8 @@
 -- tables. WO-002 A1/T1/T2: the threat is policy DRIFT between tables, so
 -- these two are held to exactly the same standard as the original six.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(34);
 
 create function pg_temp.user_id_for(p_email text)

@@ -112,6 +112,33 @@ window.
 - D1. Kody: the hosted project's hook, the custody file's location, and
   the review window for each submission.
 
+**Open finding (2026-09-29, from the hosted staging setup).** The
+password-verification hook is a **Teams/Enterprise** feature of the hosted
+platform (the vendor's hook table; the platform answered HTTP 402 "cannot
+be configured for this organization" to every auth update that named it,
+even with `enabled = false`). C1 therefore cannot be met on the Free or
+Pro plan. Two ways forward, Kody's decision:
+
+1. **The plan that permits the hook**: option A exactly as built and
+   proven, at the Teams plan's price.
+2. **The fallback (proposed WO-009)**: the window tooling alone gives the
+   review identity its code as a password on `open-review-window` and
+   scrambles it on `close-review-window` (both exist today); a scheduled
+   sweep in Postgres scrambles the hash the moment a window's `expires_at`
+   passes, so an unclosed window still ends; GoTrue's sign-in rate limit
+   (30 attempts per five minutes per address) and the code's twelve to
+   twenty digits replace the hook's ten-failure close; the hook function,
+   its tables, and pgTAP 013 stay, and the hook is switched on the day the
+   plan permits it. What the fallback loses: the per-attempt audit receipt
+   and the hard "only this identity may hold a password" refusal (nothing
+   else holds a password by design, and the Auth Admin API is
+   server-side only).
+
+The recommendation is 2, because the Teams price is out of proportion to
+one review identity in a synthetic environment, and because the fallback
+keeps every proven part. Until Kody decides, the hook is off on staging,
+no review identity exists there, and `seed-review` stays local.
+
 ## 7. Execution record
 
 See "WO-008 execution record" below, written as the lanes ran.

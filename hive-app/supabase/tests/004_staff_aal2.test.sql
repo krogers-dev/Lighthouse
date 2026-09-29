@@ -4,6 +4,8 @@
 -- unaffected at aal1; a user's own membership rows stay visible at aal1
 -- because the client needs them to decide that MFA is required.
 begin;
+-- Explicit: pgTAP lives in the extensions schema on a hosted project.
+set local search_path = public, extensions;
 select plan(10);
 
 create function pg_temp.user_id_for(p_email text)

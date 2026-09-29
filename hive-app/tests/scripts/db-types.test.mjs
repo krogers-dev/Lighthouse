@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { cliDatabaseContainer, renderTypes, tsTypeFor } from '../../scripts/db-types.mjs';
+import {
+  cliDatabaseContainer,
+  pgEnvFromUrl,
+  renderTypes,
+  tsTypeFor,
+} from '../../scripts/db-types.mjs';
 
 test('maps postgres types to TypeScript', () => {
   assert.equal(tsTypeFor('uuid'), 'string');
@@ -75,4 +80,29 @@ test('renders public functions as typed RPC entries, with defaulted arguments op
 test('names the CLI stack database container from the project id', () => {
   assert.equal(cliDatabaseContainer('project_id = "hive-app"\n[api]\n'), 'supabase_db_hive-app');
   assert.equal(cliDatabaseContainer('# project_id = "x"\n'), null);
+});
+
+test('a hosted connection URL becomes libpq variables, decoded, with defaults', () => {
+  // Built through the URL API so that no connection-string literal sits in
+  // the repository for the secrets scan to flag.
+  const hosted = new URL('postgresql://aws-0-us-east-2.pooler.supabase.com:5432/postgres');
+  hosted.username = 'postgres.abcdefghij';
+  hosted.password = 'p@ss/word';
+  assert.ok(hosted.href.includes('p%40ss%2Fword'));
+  assert.deepEqual(pgEnvFromUrl(hosted.href), {
+    PGHOST: 'aws-0-us-east-2.pooler.supabase.com',
+    PGPORT: '5432',
+    PGUSER: 'postgres.abcdefghij',
+    PGPASSWORD: 'p@ss/word',
+    PGDATABASE: 'postgres',
+  });
+  // No port and no database name fall back to libpq's defaults.
+  const bare = new URL('postgres://db.example.invalid');
+  bare.username = 'u';
+  bare.password = 'x';
+  const bareEnv = pgEnvFromUrl(bare.href);
+  assert.equal(bareEnv.PGPORT, '5432');
+  assert.equal(bareEnv.PGDATABASE, 'postgres');
+  // Anything but a postgres URL is refused before a client is started.
+  assert.throws(() => pgEnvFromUrl('https://db.example.invalid/postgres'), /postgresql:\/\/ URL/);
 });
