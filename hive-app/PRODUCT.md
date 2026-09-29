@@ -211,6 +211,11 @@ checkpoint, milestone, release candidate, or production release.
   The local pinned stack (Mailpit + the local template) is unaffected and
   is what the current evidence covers.
 
+- **Reviewer accounts (decided 2026-09-29, WO-008):** one review
+  identity in a dedicated synthetic review environment signs in with a
+  review code the server admits only while a review window is open; the
+  hosted hook, the hosted review mailbox, and each window's notes are the
+  remaining HOLD steps in `docs/release/signing-and-submission.md`.
 - Store identifiers, privacy answers, financial-features declaration,
-  export compliance, reviewer accounts, and all items in the brief's
-  "Decisions Claude must HOLD instead of guessing" list remain HOLD.
+  export compliance, and all items in the brief's "Decisions Claude must
+  HOLD instead of guessing" list remain HOLD.

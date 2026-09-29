@@ -17,7 +17,8 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHmac } from 'node:crypto';
-import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -351,6 +352,16 @@ async function bridge() {
   await syncLedger('a1');
   await serviceState('resume');
   await deletionTool('reset', 'client.owner@example.invalid');
+  // The review tenant (WO-008): seeded for the lane, a one-hour window
+  // opened with a code in a lane-only file (never the operator's file),
+  // closed and retired once the suites are done, whatever their result.
+  const laneCodeFile = path.join(os.tmpdir(), `hive-review-code-${process.pid}.txt`);
+  await reviewTenant('seed');
+  await runHarness('review-window.mjs', {
+    HIVE_REVIEW_WINDOW_MODE: 'open',
+    HIVE_REVIEW_CODE_FILE: laneCodeFile,
+    HIVE_REVIEW_WINDOW_HOURS: '1',
+  });
   const child = spawnSync(
     'npx',
     ['--no-install', 'jest', '--config', 'jest.live.config.js', '--colors=false'],
@@ -365,9 +376,20 @@ async function bridge() {
         EXPO_PUBLIC_SUPABASE_URL: parsed.url,
         EXPO_PUBLIC_SUPABASE_CLIENT_KEY: parsed.clientKey,
         HIVE_LOCAL_MAILPIT_URL: process.env.HIVE_LOCAL_MAILPIT_URL ?? 'http://127.0.0.1:54324',
+        // The lane's code, in memory, to the suites alone.
+        HIVE_REVIEW_CODE: readFileSync(laneCodeFile, 'utf8').trim(),
       },
     },
   );
+  try {
+    await runHarness('review-window.mjs', {
+      HIVE_REVIEW_WINDOW_MODE: 'close',
+      HIVE_REVIEW_CODE_FILE: laneCodeFile,
+    });
+    await reviewTenant('retire');
+  } finally {
+    rmSync(laneCodeFile, { force: true });
+  }
   const output = `${child.stdout ?? ''}\n${child.stderr ?? ''}`;
   process.stdout.write(redactSecrets(output));
   if ((child.status ?? 1) !== 0) {
@@ -449,6 +471,30 @@ async function deletionTool(mode, email) {
     fail(`usage: local-supabase.mjs ${mode}-deletion <synthetic-email>`);
   }
   await runHarness('deletion-tools.mjs', { HIVE_DELETION_MODE: mode, HIVE_DELETION_EMAIL: email });
+}
+
+/** The store review tenant (WO-008, option A): seeded on demand, never by
+ * the main seed; one review identity signs in with a code the server
+ * admits only while a window is open. The code lives in the file
+ * HIVE_REVIEW_CODE_FILE names, outside the repository. */
+const REVIEW_CODE_FILE =
+  process.env.HIVE_REVIEW_CODE_FILE ??
+  path.join(
+    process.env.USERPROFILE ?? process.env.HOME ?? appRoot,
+    'HIVE-approvals',
+    'review-code.txt',
+  );
+
+async function reviewTenant(mode) {
+  await runHarness('seed-review-tenant.mjs', { HIVE_REVIEW_MODE: mode });
+}
+
+async function reviewWindow(mode, hours) {
+  await runHarness('review-window.mjs', {
+    HIVE_REVIEW_WINDOW_MODE: mode,
+    HIVE_REVIEW_CODE_FILE: REVIEW_CODE_FILE,
+    ...(hours ? { HIVE_REVIEW_WINDOW_HOURS: String(hours) } : {}),
+  });
 }
 
 function drillBackup() {
@@ -548,6 +594,21 @@ if (isMain) {
     case 'drill-backup':
       drillBackup();
       break;
+    case 'seed-review':
+      await reviewTenant('seed');
+      break;
+    case 'retire-review':
+      await reviewTenant('retire');
+      break;
+    case 'open-review-window':
+      await reviewWindow('open', process.argv[3]);
+      break;
+    case 'close-review-window':
+      await reviewWindow('close');
+      break;
+    case 'review-window-status':
+      await reviewWindow('status');
+      break;
     case 'scan-quarantine':
       await scanQuarantine();
       break;
@@ -559,7 +620,7 @@ if (isMain) {
       break;
     default:
       fail(
-        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|sync-ledger <caseKey>|stage-filing <caseKey>|verify-filings [caseKey]|service-status|pause-service [maintenance|incident]|resume-service|request-deletion <email>|reset-deletion <email>|complete-deletion <email>|drill-backup|scan-quarantine|sweep-uploads|stop>',
+        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|sync-ledger <caseKey>|stage-filing <caseKey>|verify-filings [caseKey]|service-status|pause-service [maintenance|incident]|resume-service|request-deletion <email>|reset-deletion <email>|complete-deletion <email>|drill-backup|seed-review|retire-review|open-review-window [hours]|close-review-window|review-window-status|scan-quarantine|sweep-uploads|stop>',
       );
   }
 }

@@ -79,6 +79,7 @@ class FakeAuthGateway implements AuthGateway {
   unenrolled: string[] = [];
   requestOtpError: Error | null = null;
   verifyOtpError: Error | null = null;
+  passwordResult: SessionInfo | null = null;
   signOutRemoteError: Error | null = null;
   listeners: ((event: AuthListenerEvent) => void)[] = [];
   log: string[];
@@ -109,6 +110,12 @@ class FakeAuthGateway implements AuthGateway {
     if (this.verifyOtpError) throw this.verifyOtpError;
     if (!this.verifyResult) throw new Error('no verify result configured');
     return this.verifyResult;
+  }
+  async signInWithPassword(): Promise<SessionInfo> {
+    this.log.push('auth.signInWithPassword');
+    if (!this.passwordResult)
+      throw new Error('Password sign-in is not available for this account.');
+    return this.passwordResult;
   }
   async listTotpFactors(): Promise<{ verifiedId: string | null; unverifiedIds: string[] }> {
     return { verifiedId: this.totpFactorId, unverifiedIds: this.unverifiedFactorIds };
@@ -428,6 +435,18 @@ describe('sign-in flow', () => {
       verifying: false,
       notice: 'auth_invalid',
     });
+  });
+
+  it('tries a refused code once as the review code and admits only what the server admits (WO-008)', async () => {
+    const h = await signedOutHarness();
+    await h.controller.startSignIn('review.reader@example.invalid');
+    h.gateway.verifyOtpError = new Error('otp_expired (synthetic)');
+    await h.controller.submitOtp('review-code-synthetic');
+    expect(h.controller.getState()).toMatchObject({ name: 'first_factor', notice: 'auth_invalid' });
+    expect(h.log).toContain('auth.signInWithPassword');
+    h.gateway.passwordResult = clientSession;
+    await h.controller.submitOtp('review-code-synthetic');
+    expect(['authorized', 'select_scope']).toContain(h.controller.getState().name);
   });
 
   it('routes staff through TOTP MFA to authorized', async () => {

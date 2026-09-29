@@ -51,6 +51,9 @@ export function makeContractHarness(options: {
           if (!options.session) throw new Error('no session configured');
           return options.session;
         },
+        signInWithPassword: async () => {
+          throw new Error('Password sign-in is not available for this account.');
+        },
         listTotpFactors: async () => ({ verifiedId: 'factor-synthetic', unverifiedIds: [] }),
         enrollTotp: async () => ({
           factorId: 'factor-enrolled-synthetic',

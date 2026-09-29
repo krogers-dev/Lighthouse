@@ -236,6 +236,13 @@ function makeAuthGateway(client: HiveSupabaseClient, bridge: SessionBridge): Aut
         return requireSessionInfo(await toSessionInfo(client, data.session));
       });
     },
+    signInWithPassword(email: string, password: string): Promise<SessionInfo> {
+      return raisingQuarantine(bridge, async () => {
+        const { data, error } = await client.auth.signInWithPassword({ email, password });
+        if (error) throw mapSignInRequestError(error);
+        return requireSessionInfo(await toSessionInfo(client, data.session));
+      });
+    },
     listTotpFactors() {
       return raisingQuarantine(bridge, async () => {
         const { data, error } = await client.auth.mfa.listFactors();

@@ -160,8 +160,12 @@ test('EVERY real flow in .maestro/ validates cleanly', () => {
   // service's explicit screen, and a client's deletion request made and
   // withdrawn through confirmations.
   //
+  // Plus the review tenant's sign-in (WO-008): the review identity enters
+  // the review code on the ordinary code screen and lands in the review
+  // workspace alone.
+  //
   // Exact, not a floor: an accidental extra flow should be noticed.
-  assert.equal(flowCount, 24);
+  assert.equal(flowCount, 25);
   assert.ok(scriptCount >= 4);
 });
 

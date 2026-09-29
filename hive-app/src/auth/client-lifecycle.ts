@@ -45,6 +45,11 @@ export interface AuthGateway {
   /** Sends an email OTP with shouldCreateUser: false (invite-only). */
   requestOtp(email: string): Promise<void>;
   verifyOtp(email: string, token: string): Promise<SessionInfo>;
+  /** The review tenant's sign-in (WO-008): the same code entered on the
+   * OTP screen, tried as a password ONLY after the server refused it as an
+   * OTP. The server admits exactly one registered review identity, only
+   * while a review window is open; everyone else is refused there. */
+  signInWithPassword(email: string, password: string): Promise<SessionInfo>;
   listTotpFactors(): Promise<TotpFactors>;
   /** Begins first-time TOTP enrollment (mfa.enroll). */
   enrollTotp(): Promise<TotpEnrollment>;

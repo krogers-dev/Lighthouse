@@ -159,13 +159,16 @@ export function findHostLiterals(files) {
 }
 
 export function checkClassification(text) {
-  return /Financial values[\s\S]{0,200}\*\*No/.test(text)
+  // The row itself decides, never a distance: table padding changes.
+  const row = text
+    .split(/\r?\n/)
+    .find((line) => line.startsWith('|') && /Financial values/.test(line));
+  return row && /\*\*No/.test(row)
     ? []
     : [
         'docs/data-classification.md no longer excludes financial values; the "not collected" answer is unsupported',
       ];
 }
-
 function listSourceFiles(dir, out = []) {
   for (const entry of readdirSync(dir)) {
     const full = path.join(dir, entry);

@@ -31,6 +31,7 @@
  *
  * Usage: node scripts/local-supabase.mjs e2e  (wires env in memory).
  */
+import { spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import process from 'node:process';
 
@@ -42,6 +43,7 @@ import { verifyFilingReceipts } from './lib/filing-verify.mjs';
 import { syncLedgerReferences } from './lib/ledger-sync.mjs';
 import { assertReleaseControlsPath } from './lib/release-controls-path.mjs';
 import { assertReviewPath } from './lib/review-path.mjs';
+import { assertReviewTenantPath } from './lib/review-tenant-path.mjs';
 import { assertSourcePath } from './lib/source-path.mjs';
 import { msUntilIatAdvance, verifyRefreshedSession } from './lib/refresh-verify.mjs';
 import { SCOPE, SYNTHETIC_IDENTITIES } from './lib/synthetic-identities.mjs';
@@ -1081,6 +1083,28 @@ for (const identity of SYNTHETIC_IDENTITIES) {
     await mandatoryRefresh(session, identity, 'aal1', `${identity.email} AAL1`);
   }
 }
+
+// 9. The review tenant (WO-008, option A): seeded on demand, the
+//     review identity refused without a window, admitted with the
+//     code inside one, reading only its own environment, refused
+//     after close, retired at the end.
+const reviewTenantTool = (mode) =>
+  spawnSync('node', ['scripts/seed-review-tenant.mjs'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    env: { ...process.env, HIVE_REVIEW_MODE: mode },
+  }).status === 0;
+await assertReviewTenantPath({
+  rest,
+  check,
+  uuidV4,
+  url,
+  clientKey,
+  serviceKey,
+  gatewayKey,
+  seedReview: async () => reviewTenantTool('seed'),
+  retireReview: async () => reviewTenantTool('retire'),
+});
 
 console.log(`e2e-local-auth: ${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

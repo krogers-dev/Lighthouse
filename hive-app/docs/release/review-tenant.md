@@ -1,7 +1,9 @@
 # The store review tenant (WO-007, prepared 2026-09-28)
 
-**Status: options and a recommendation for Kody. Nothing is built: the
-mechanism touches authentication and is a security decision.**
+**Status: option A decided by Kody in writing on 2026-09-29 and built the
+same day (WO-008, `docs/plans/2026-09-29-wo-008-review-tenant.md`).
+What follows is the record of the options as they were put to him, then
+how the decided option works.**
 
 ## The problem
 
@@ -32,7 +34,26 @@ Option A, with these bounds written into the decision:
 - Every sign-in of the review identity writes an audit receipt, and the
   environment is retired after each review window.
 
-## What Kody decides
+## As built (option A)
+
+- The review identity (`review.reader@example.invalid` locally; a
+  Honeybee-controlled address on a hosted project) is a client user of a
+  dedicated synthetic review environment seeded by `seed-review`.
+- GoTrue's password-verification hook, in Postgres, admits that identity
+  alone and only while a review window is open; ten wrong codes close the
+  window; every attempt is audited.
+- `open-review-window [hours]` sets the code from the file
+  `HIVE_REVIEW_CODE_FILE` names (outside the repository; generated if
+  absent, never printed); `close-review-window` replaces it;
+  `retire-review` ends all access.
+- The reviewer enters the review email and the review code on the
+  ordinary sign-in and code screens; nothing in the app is different for
+  them.
+- Hosted: enable the same hook in the project's auth configuration, give
+  the identity a controlled mailbox, open a window per submission, and
+  put the email and the code in the review notes for that window.
+
+## What Kody decides next
 
 1. Which option.
 2. If A: the hosting of the review environment (the same hosted project

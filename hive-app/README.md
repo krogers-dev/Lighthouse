@@ -225,6 +225,13 @@ destination (`docs/release/signing-and-submission.md`). Records:
    then `seed` to restore it.
 4. `npm run privacy:reconcile` and `npm run config:check -- --profile release`
    (the latter fails today by design, naming each HOLD).
+5. The review tenant (WO-008, option A): `node scripts/local-supabase.mjs seed-review`,
+   `open-review-window 1` (the code is read from or generated into the file
+   `HIVE_REVIEW_CODE_FILE` names, never printed), then
+   `maestro test -e REVIEW_CODE=<the code> .maestro/review-sign-in.yaml`
+   (the review identity signs in on the ordinary screens and sees only
+   the review workspace), then `close-review-window` and `retire-review`.
+   The harness and the bridge run the same lifecycle themselves.
 
 ### Milestones 3, 4, and 5 on the desktop
 

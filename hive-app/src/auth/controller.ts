@@ -376,6 +376,24 @@ export class AuthController {
     }
   }
 
+  /** The review tenant's sign-in attempt (WO-008). Null means "not the
+   * review identity, or no open window": the OTP failure stands. */
+  private async tryReviewSignIn(
+    bundle: ClientBundle,
+    code: string,
+  ): Promise<SessionInfo | 'quarantine' | null> {
+    if (!this.pendingEmail) return null;
+    try {
+      return await bundle.auth.signInWithPassword(this.pendingEmail, code);
+    } catch (error) {
+      if (error instanceof QuarantineRequiredError) {
+        this.handleStorageOrFatal(error);
+        return 'quarantine';
+      }
+      return null;
+    }
+  }
+
   submitOtp(code: string): Promise<void> {
     return this.enqueue(async () => {
       if (this.state.name !== 'first_factor' || !this.state.otpSent || !this.pendingEmail) return;
@@ -391,11 +409,20 @@ export class AuthController {
           return;
         }
         const safe = toSafeError(error);
-        this.dispatch({
-          type: 'FIRST_FACTOR_FAILED',
-          code: safe.code === 'unknown' ? 'auth_invalid' : safe.code,
-        });
-        return;
+        const failure = safe.code === 'unknown' ? 'auth_invalid' : safe.code;
+        // The review tenant (WO-008): a code the server refused as an OTP is
+        // tried once as the review code. The server admits exactly one
+        // registered review identity inside an open review window and
+        // refuses everyone else, so for anyone but that identity this is
+        // one more refusal and the OTP failure stands as it was.
+        const review = failure === 'auth_invalid' ? await this.tryReviewSignIn(bundle, code) : null;
+        if (review === 'quarantine') return;
+        if (review) {
+          session = review;
+        } else {
+          this.dispatch({ type: 'FIRST_FACTOR_FAILED', code: failure });
+          return;
+        }
       }
       await this.loadAndRoute(session, 'first_factor');
     });

@@ -283,6 +283,29 @@ in server-controlled tables).
   drill completes a request for the identity with no memberships and
   reads back that the account is gone and the record stands.
 
+## Controls added for the review tenant (WO-008, option A)
+
+- **The password grant is the server's to refuse.** GoTrue's
+  password-verification hook (`app_private.review_password_verification`,
+  runnable by GoTrue's role alone) rejects every password sign-in unless
+  the user is the registered review identity and a review window is open;
+  a wrong code is counted and ten close the window; every attempt writes
+  an audit receipt in the review environment's scope. Email OTP and TOTP
+  never pass through it. pgTAP pins its decisions and grants; the harness
+  proves them against GoTrue's real password grant, including a seeded
+  client refused with a valid password of its own.
+- **One identity, one synthetic environment.** The review identity holds
+  one client membership in a review environment seeded on demand; it
+  reads exactly that environment's rows and nothing of any client.
+- **The code never rests in the repository.** It lives in a file outside
+  the repository, is set as the identity's password when a window opens,
+  is replaced with an unknown value when the window closes and when the
+  tenant is retired, and is passed to a device flow as a variable; no
+  tool prints it.
+- **The app's only change is one more refusal.** A code the server
+  refused as an OTP is tried once as the review code; for anyone the
+  server refuses, the OTP failure stands as it was.
+
 ## Deliberately not used (per brief)
 
 Root/jailbreak detection, device attestation, certificate pinning,

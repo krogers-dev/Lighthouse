@@ -298,6 +298,15 @@ max_frequency = "5s"
 # enabled = true
 # uri = "pg-functions://postgres/auth/before-user-created-hook"
 
+# HIVE review tenant (WO-008, option A): every password sign-in attempt is
+# decided by the server. The hook admits only the registered review
+# identity, only while a review window is open, and audits every attempt;
+# email OTP and TOTP are not touched (the hook runs for the password grant
+# alone). Migration 20260929120013 defines the function and its grants.
+[auth.hook.password_verification_attempt]
+enabled = true
+uri = "pg-functions://postgres/app_private/review_password_verification"
+
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
 # [auth.hook.custom_access_token]
 # enabled = true

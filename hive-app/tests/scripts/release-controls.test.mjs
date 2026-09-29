@@ -241,3 +241,27 @@ test('the privacy reconciliation catches an SDK, a permission, a manifest drift,
   assert.deepEqual(checkClassification('| Financial values | amounts | **No — excluded** |'), []);
   assert.equal(checkClassification('| Financial values | amounts | Yes |').length, 1);
 });
+
+test('the review code is digits only, twelve to twenty, sixteen when generated, and never printed by the loader', async () => {
+  const { REVIEW_CODE_PATTERN, generateReviewCode, loadOrCreateReviewCode } =
+    await import('../../scripts/lib/review-code.mjs');
+  const { mkdtempSync, readFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  for (let i = 0; i < 20; i += 1) assert.match(generateReviewCode(), /^[0-9]{16}$/);
+  assert.ok(REVIEW_CODE_PATTERN.test('123456789012'));
+  assert.ok(!REVIEW_CODE_PATTERN.test('12345678901'));
+  assert.ok(!REVIEW_CODE_PATTERN.test('abcdefghijklmnop'));
+  const dir = mkdtempSync(join(tmpdir(), 'hive-review-code-'));
+  const file = join(dir, 'code.txt');
+  try {
+    const created = loadOrCreateReviewCode(file, () => '1111222233334444');
+    assert.deepEqual(created, { code: '1111222233334444', created: true });
+    assert.equal(readFileSync(file, 'utf8').trim(), '1111222233334444');
+    assert.deepEqual(loadOrCreateReviewCode(file), { code: '1111222233334444', created: false });
+    rmSync(file);
+    assert.throws(() => loadOrCreateReviewCode(''), /names no file/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -936,6 +936,12 @@ export interface Database {
         };
         Returns: Json;
       };
+      close_review_window: {
+        Args: {
+          p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
       complete_account_deletion: {
         Args: {
           p_user_id: string;
@@ -963,6 +969,13 @@ export interface Database {
           p_entity_id: string;
           p_case_id: string;
           p_case_version: number;
+          p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
+      open_review_window: {
+        Args: {
+          p_hours: number;
           p_idempotency_key: string;
         };
         Returns: Json;
@@ -1016,6 +1029,15 @@ export interface Database {
         };
         Returns: Json;
       };
+      register_review_identity: {
+        Args: {
+          p_user_id: string;
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+        };
+        Returns: Json;
+      };
       request_account_deletion: {
         Args: {
           p_idempotency_key: string;
@@ -1031,6 +1053,10 @@ export interface Database {
           p_case_version: number;
           p_idempotency_key: string;
         };
+        Returns: Json;
+      };
+      review_window_status: {
+        Args: Record<string, never>;
         Returns: Json;
       };
       save_request_answer_draft: {
@@ -1075,6 +1101,12 @@ export interface Database {
           p_answer_id: string;
           p_answer_version: number;
           p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
+      unregister_review_identity: {
+        Args: {
+          p_user_id: string;
         };
         Returns: Json;
       };

@@ -1,0 +1,15 @@
+﻿Running on Pixel_8
+ > Flow The store review identity signs in with the review code and sees only the review workspace
+Launch app "com.myhbcfo.hive.development" with clear state... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Tap on id: sign-in-email... COMPLETED
+Input text review.reader@example.invalid... COMPLETED
+Tap on id: sign-in-submit... COMPLETED
+Assert that id: otp-code is visible... COMPLETED
+Tap on id: otp-code... COMPLETED
+Input text ${REVIEW_CODE}... COMPLETED
+Tap on id: otp-submit... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Assert that "Review Bakery LLC \(Synthetic\)" is visible... COMPLETED
+Assert that "2025 books close for review \(Synthetic\)" is visible... COMPLETED
+Assert that "Harbor Light Bakery LLC \(Synthetic\)" is not visible... COMPLETED
