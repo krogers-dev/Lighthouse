@@ -114,7 +114,21 @@ templates cannot be customized and delivery reaches project-team
 addresses only, so the SMTP door precedes any hosted sign-in. Its
 settings go into `[remotes.staging.auth.email.smtp]` with `env()` secrets
 the moment the provider exists, and into the dashboard by hand while the
-push stays closed. Acceptance, black-box, before any hosted sign-in is
+push stays closed.
+
+**Chosen 2026-09-29 under Kody's "do the rest": Resend** (free plan: 3,000
+emails a month, 100 a day), team `myhbcfo`, domain `myhbcfo.com` added by
+this session with receiving left off (its MX record would take Honeybee's
+Google mail). The domain is Google Workspace-managed with its zone at
+Squarespace, and this session's permission policy refuses DNS changes, so
+the three records are Kody's own hand: TXT `resend._domainkey` (Resend's
+1024-bit DKIM key), CNAME `rsend` to `rsend.forge.rmta.net`, CNAME `send`
+to `send.forge.rmta.net`; nothing existing changes. Then Kody creates a
+sending API key in Resend and enters it himself in the dashboard's SMTP
+settings: sender `HIVE <hive@myhbcfo.com>`, host `smtp.resend.com`, port
+465, username `resend`, password the key, which this session never sees.
+The provider sees the recipient address and the code, never client
+content. Acceptance, black-box, before any hosted sign-in is
 offered to a real recipient:
 
 1. request a code for an owned QA recipient that is NOT a project-team
@@ -165,7 +179,8 @@ stay local.
 
 - `EXPO_PUBLIC_SUPPORT_EMAIL`: a real address on Honeybee's domain.
 - `EXPO_PUBLIC_DELETION_INFO_URL`: the public page whose content is
-  drafted in `docs/release/deletion-page.md`, hosted on Honeybee's site.
+  drafted in `docs/release/deletion-page.md`, hosted on Honeybee's site. The zone shows `hive.myhbcfo.com` already served by
+  ChatGPT-hosted pages, a natural home for it.
 - The privacy policy URL: written by Kody and Stacie (with counsel if
   they choose) from `docs/release/privacy-policy-facts.md`; never drafted
   here.
