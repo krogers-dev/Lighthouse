@@ -16,9 +16,11 @@ not, request one there, free; a new number takes days to a few weeks, so
 this comes first. Have ready: the exact legal entity name, its registered
 address, and a phone number.
 
-**Status 2026-09-29:** no existing number was found, and Kody submitted the
+**Status 2026-09-29:** no existing number was found; Kody submitted the
 free D-U-N-S application himself the same day (Dun & Bradstreet case
-DFC-692444); the number arrives by email. Both store sign-ups wait for it,
+DFC-692444), and the number arrived by email at 3:09 PM: **D-U-N-S
+149968881** for Myhbcfo, LLC. It is a public business identifier, not a
+secret, and both store forms take it. Both store sign-ups wait for it,
 and each must be started signed in as `info@myhbcfo.com`, because the
 creating account owns the developer account permanently.
 
