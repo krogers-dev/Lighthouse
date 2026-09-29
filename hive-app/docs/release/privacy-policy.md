@@ -3,9 +3,9 @@
 **Status: the policy as published on Honeybee's site on 2026-09-29, at
 Kody's written instruction ("fill the brackets ... You publish it"), with
 the entity, address, and retention wording he supplied. The legal-basis
-and rights paragraphs are standard wording he asked for and said he will
-have reviewed; when that review changes them, this file, the page, and the
-effective date change together.** Every statement about the app comes
+and rights paragraphs are standard wording he asked for; on 2026-09-29 he
+reported them approved by counsel ("Counsel approved."). When the policy
+changes, this file, the page, and the effective date change together.** Every statement about the app comes
 from `privacy-policy-facts.md`, where each fact names the gate, migration,
 or test that proves it.
 
@@ -137,6 +137,6 @@ info@myhbcfo.com
 
 ---
 
-_Published by Kody's instruction of 2026-09-29. Pending his counsel's
-review: the legal-basis paragraph in section 4, the "Other rights"
-paragraph in section 8, and the age line in section 9._
+_Published by Kody's instruction of 2026-09-29; the legal-basis paragraph
+in section 4, the "Other rights" paragraph in section 8, and the age line
+in section 9 were reported approved by counsel the same day._

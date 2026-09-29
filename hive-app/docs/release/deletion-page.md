@@ -1,8 +1,8 @@
 # The public account-deletion page (draft, 2026-09-29)
 
-**Status: content drafted for the page `EXPO_PUBLIC_DELETION_INFO_URL`
-will point to, on Honeybee's own site. Stacie approves the wording; Kody
-publishes the page. Nothing here is published.** The content says exactly
+**Status: published by Kody on 2026-09-29 at
+`https://hive.myhbcfo.com/delete-account`, the value of
+`EXPO_PUBLIC_DELETION_INFO_URL`; read back the same day.** The content says exactly
 what the app says, so the two never disagree.
 
 ---

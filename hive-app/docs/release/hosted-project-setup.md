@@ -193,14 +193,30 @@ stay local.
   account in Google Workspace so replies land in the same place: Google
   Admin, Directory, Users, the `info` account, "Alternate email addresses",
   add `hive`, save (or, if `info` is a group, Groups, the group, Aliases).
-- `EXPO_PUBLIC_DELETION_INFO_URL`: the public page whose content is
-  drafted in `docs/release/deletion-page.md`, hosted on Honeybee's site. The zone shows `hive.myhbcfo.com` already served by
+- `EXPO_PUBLIC_DELETION_INFO_URL`: **`https://hive.myhbcfo.com/delete-account`**,
+  published by Kody on 2026-09-29 from `docs/release/deletion-page.md`;
+  read back the same day: the page text, the support address, no link
+  but the email (`security/evidence/2026-09-29-hosted-production/site-pages.log`). The zone shows `hive.myhbcfo.com` already served by
   ChatGPT-hosted pages, a natural home for it.
-- The privacy policy URL: the policy is `docs/release/privacy-policy.md`
-  (drafted at Kody's instruction, his entity and address filled, published
-  by him); both pages are pasted from `docs/release/site-pages-to-publish.md`
-  into the ChatGPT project that serves `hive.myhbcfo.com`, by Kody, the
-  session's policy refusing to publish.
+- The privacy policy URL: **`https://hive.myhbcfo.com/privacy`**, published
+  by Kody on 2026-09-29 from `docs/release/privacy-policy.md` through the
+  ChatGPT project that serves the site (the session's policy refusing to
+  publish); counsel approved the standard paragraphs the same day.
+
+**The release environment, complete (2026-09-29):**
+
+```
+EXPO_PUBLIC_SUPABASE_URL=https://nceencyvxfhkffbjqlea.supabase.co
+EXPO_PUBLIC_SUPABASE_CLIENT_KEY=sb_publishable_lhyWkEiMj9cQkVXFkl9dBw_H_x1K9O_
+EXPO_PUBLIC_SUPPORT_EMAIL=info@myhbcfo.com
+EXPO_PUBLIC_DELETION_INFO_URL=https://hive.myhbcfo.com/delete-account
+```
+
+`config:check --profile release` passes on exactly these four values
+(`security/evidence/2026-09-29-hosted-production/config-check-release.log`),
+the first time it has. They go into the production build profile the day
+the store accounts exist; nothing here is a secret, and the development
+configuration in `.env.local` is untouched.
 
 ## 8. The kill switch, backups, and the plan
 

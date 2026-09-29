@@ -11,10 +11,9 @@ a sequence of known steps with known evidence, not a discovery.
 - The Milestone 2 QA development build (`com.myhbcfo.hive.development`,
   "HIVE Dev") on the desktop emulator, and the `ios-simulator` EAS profile
   that answers one question: does the app compile for iOS.
-- `config:check --profile release` fails today by design on exactly two
-  findings: no support address, no public deletion page (the production
-  identifiers and the approved staging origin exist since 2026-09-29).
-  Each failure names its HOLD.
+- `config:check --profile release` PASSES since 2026-09-29 on the four
+  release values recorded in `hosted-project-setup.md` §7: the production
+  origin and key, `info@myhbcfo.com`, and the live deletion page.
 - `export:candidate` proves a release-shaped bundle carries no QA hook and
   no secret.
 
