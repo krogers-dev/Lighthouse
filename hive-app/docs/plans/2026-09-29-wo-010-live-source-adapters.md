@@ -54,7 +54,13 @@ reading the same tables through the same row-level security.
   access to the permanent-record folder alone. What leaves Drive: the
   file's identifier, size, modification time, and a digest of its bytes,
   compared with the receipt's claimed digest; the bytes are streamed and
-  discarded.
+  discarded. A narrowing to prove in the contract tests (noted
+  2026-09-30 from the Drive reference): a stored file's metadata carries
+  a SHA-256 checksum in the same 64-hex form the receipt holds, and
+  reading one file's metadata accepts the metadata-only permission. If
+  the checksum is present for the file types Honeybee files, the adapter
+  asks for that permission alone and never requests a document's
+  bytes; where it is absent, the bytes are streamed for that type only.
 - **Schedule.** Every fifteen minutes for cases in an active status; a
   staff member may ask for a refresh of one case from the case review,
   which runs the same job for that case at once. Vendor rate limits are
@@ -119,6 +125,32 @@ working. make your adjustments"):**
   permanent-record folder only after the security review of door 3; and,
   when the adapter is built, creating the account's key and placing it in
   the hosted project's function secrets, never seen here.
+- **Found 2026-09-30, read-only, on the project's organization-policy
+  pages (evidence: `security/evidence/2026-09-30-cloud-doors/`):** the
+  organization's defaults refuse every service-account key in project
+  `hive`. "Disable service account key creation"
+  (`iam.managed.disableServiceAccountKeyCreation`) is enforced and the
+  legacy "Disable Service Account Key Upload"
+  (`iam.disableServiceAccountKeyUpload`) is enforced, both inherited; the
+  other generation of each reads "not enforced", and Google evaluates
+  the two together. So "creating the account's key" above would be
+  refused as written, and "Manage policy" is greyed out for
+  `info@myhbcfo.com`, which does not hold the Organization Policy
+  Administrator role. The choices, for the build and for Kody's review
+  against section 5:
+  1. **A project-level exception, recommended.** Kody, as the
+     organization's administrator, grants himself Organization Policy
+     Administrator, sets the creation constraint to "not enforced" on
+     project `hive` alone, creates the one key, and restores the inherited
+     policy. The constraints are not retroactive, so the restored policy
+     refuses new keys and leaves the one key working: the exception is
+     open for minutes, and a rotation repeats it.
+  2. **No Google key at all**, by federation from the hosted project's
+     token issuer to the service account. It needs a machine identity in
+     the hosted project's user table and more moving parts than the
+     credential it avoids.
+  3. **A Workspace user's consent and refresh token.** It reaches
+     everything that user can see, not the one shared folder.
 - **Intuit, done by Kody:** the workspace "Honeybee Accounting"
   (`9341457864870122`) and in it the app "HONEYBEE HIVE"
   (AppID `186083bd-f96f-4f52-ac3e-6bc9832ddcb4`, QuickBooks, in
