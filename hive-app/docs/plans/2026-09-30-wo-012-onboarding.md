@@ -5,7 +5,9 @@ instruction ("just RUN") and his "move forward" of the same day, as the
 first half of Milestone 7. Proven on the local stack and on staging.
 Production received nothing: its environment, its first client, and its
 first people are Kody's values, brought in with these commands at his
-word. Every decision is provisional in `security/APPROVALS.md`.**
+word. Every decision was ratified by Kody on 2026-09-30 ("ratified
+WO-012 and WO-013", at candidate `8e3bea2`); the register
+`security/APPROVALS.md` carries the record.**
 
 **Owner:** Kody (acceptance, security, the values). **Wording:** Stacie.
 
@@ -76,7 +78,7 @@ scope it touches, the same idempotency key never writing twice.
 | T6. Names or addresses leak into receipts, logs, or evidence          | R6, R7; the harness's receipt scan; the evidence folder's scan                                                  |
 | T7. A change meant for staging lands on production                    | The runner's target and ref rule (WO-011); the CLI negatives                                                    |
 
-## 5. Decisions recorded (provisional, Kody's to ratify)
+## 5. Decisions recorded (ratified by Kody, 2026-09-30)
 
 | Decision                                   | As built                                                                                                                                         |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |

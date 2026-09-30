@@ -356,9 +356,10 @@ not yet said.**
 **Built under Kody's standing instruction and his "move forward" of
 2026-09-30, as the first half of Milestone 7 (the gap it closes: nothing
 but the synthetic seed could create a client, an entity, or a membership,
-so nobody could ever be given production). PROVISIONAL: every row waits
-for his one line. Production received nothing; its first client and
-people are his values, brought in at his word.**
+so nobody could ever be given production). Ratified 2026-09-30 by Kody,
+in writing ("ratified WO-012 and WO-013"), at candidate `8e3bea2`.
+Production received the migration with WO-013 and no rows; its first
+client and people are his values, brought in at his word.**
 
 | Decision                                                               | As built                                                                                                                                                                                                                                                                                                                                                        | Where it lives                                       |
 | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
@@ -378,9 +379,9 @@ people are his values, brought in at his word.**
 **Built under Kody's standing instruction and his "move forward" of
 2026-09-30, as the second half of Milestone 7 (the gap it closes: every
 case and every request came from the synthetic seed, so Honeybee could
-not begin work for an onboarded client). PROVISIONAL: every row waits
-for his one line. Production received the two Milestone 7 migrations
-and no rows.**
+not begin work for an onboarded client). Ratified 2026-09-30 by Kody, in
+writing ("ratified WO-012 and WO-013"), at candidate `8e3bea2`.
+Production received the two Milestone 7 migrations and no rows.**
 
 | Decision                                            | As built                                                                                                                                                                                                                                                            | Where it lives                                                                       |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
