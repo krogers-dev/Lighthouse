@@ -1,0 +1,32 @@
+== the proof entity and its scope
+              entity_id               |               entity                |               client                |    environment    
+--------------------------------------+-------------------------------------+-------------------------------------+-------------------
+ 0e774f7a-5eb0-40cf-9e10-588492424b26 | Onboarding Proof Entity (Synthetic) | Onboarding Proof Client (Synthetic) | local-development
+(1 row)
+
+== memberships on it
+ memberships 
+-------------
+           0
+(1 row)
+
+== receipts in its scope, none with an address
+       action       | receipts | by_the_server_role | no_address 
+--------------------+----------+--------------------+------------
+ entity.onboarded   |        1 | t                  | t
+ membership.granted |        3 | t                  | t
+ membership.revoked |        2 | t                  | t
+(3 rows)
+
+== identities left from the proof
+ proof_identities 
+------------------
+                0
+(1 row)
+
+== users, environments, clients, entities in all
+ users | environments | clients | entities 
+-------+--------------+---------+----------
+    11 |            2 |       4 |        6
+(1 row)
+

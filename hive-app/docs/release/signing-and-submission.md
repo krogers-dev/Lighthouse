@@ -56,6 +56,17 @@ arrives, the submit step is run by Kody from the console or by an
 explicitly authorized `eas submit` invocation recorded in the approvals
 file with the build id it submitted.
 
+## The dependency refresh, once, at the candidate
+
+Expo publishes a patch of SDK 57 most weeks. The pins are exact by design,
+so Expo Doctor reports drift within days of any refresh, and a refresh is
+a real change: a lockfile rebuild, the full gate sweep, a native rebuild,
+and the device lanes. Decided 2026-09-30 (provisional): the refresh is
+done once, when the release candidate is about to be built, on pins at
+least seven days old unless a security fix says otherwise, and the drift
+check is tracked rather than chased until then. On that day the record of
+2026-09-06 (`c945cd2`) is the procedure.
+
 ## Versioning, decided provisionally
 
 - `app.json` `version` stays `0.1.0` (the development configuration); the

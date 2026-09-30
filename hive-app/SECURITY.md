@@ -330,6 +330,29 @@ in server-controlled tables).
 - **The switch keeps the floor.** A pause or a resume sends the minimum
   app version the service already holds unless the operator names another.
 
+## Controls added for onboarding (WO-012)
+
+- **Membership changes go through reviewed server-role functions.**
+  `onboard_entity`, `grant_membership`, `revoke_membership`, and
+  `operator_user_id_by_email` are executable by the server role alone;
+  the helper that reads the identity table is closed to every client
+  role; a signed-in person who calls them is refused like a denied read.
+  Every change writes an audit receipt in the scope it touches, carrying
+  ids and facts and never a name or an address, and the same idempotency
+  key never writes twice.
+- **Identities are created through GoTrue, never by SQL**, confirmed and
+  without a password; an invitation sends nothing, and staff enroll an
+  authenticator at their first sign-in before any read succeeds.
+- **A staff role goes only to a Honeybee address on production**, and a
+  reserved or test address is refused there for everyone; the rules are
+  per target in `security/hosted-targets.json`, and the code refuses a
+  manifest that relaxes production.
+- **One name, one record.** Unique indexes hold one client per name per
+  environment and one entity per name per client, compared without
+  regard to case.
+- **The tooling prints no whole address**, and revocation ends access in
+  sessions already held, because every read re-checks membership.
+
 ## Deliberately not used (per brief)
 
 Root/jailbreak detection, device attestation, certificate pinning,

@@ -615,6 +615,16 @@ if (isMain) {
     case 'review-window-status':
       await reviewWindow('status');
       break;
+    case 'onboard-entity':
+    case 'invite':
+    case 'revoke-access':
+    case 'list-entities':
+    case 'list-access':
+      await runHarness('onboarding.mjs', {
+        HIVE_ONBOARD_COMMAND: command,
+        HIVE_ONBOARD_ARGS: JSON.stringify(process.argv.slice(3)),
+      });
+      break;
     case 'scan-quarantine':
       await scanQuarantine();
       break;
@@ -626,7 +636,7 @@ if (isMain) {
       break;
     default:
       fail(
-        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|sync-ledger <caseKey>|stage-filing <caseKey>|verify-filings [caseKey]|service-status|pause-service [maintenance|incident]|resume-service|request-deletion <email>|reset-deletion <email>|complete-deletion <email>|drill-backup|seed-review|retire-review|open-review-window [hours]|check-review-sign-in|close-review-window|sweep-review-window|review-window-status|scan-quarantine|sweep-uploads|stop>',
+        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|sync-ledger <caseKey>|stage-filing <caseKey>|verify-filings [caseKey]|service-status|pause-service [maintenance|incident]|resume-service|request-deletion <email>|reset-deletion <email>|complete-deletion <email>|drill-backup|seed-review|retire-review|open-review-window [hours]|check-review-sign-in|close-review-window|sweep-review-window|review-window-status|onboard-entity "<client>" "<entity>"|invite <address> <role> <entity id>|revoke-access <address> <role> <entity id>|list-entities|list-access <entity id>|scan-quarantine|sweep-uploads|stop>',
       );
   }
 }

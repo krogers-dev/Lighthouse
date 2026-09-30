@@ -1,0 +1,27 @@
+ok - onboarding: the operator onboards a new client and entity
+ok - onboarding: the same entity cannot be onboarded twice, whatever the case of the names
+ok - onboarding: the operator invites a client user, whose identity is created
+ok - onboarding: the tooling never prints the whole address
+ok - onboarding: inviting the same person again creates nothing and grants nothing twice
+ok - onboarding: the invited client reads exactly the one entity they were given
+ok - onboarding: and exactly its client, none of the seeded ones
+ok - onboarding: and no case, because none has been opened there
+ok - onboarding: the invited client cannot grant themselves a membership (403)
+ok - onboarding: nor onboard an entity (403)
+ok - onboarding: nor look another person up by address (403)
+ok - onboarding: the operator invites an intake staff member
+ok - onboarding: the invited staff member reads nothing before an authenticator is enrolled
+ok - onboarding: the invited staff member: TOTP enrollment returns a secret
+ok - onboarding: the invited staff member: TOTP verify succeeds
+ok - onboarding: the invited staff member: verified session is AAL2
+ok - onboarding: the invited staff member: AAL2 sub is still the canonical id
+ok - onboarding: and exactly their entity once it is
+ok - onboarding: the access list names both roles and shows no whole address
+ok - onboarding: the operator revokes the client user
+ok - onboarding: and the same session reads nothing at once
+ok - onboarding: every change left a receipt in the new scope (entity.onboarded, membership.granted, membership.granted, membership.granted, membership.revoked)
+ok - onboarding: and no receipt carries an address or a name
+ok - onboarding: the run's identity 1118b993 is removed
+ok - onboarding: the run's identity e6fb1490 is removed
+ok - onboarding: and no membership is left on the entity
+e2e-local-auth: 436 passed, 0 failed

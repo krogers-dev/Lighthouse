@@ -18,13 +18,20 @@ export const HOSTED_MANIFEST_PATH = path.join(appRoot, 'security', 'hosted-targe
 
 const TARGET_NAMES = ['staging', 'production'];
 const PROJECT_REF = /^[a-z]{20}$/;
+const ENVIRONMENT_NAME = /^[a-z][a-z0-9-]{1,39}$/;
+const DOMAIN = /^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
 const ADDRESS = /^[a-z0-9][a-z0-9._-]*@([a-z0-9-]+(?:\.[a-z0-9-]+)+)$/;
 const SECRET_KEY = /^sb_secret_[A-Za-z0-9_-]{20,}$/;
 const PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]{20,}$/;
 
 /** What reads and what changes. A command in neither set is refused: an
  * unknown command is never treated as a read. */
-export const READ_COMMANDS = new Set(['review-window-status', 'service-status']);
+export const READ_COMMANDS = new Set([
+  'review-window-status',
+  'service-status',
+  'list-entities',
+  'list-access',
+]);
 export const CHANGE_COMMANDS = new Set([
   'seed-review',
   'retire-review',
@@ -34,6 +41,9 @@ export const CHANGE_COMMANDS = new Set([
   'check-review-sign-in',
   'pause-service',
   'resume-service',
+  'onboard-entity',
+  'invite',
+  'revoke-access',
 ]);
 export const PROOF_COMMAND = 'prove-review';
 
@@ -103,6 +113,40 @@ export function manifestProblems(manifest) {
       problems.push(
         `${name}: the review address must be a mailbox on the manifest's review address domain`,
       );
+    }
+    const environment = target.environment;
+    if (
+      !environment ||
+      typeof environment.name !== 'string' ||
+      !ENVIRONMENT_NAME.test(environment.name) ||
+      !['development', 'staging', 'production'].includes(environment.kind)
+    ) {
+      problems.push(`${name}: the environment needs a name and a kind`);
+    }
+    if (
+      !Array.isArray(target.staffEmailDomains) ||
+      target.staffEmailDomains.length === 0 ||
+      !target.staffEmailDomains.every((d) => typeof d === 'string' && DOMAIN.test(d))
+    ) {
+      problems.push(`${name}: staffEmailDomains must list at least one domain`);
+    }
+    if (typeof target.allowSyntheticAddresses !== 'boolean') {
+      problems.push(`${name}: allowSyntheticAddresses must be true or false`);
+    }
+    if (name === 'production') {
+      // The code's rule, not the manifest's: production is the production
+      // environment, takes no synthetic address, and staffs only from the
+      // review address domain.
+      if (
+        environment?.kind !== 'production' ||
+        target.allowSyntheticAddresses !== false ||
+        !Array.isArray(target.staffEmailDomains) ||
+        target.staffEmailDomains.some((d) => d !== domain)
+      ) {
+        problems.push(
+          'production: must be the production environment, admit no synthetic address, and staff only from the review address domain',
+        );
+      }
     }
     if (typeof target.confirmChanges !== 'boolean' || typeof target.allowProof !== 'boolean') {
       problems.push(`${name}: confirmChanges and allowProof must be true or false`);

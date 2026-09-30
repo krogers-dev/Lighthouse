@@ -249,6 +249,12 @@ destination (`docs/release/signing-and-submission.md`). Records:
    `--confirm <project-ref>` for any change on production, where the
    proof never runs. The kill switch goes the same way
    (`service-status`, `pause-service`, `resume-service`).
+8. Onboarding (WO-012), in both lanes:
+   `node scripts/local-supabase.mjs onboard-entity "<client>" "<entity>"`,
+   `invite <address> <role> <entity id>`, `revoke-access <address> <role> <entity id>`,
+   `list-entities`, `list-access <entity id>`. The harness runs the
+   whole path itself (step 8); on a hosted project the same commands go
+   through `hosted-supabase.mjs`.
 
 ### Milestones 3, 4, and 5 on the desktop
 

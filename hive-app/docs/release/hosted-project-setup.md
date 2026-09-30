@@ -167,13 +167,33 @@ offered to a real recipient:
   path; every row is labelled synthetic. This amends the earlier "no
   synthetic identity on a hosted project" line, for staging only.
 - **Production never carries a seed.** Its staff and client identities are
-  created by invitation through the Auth Admin API, by Kody, one at a
-  time, with their memberships; the seed tooling is loopback-only by
-  design and stays so. One exception, decided on 2026-09-30 and ratified
+  created by invitation, one at a time, with their memberships, through
+  the onboarding commands of WO-012 (`docs/plans/2026-09-30-wo-012-onboarding.md`)
+  at Kody's word with his values; the seed tooling is loopback-only by
+  design and stays so. The first client on production, in order:
+
+  ```bash
+  node scripts/hosted-supabase.mjs production onboard-entity "<client name>" "<legal entity name>" --confirm nceencyvxfhkffbjqlea
+  ```
+
+  ```bash
+  node scripts/hosted-supabase.mjs production invite <address> <client_user|intake|preparer|reviewer|approver> <entity id> --confirm nceencyvxfhkffbjqlea
+  ```
+
+  ```bash
+  node scripts/hosted-supabase.mjs production list-access <entity id>
+  ```
+
+  The first `onboard-entity` also creates the `production` environment.
+  An invitation sends no email: Honeybee tells the person to open the
+  app and enter their address, and the code arrives then. A staff role
+  goes only to a `myhbcfo.com` address. `revoke-access` ends a role at
+  once, and `list-entities` shows what exists. One exception, decided on 2026-09-30 and ratified
   by Kody the same day (WO-011): the store review tenant, which a reviewer can only reach on
   production. It is one synthetic environment with one review identity,
   seeded through the hosted operator mode at Kody's word ("seed
   production"), isolated from every client by the same row-level security.
+
 - Live data stays HOLD until Kody names it.
 
 ## 6. The review tenant

@@ -45,6 +45,7 @@ import { assertReleaseControlsPath } from './lib/release-controls-path.mjs';
 import { assertReviewPath } from './lib/review-path.mjs';
 import { assertReviewTenantPath } from './lib/review-tenant-path.mjs';
 import { assertSourcePath } from './lib/source-path.mjs';
+import { assertOnboardingPath } from './lib/onboarding-path.mjs';
 import { msUntilIatAdvance, verifyRefreshedSession } from './lib/refresh-verify.mjs';
 import { SCOPE, SYNTHETIC_IDENTITIES } from './lib/synthetic-identities.mjs';
 import { totpCode } from './lib/totp.mjs';
@@ -1083,6 +1084,35 @@ for (const identity of SYNTHETIC_IDENTITIES) {
     await mandatoryRefresh(session, identity, 'aal1', `${identity.email} AAL1`);
   }
 }
+
+// 8. Onboarding (WO-012): the operator tooling brings a new client and
+//    entity in and invites two people, who then act through the public
+//    endpoints alone.
+const onboardingTool = (command, args) => {
+  const result = spawnSync('node', ['scripts/onboarding.mjs'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HIVE_ONBOARD_COMMAND: command,
+      HIVE_ONBOARD_ARGS: JSON.stringify(args),
+    },
+  });
+  return { ok: result.status === 0, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+};
+await assertOnboardingPath({
+  rest,
+  rpc,
+  check,
+  uuidV4,
+  url,
+  serviceKey,
+  gatewayKey,
+  SCOPE,
+  runTool: onboardingTool,
+  signInWithOtp,
+  enrollAndVerifyTotp,
+});
 
 // 9. The review tenant (WO-008, option A): seeded on demand, the
 //     review identity refused without a window, admitted with the

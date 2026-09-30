@@ -973,12 +973,39 @@ export interface Database {
         };
         Returns: Json;
       };
+      grant_membership: {
+        Args: {
+          p_user_id: string;
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_role: string;
+          p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
+      onboard_entity: {
+        Args: {
+          p_environment_name: string;
+          p_environment_kind: string;
+          p_client_name: string;
+          p_entity_name: string;
+          p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
       open_review_window: {
         Args: {
           p_hours: number;
           p_idempotency_key: string;
         };
         Returns: Json;
+      };
+      operator_user_id_by_email: {
+        Args: {
+          p_email: string;
+        };
+        Returns: string;
       };
       record_case_verdict: {
         Args: {
@@ -1063,6 +1090,17 @@ export interface Database {
       };
       review_window_status: {
         Args: Record<string, never>;
+        Returns: Json;
+      };
+      revoke_membership: {
+        Args: {
+          p_user_id: string;
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_role: string;
+          p_idempotency_key: string;
+        };
         Returns: Json;
       };
       save_request_answer_draft: {

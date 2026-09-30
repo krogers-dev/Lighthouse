@@ -15,6 +15,11 @@
  *   node scripts/hosted-supabase.mjs <target> service-status
  *   node scripts/hosted-supabase.mjs <target> pause-service [maintenance|incident]
  *   node scripts/hosted-supabase.mjs <target> resume-service
+ *   node scripts/hosted-supabase.mjs <target> onboard-entity "<client name>" "<entity name>"
+ *   node scripts/hosted-supabase.mjs <target> invite <address> <role> <entity id>
+ *   node scripts/hosted-supabase.mjs <target> revoke-access <address> <role> <entity id>
+ *   node scripts/hosted-supabase.mjs <target> list-entities
+ *   node scripts/hosted-supabase.mjs <target> list-access <entity id>
  *
  * A change on production needs its project ref repeated:
  *   node scripts/hosted-supabase.mjs production seed-review --confirm <project-ref>
@@ -30,8 +35,8 @@
  *
  * Every refusal (unknown target, unknown command, a change on production
  * without the ref, the proof on production, hours out of range, a reason
- * outside the list, a code file inside the repository) happens before
- * the key is asked for.
+ * outside the list, a code file inside the repository, a malformed
+ * address, role, name, or id) happens before the key is asked for.
  */
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -50,12 +55,13 @@ import {
   reviewCodeFileFor,
   selectProjectKeys,
 } from './lib/hosted-targets.mjs';
+import { onboardingRulesFor, parseOnboardingCommand } from './lib/onboarding.mjs';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const isWindows = process.platform === 'win32';
 
 const USAGE =
-  'usage: hosted-supabase.mjs <staging|production> <review-window-status|seed-review|open-review-window [hours]|check-review-sign-in|close-review-window|sweep-review-window|retire-review|prove-review|service-status|pause-service [maintenance|incident]|resume-service> [--confirm <project-ref>]';
+  'usage: hosted-supabase.mjs <staging|production> <review-window-status|seed-review|open-review-window [hours]|check-review-sign-in|close-review-window|sweep-review-window|retire-review|prove-review|service-status|pause-service [maintenance|incident]|resume-service|onboard-entity "<client>" "<entity>"|invite <address> <role> <entity id>|revoke-access <address> <role> <entity id>|list-entities|list-access <entity id>> [--confirm <project-ref>]';
 
 function fail(message, output) {
   if (output) console.error(redactKeys(output));
@@ -80,7 +86,21 @@ export function parseArguments(argv) {
 }
 
 /** The tool and its mode for each command. */
-function childFor(command, hours, codeFile, reason) {
+const ONBOARDING_COMMANDS = new Set([
+  'onboard-entity',
+  'invite',
+  'revoke-access',
+  'list-entities',
+  'list-access',
+]);
+
+function childFor(command, hours, codeFile, reason, rest) {
+  if (ONBOARDING_COMMANDS.has(command)) {
+    return {
+      script: 'onboarding.mjs',
+      env: { HIVE_ONBOARD_COMMAND: command, HIVE_ONBOARD_ARGS: JSON.stringify(rest) },
+    };
+  }
   switch (command) {
     case 'service-status':
       return { script: 'service-state.mjs', env: { HIVE_SERVICE_MODE: 'read' } };
@@ -183,6 +203,16 @@ if (isMain) {
         : `prove-review is not allowed on ${name} by security/hosted-targets.json`,
     );
   }
+  if (ONBOARDING_COMMANDS.has(command)) {
+    // What is wrong with the request itself is said first, in words, and
+    // is refused whatever was confirmed.
+    const parsed = parseOnboardingCommand(
+      command,
+      rest,
+      onboardingRulesFor({ kind: 'hosted', target }),
+    );
+    if (parsed.problems.length > 0) fail(parsed.problems.join('; '));
+  }
   const refusal = confirmationError(name, target, command, confirm);
   if (refusal) fail(refusal);
 
@@ -215,8 +245,9 @@ if (isMain) {
   // The review commands are probed first, so a refused key or a missing
   // migration reads as that and not as a failure deep in a tool. The
   // switch is not: in an incident it must depend on nothing but itself.
-  const isSwitch = command === 'service-status' || command.endsWith('-service');
-  const probe = isSwitch
+  // Onboarding reports its own refusals.
+  const isReview = command.includes('review');
+  const probe = !isReview
     ? { ok: true, status: 200 }
     : await fetch(`${target.origin}/rest/v1/rpc/review_window_status`, {
         method: 'POST',
@@ -235,7 +266,7 @@ if (isMain) {
     );
   }
 
-  const child = childFor(command, hours, codeFile, reason);
+  const child = childFor(command, hours, codeFile, reason, rest);
   const inherited = Object.fromEntries(
     Object.entries(process.env).filter(
       ([variable]) => !variable.startsWith('HIVE_LOCAL_') && !variable.startsWith('HIVE_HOSTED_'),
