@@ -16,6 +16,7 @@ export default function DashboardRoute(): React.JSX.Element {
         <DashboardScreen
           repository={runtime.services.dashboardRepository}
           onOpenCase={(caseId) => router.push(`/cases/${caseId}` as never)}
+          onNewCase={() => router.push('/cases/new' as never)}
         />
       ) : null}
     </AuthorizedScreen>

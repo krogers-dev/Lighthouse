@@ -255,6 +255,17 @@ destination (`docs/release/signing-and-submission.md`). Records:
    `list-entities`, `list-access <entity id>`. The harness runs the
    whole path itself (step 8); on a hosted project the same commands go
    through `hosted-supabase.mjs`.
+9. Intake (WO-013) is in the app: intake opens a case from Home, records
+   the intake, and asks the client for something; intake or the preparer
+   closes a request. The harness runs the whole path as real requests on
+   the entity the seed leaves empty (step 4e), and the device lane runs
+   it on glass as intake.beth:
+   `npm run maestro:enroll -- --as intake.beth@example.invalid --scope "Harbor Light Bakery LLC (Synthetic), Harbor Light Holdings LLC (Synthetic), Intake" --then case-intake.yaml`
+   (the runner signs in the named synthetic staff identity, takes the
+   workspace chooser when that identity holds more than one membership,
+   and resets and revokes that identity's factor around the run; each
+   run adds one case to the workspace, which `db reset` and `seed`
+   return to empty).
 
 ### Milestones 3, 4, and 5 on the desktop
 

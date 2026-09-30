@@ -26,11 +26,13 @@ const caseRecord: CaseRecord = {
 const requests: RequestSummary[] = [
   {
     id: 'dddddddd-0000-4000-8000-0000000000a1',
+    caseId: 'eeeeeeee-0000-4000-8000-0000000000a1',
     title: 'Bank statement for the closing month (Synthetic)',
     status: 'OPEN',
     ownerRole: 'client_user',
     requestedOn: '2026-08-10',
     dueOn: null,
+    version: 1,
   },
 ];
 
@@ -129,6 +131,7 @@ const handlers = {
   onCancel: jest.fn(),
   onDismiss: jest.fn(),
   onTryAgain: jest.fn(),
+  onCloseRequest: jest.fn(),
 };
 
 const base: Omit<CaseReviewViewProps, 'flow'> = {
@@ -161,7 +164,8 @@ describe('CaseReviewView for staff', () => {
     expect(screen.getByTestId('case-review-package-digest')).toHaveTextContent(
       new RegExp('ef'.repeat(32)),
     );
-    expect(screen.getByText('Bank statement for the closing month (Synthetic)')).toBeTruthy();
+    // Named in the package and listed under the case's requests (WO-013).
+    expect(screen.getAllByText('Bank statement for the closing month (Synthetic)').length).toBe(2);
     expect(screen.getByText('Submitted answers (1)')).toBeTruthy();
     expect(screen.getByText('Checked documents (1)')).toBeTruthy();
     expect(screen.getByText(/180 KB, digest cdcdcdcdcdcdcdcd/)).toBeTruthy();
@@ -208,7 +212,12 @@ describe('CaseReviewView for staff', () => {
       view({
         name: 'confirming',
         action: 'record_verdict',
-        draft: { verdict: 'RETURN', note: 'Missing page (Synthetic)', filing: EMPTY_FILING },
+        draft: {
+          verdict: 'RETURN',
+          note: 'Missing page (Synthetic)',
+          filing: EMPTY_FILING,
+          closing: null,
+        },
       }),
     );
     expect(screen.getByTestId('case-review-confirm-verdict')).toHaveTextContent(/Verdict: Return/);
@@ -362,6 +371,7 @@ describe('CaseReviewView for staff', () => {
       draft: {
         verdict: null,
         note: '',
+        closing: null,
         filing: {
           documentId: filedDocument.id,
           driveFileId: 'drv-synthetic-0001',
@@ -459,5 +469,134 @@ describe('CaseReviewView outside staff', () => {
     for (const leak of ['another workspace', 'no permission', 'not authorized', 'exists']) {
       expect(screen.queryByText(new RegExp(leak, 'i'))).toBeNull();
     }
+  });
+});
+
+describe('CaseReviewView for intake (WO-013)', () => {
+  const draftCase = { ...caseRecord, status: 'DRAFT' as const, version: 1 };
+
+  it('offers intake the draft steps on a draft, records first, and confirms what the client sees', async () => {
+    const onRequestAction = jest.fn();
+    await render(
+      view(initialReviewState, {
+        caseRecord: draftCase,
+        package: null,
+        reviews: [],
+        role: 'intake',
+        actions: ['record_intake', 'discard_draft'],
+        verdicts: [],
+        onRequestAction,
+      }),
+    );
+    expect(screen.getByTestId('case-review-no-package')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('case-review-action-record-intake'));
+    expect(onRequestAction).toHaveBeenCalledWith('record_intake');
+    await fireEvent.press(screen.getByTestId('case-review-action-discard-draft'));
+    expect(onRequestAction).toHaveBeenCalledWith('discard_draft');
+    expect(screen.getByText('Record intake')).toBeTruthy();
+    expect(screen.getByText('Discard this draft')).toBeTruthy();
+  });
+
+  it('opens the request screen for "ask the client for something" instead of confirming', async () => {
+    const onAddRequest = jest.fn();
+    const onRequestAction = jest.fn();
+    await render(
+      view(initialReviewState, {
+        caseRecord: { ...caseRecord, status: 'INTAKE_RECORDED' },
+        package: null,
+        reviews: [],
+        role: 'intake',
+        actions: ['add_request'],
+        verdicts: [],
+        onAddRequest,
+        onRequestAction,
+      }),
+    );
+    await fireEvent.press(screen.getByTestId('case-review-action-add-request'));
+    expect(onAddRequest).toHaveBeenCalledTimes(1);
+    expect(onRequestAction).not.toHaveBeenCalled();
+  });
+
+  it("lists the case's own requests and lets intake close an open one, naming it in the confirmation", async () => {
+    const onCloseRequest = jest.fn();
+    const foreign: RequestSummary = {
+      ...requests[0]!,
+      id: 'dddddddd-0000-4000-8000-0000000000b9',
+      caseId: 'eeeeeeee-0000-4000-8000-0000000000b1',
+      title: "Another case's request (Synthetic)",
+    };
+    await render(
+      view(initialReviewState, {
+        role: 'intake',
+        actions: ['add_request'],
+        verdicts: [],
+        requests: [...requests, foreign],
+        onCloseRequest,
+      }),
+    );
+    expect(screen.getByTestId('case-review-requests')).toBeTruthy();
+    expect(screen.queryByText("Another case's request (Synthetic)")).toBeNull();
+    await fireEvent.press(screen.getByTestId(`case-review-close-request-${requests[0]!.id}`));
+    expect(onCloseRequest).toHaveBeenCalledWith(requests[0]!.id, 1);
+    await render(
+      view(
+        {
+          name: 'confirming',
+          action: 'close_request',
+          draft: {
+            ...initialReviewState.draft,
+            closing: { requestId: requests[0]!.id, requestVersion: 1 },
+          },
+        },
+        { role: 'intake', actions: ['add_request'], verdicts: [] },
+      ),
+    );
+    expect(screen.getByTestId('case-review-confirm-close')).toHaveTextContent(
+      'Bank statement for the closing month (Synthetic)',
+    );
+    expect(screen.getByTestId('case-review-confirm-notice')).toHaveTextContent(
+      /Close this request/,
+    );
+  });
+
+  it('offers no close to a reviewer and none while a transition is under way', async () => {
+    await render(view(initialReviewState, { role: 'reviewer', actions: [], verdicts: [] }));
+    expect(screen.queryByTestId(`case-review-close-request-${requests[0]!.id}`)).toBeNull();
+    await render(
+      view(
+        { name: 'running', action: 'record_intake', draft: initialReviewState.draft },
+        { role: 'intake', actions: ['record_intake', 'discard_draft'], verdicts: [] },
+      ),
+    );
+    expect(screen.queryByTestId(`case-review-close-request-${requests[0]!.id}`)).toBeNull();
+    expect(screen.getByTestId('case-review-running')).toHaveTextContent('Recording the intake');
+  });
+
+  it('words the intake refusals: a draft past its draft goes to refresh, an empty title back to editing', async () => {
+    await render(
+      view(
+        {
+          name: 'refused',
+          action: 'record_intake',
+          refusal: 'case_not_draft',
+          draft: initialReviewState.draft,
+        },
+        { role: 'intake', actions: ['record_intake', 'discard_draft'], verdicts: [] },
+      ),
+    );
+    expect(screen.getByTestId('case-review-refused')).toHaveTextContent(/past its draft/);
+    expect(screen.getByTestId('case-review-refresh')).toBeTruthy();
+    await render(
+      view(
+        {
+          name: 'refused',
+          action: 'close_request',
+          refusal: 'request_missing',
+          draft: initialReviewState.draft,
+        },
+        { role: 'intake', actions: ['add_request'], verdicts: [] },
+      ),
+    );
+    expect(screen.getByTestId('case-review-dismiss')).toBeTruthy();
   });
 });

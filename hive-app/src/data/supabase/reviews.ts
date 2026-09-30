@@ -160,6 +160,46 @@ export interface FilingRecord {
   caseVersion: number;
 }
 
+export interface RequestTransitionInput {
+  requestId: string;
+  /** The request's version as the screen read it (request_changed on a stale one). */
+  requestVersion: number;
+  idempotencyKey: string;
+}
+
+export interface RequestReceipt {
+  requestId: string;
+  requestStatus: 'CLOSED';
+  requestVersion: number;
+}
+
+export interface OpenCaseInput {
+  title: string;
+  idempotencyKey: string;
+}
+
+export interface OpenedCase {
+  caseId: string;
+  caseStatus: CaseStatus;
+  caseVersion: number;
+}
+
+export interface OpenRequestInput extends CaseTransitionInput {
+  title: string;
+  detail: string;
+  /** Days from today, or null for no due date. */
+  dueInDays: number | null;
+  /** A checked document of the case the question is about, or null. */
+  subjectDocumentId: string | null;
+}
+
+export interface OpenedRequest {
+  requestId: string;
+  requestVersion: number;
+  caseStatus: CaseStatus;
+  caseVersion: number;
+}
+
 export interface ReviewWriter {
   freeze(scope: ScopeKey, input: CaseTransitionInput): Promise<TransitionReceipt>;
   startReview(scope: ScopeKey, input: CaseTransitionInput): Promise<TransitionReceipt>;
@@ -167,6 +207,17 @@ export interface ReviewWriter {
   resume(scope: ScopeKey, input: CaseTransitionInput): Promise<TransitionReceipt>;
   approve(scope: ScopeKey, input: ApproveInput): Promise<TransitionReceipt>;
   recordFiling(scope: ScopeKey, input: FilingInput): Promise<FilingRecord>;
+  /** Intake (WO-013): the draft is recorded, a draft with nothing in it is
+   * discarded, a request is closed. */
+  recordIntake(scope: ScopeKey, input: CaseTransitionInput): Promise<TransitionReceipt>;
+  discardDraft(scope: ScopeKey, input: CaseTransitionInput): Promise<TransitionReceipt>;
+  closeRequest(scope: ScopeKey, input: RequestTransitionInput): Promise<RequestReceipt>;
+}
+
+/** The creations of intake (WO-013): a case, and a request on it. */
+export interface IntakeWriter {
+  openCase(scope: ScopeKey, input: OpenCaseInput): Promise<OpenedCase>;
+  openRequest(scope: ScopeKey, input: OpenRequestInput): Promise<OpenedRequest>;
 }
 
 /** Every refusal token the server can answer with, verbatim. */
@@ -195,6 +246,19 @@ export const REVIEW_REFUSALS = [
   'invalid_file_id',
   'invalid_path',
   'receipt_exists',
+  // Intake (WO-013).
+  'invalid_title',
+  'too_many_drafts',
+  'case_not_draft',
+  'case_has_children',
+  'case_not_open_for_requests',
+  'invalid_detail',
+  'invalid_due',
+  'document_not_checked',
+  'too_many_requests',
+  'request_not_found',
+  'request_changed',
+  'request_not_closable',
 ] as const;
 
 export type ReviewRefusal = (typeof REVIEW_REFUSALS)[number];
@@ -315,6 +379,56 @@ function decodeReceipt(value: unknown): TransitionReceipt {
   return { caseStatus: status, caseVersion: v['case_version'] };
 }
 
+function decodeRequestReceipt(value: unknown): RequestReceipt {
+  const v = asRecord(value);
+  if (
+    typeof v['request_id'] !== 'string' ||
+    v['request_status'] !== 'CLOSED' ||
+    typeof v['request_version'] !== 'number'
+  ) {
+    throw new SafeError('unknown');
+  }
+  return {
+    requestId: v['request_id'],
+    requestStatus: 'CLOSED',
+    requestVersion: v['request_version'],
+  };
+}
+
+function decodeOpenedCase(value: unknown): OpenedCase {
+  const v = asRecord(value);
+  const status = v['case_status'];
+  if (
+    typeof v['case_id'] !== 'string' ||
+    typeof status !== 'string' ||
+    !isCaseStatus(status) ||
+    typeof v['case_version'] !== 'number'
+  ) {
+    throw new SafeError('unknown');
+  }
+  return { caseId: v['case_id'], caseStatus: status, caseVersion: v['case_version'] };
+}
+
+function decodeOpenedRequest(value: unknown): OpenedRequest {
+  const v = asRecord(value);
+  const status = v['case_status'];
+  if (
+    typeof v['request_id'] !== 'string' ||
+    typeof v['request_version'] !== 'number' ||
+    typeof status !== 'string' ||
+    !isCaseStatus(status) ||
+    typeof v['case_version'] !== 'number'
+  ) {
+    throw new SafeError('unknown');
+  }
+  return {
+    requestId: v['request_id'],
+    requestVersion: v['request_version'],
+    caseStatus: status,
+    caseVersion: v['case_version'],
+  };
+}
+
 function decodeFilingRecord(value: unknown): FilingRecord {
   const v = asRecord(value);
   const status = v['status'];
@@ -337,7 +451,7 @@ function decodeFilingRecord(value: unknown): FilingRecord {
   };
 }
 
-export class ReviewRepository implements ScopedResource, ReviewLoader, ReviewWriter {
+export class ReviewRepository implements ScopedResource, ReviewLoader, ReviewWriter, IntakeWriter {
   private unregister: () => void;
 
   constructor(
@@ -633,5 +747,100 @@ export class ReviewRepository implements ScopedResource, ReviewLoader, ReviewWri
         p_drive_path: input.drivePath,
       }),
     );
+  }
+
+  // ---- Intake (WO-013) ----------------------------------------------------
+
+  async recordIntake(scope: ScopeKey, input: CaseTransitionInput): Promise<TransitionReceipt> {
+    const client = this.getClient();
+    try {
+      const result = await client.rpc('record_case_intake', {
+        p_environment_id: scope.environmentId,
+        p_client_id: scope.clientId,
+        p_entity_id: scope.entityId,
+        p_case_id: input.caseId,
+        p_case_version: input.caseVersion,
+        p_idempotency_key: input.idempotencyKey,
+      });
+      if (result.error) throw result.error;
+      return decodeReceipt(result.data);
+    } catch (error) {
+      throw mapReviewError(error);
+    }
+  }
+
+  async discardDraft(scope: ScopeKey, input: CaseTransitionInput): Promise<TransitionReceipt> {
+    const client = this.getClient();
+    try {
+      const result = await client.rpc('discard_case_draft', {
+        p_environment_id: scope.environmentId,
+        p_client_id: scope.clientId,
+        p_entity_id: scope.entityId,
+        p_case_id: input.caseId,
+        p_case_version: input.caseVersion,
+        p_idempotency_key: input.idempotencyKey,
+      });
+      if (result.error) throw result.error;
+      return decodeReceipt(result.data);
+    } catch (error) {
+      throw mapReviewError(error);
+    }
+  }
+
+  async closeRequest(scope: ScopeKey, input: RequestTransitionInput): Promise<RequestReceipt> {
+    const client = this.getClient();
+    try {
+      const result = await client.rpc('close_request', {
+        p_environment_id: scope.environmentId,
+        p_client_id: scope.clientId,
+        p_entity_id: scope.entityId,
+        p_request_id: input.requestId,
+        p_request_version: input.requestVersion,
+        p_idempotency_key: input.idempotencyKey,
+      });
+      if (result.error) throw result.error;
+      return decodeRequestReceipt(result.data);
+    } catch (error) {
+      throw mapReviewError(error);
+    }
+  }
+
+  async openCase(scope: ScopeKey, input: OpenCaseInput): Promise<OpenedCase> {
+    const client = this.getClient();
+    try {
+      const result = await client.rpc('open_case', {
+        p_environment_id: scope.environmentId,
+        p_client_id: scope.clientId,
+        p_entity_id: scope.entityId,
+        p_title: input.title,
+        p_idempotency_key: input.idempotencyKey,
+      });
+      if (result.error) throw result.error;
+      return decodeOpenedCase(result.data);
+    } catch (error) {
+      throw mapReviewError(error);
+    }
+  }
+
+  async openRequest(scope: ScopeKey, input: OpenRequestInput): Promise<OpenedRequest> {
+    const client = this.getClient();
+    try {
+      const result = await client.rpc('open_request', {
+        p_environment_id: scope.environmentId,
+        p_client_id: scope.clientId,
+        p_entity_id: scope.entityId,
+        p_case_id: input.caseId,
+        p_case_version: input.caseVersion,
+        p_title: input.title,
+        p_detail: input.detail,
+        p_due_in_days: input.dueInDays ?? undefined,
+        p_subject_document_id: input.subjectDocumentId ?? undefined,
+        p_idempotency_key: input.idempotencyKey,
+      });
+      if (result.error) throw result.error;
+      return decodeOpenedRequest(result.data);
+    } catch (error) {
+      throw mapReviewError(error);
+    }
   }
 }

@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import {
   CLEANUP_STEP_TIMEOUT_MS,
   DEFAULT_MAESTRO_TESTS,
+  DEFAULT_QA_EMAIL,
   FLOW_TIMEOUT_DEFAULT_MS,
   PROBE_TIMEOUT_MS,
   RUN_ROOT_PREFIX,
@@ -16,6 +17,7 @@ import {
   isExtraFlowName,
   sequenceWith,
   detectDefaultLocationLeak,
+  flowParams,
   flowTimeoutMs,
   isStaleRunRoot,
   killTreeCommand,
@@ -23,6 +25,9 @@ import {
   maestroArgs,
   maestroCommand,
   outputFlagProblems,
+  parseRunnerArguments,
+  resolveDeviceIdentity,
+  scopeSelector,
   snapshotDefaultLocation,
 } from '../../scripts/maestro-enroll-runner.mjs';
 
@@ -275,4 +280,112 @@ test('--then adds one staff flow after the login and before the revocation, by f
   for (const bad of ['../case-review.yaml', 'case-review.js', 'Case Review.yaml', '', undefined]) {
     assert.equal(isExtraFlowName(bad), false, `${bad} is not a flow name`);
   }
+});
+
+// ---- WO-013: the sequence signs in the staff identity the extra flow needs ----
+
+const INTAKE = 'intake.beth@example.invalid';
+const INTAKE_A2 =
+  'Harbor Light Bakery LLC (Synthetic), Harbor Light Holdings LLC (Synthetic), Intake';
+
+test('--as resolves a canonical synthetic STAFF identity; the default is reviewer.rae', () => {
+  assert.equal(DEFAULT_QA_EMAIL, 'reviewer.rae@example.invalid');
+  const rae = resolveDeviceIdentity(DEFAULT_QA_EMAIL);
+  assert.deepEqual(rae, { email: DEFAULT_QA_EMAIL, chooser: false, scope: null, selector: '' });
+  const beth = resolveDeviceIdentity(' Intake.Beth@example.invalid ', INTAKE_A2);
+  assert.equal(beth.email, INTAKE);
+  assert.equal(beth.chooser, true);
+  assert.equal(beth.scope, INTAKE_A2);
+  assert.equal(
+    beth.selector,
+    'Harbor Light Bakery LLC [(]Synthetic[)], Harbor Light Holdings LLC [(]Synthetic[)], Intake',
+  );
+});
+
+test('NEGATIVE: a client, a stranger, a missing scope, and a needless scope are each refused', () => {
+  assert.match(
+    resolveDeviceIdentity('client.owner@example.invalid', 'x').error,
+    /no staff membership/,
+  );
+  assert.match(
+    resolveDeviceIdentity('nomember.norman@example.invalid').error,
+    /no staff membership/,
+  );
+  assert.match(resolveDeviceIdentity('someone@myhbcfo.com').error, /not one/);
+  assert.match(resolveDeviceIdentity('').error, /not one/);
+  assert.match(resolveDeviceIdentity(undefined).error, /not one/);
+  assert.match(resolveDeviceIdentity(INTAKE).error, /4 memberships.*--scope/);
+  assert.match(resolveDeviceIdentity(INTAKE, '   ').error, /4 memberships.*--scope/);
+  assert.match(resolveDeviceIdentity(DEFAULT_QA_EMAIL, INTAKE_A2).error, /nothing to tap/);
+});
+
+test('the chooser label becomes a Maestro text selector without a backslash in it', () => {
+  // Parentheses would be a regex group (find 13); a character class needs
+  // no escape that a later hop could strip.
+  assert.deepEqual(scopeSelector('Harbor Light Holdings LLC (Synthetic), Intake'), {
+    text: 'Harbor Light Holdings LLC [(]Synthetic[)], Intake',
+  });
+  assert.deepEqual(scopeSelector('Acme Co. LLC, Preparer'), { text: 'Acme Co[.] LLC, Preparer' });
+  assert.ok(!scopeSelector(INTAKE_A2).text.includes(String.fromCharCode(92)));
+  for (const bad of ['', '  ', "O'Brien LLC, Intake", 'A & B, Intake', 'A [x], Intake', 'A\\B']) {
+    assert.ok(scopeSelector(bad).error, `${JSON.stringify(bad)} is refused`);
+  }
+});
+
+test('the flow variables carry the identity and the chooser decision, never a secret', () => {
+  assert.deepEqual(flowParams(resolveDeviceIdentity(DEFAULT_QA_EMAIL)), {
+    QA_EMAIL: DEFAULT_QA_EMAIL,
+    TOTP_USER: DEFAULT_QA_EMAIL,
+    QA_CHOOSE_SCOPE: 'no',
+    QA_SCOPE: '',
+  });
+  const beth = flowParams(resolveDeviceIdentity(INTAKE, INTAKE_A2));
+  assert.equal(beth.QA_CHOOSE_SCOPE, 'yes');
+  assert.equal(beth.QA_SCOPE, scopeSelector(INTAKE_A2).text);
+  assert.ok(!Object.keys(beth).some((key) => /SECRET|TOKEN|PASSWORD|CODE/.test(key)));
+});
+
+test('flow variables travel as -e KEY=value argv pairs before the flow file', () => {
+  const args = maestroArgs('mfa-login.yaml', {
+    debugDir: '/tmp/run/debug',
+    testOutputDir: '/tmp/run/artifacts',
+    params: { QA_EMAIL: INTAKE, QA_SCOPE: 'Harbor Light Holdings LLC [(]Synthetic[)], Intake' },
+  });
+  assert.deepEqual(args.slice(5, 9), [
+    '-e',
+    `QA_EMAIL=${INTAKE}`,
+    '-e',
+    'QA_SCOPE=Harbor Light Holdings LLC [(]Synthetic[)], Intake',
+  ]);
+  assert.equal(args.at(-1), path.join('.maestro', 'mfa-login.yaml'));
+  // Without variables the argv is exactly what it was.
+  assert.equal(maestroArgs('x.yaml', { debugDir: 'd', testOutputDir: 't' }).length, 6);
+  assert.throws(
+    () => maestroArgs('x.yaml', { debugDir: 'd', testOutputDir: 't', params: { 'qa email': 'x' } }),
+    /identifier/,
+  );
+  assert.throws(
+    () =>
+      maestroArgs('x.yaml', { debugDir: 'd', testOutputDir: 't', params: { QA_SCOPE: 'a\nb' } }),
+    /single-line/,
+  );
+});
+
+test('the argument parser accepts --then, --as and --scope together and refuses what makes no sense', () => {
+  assert.deepEqual(parseRunnerArguments([]), {
+    proveConfinement: false,
+    thenFlow: null,
+    as: null,
+    scope: null,
+  });
+  assert.deepEqual(
+    parseRunnerArguments(['--as', INTAKE, '--scope', INTAKE_A2, '--then', 'case-intake.yaml']),
+    { proveConfinement: false, thenFlow: 'case-intake.yaml', as: INTAKE, scope: INTAKE_A2 },
+  );
+  assert.equal(parseRunnerArguments(['--prove-confinement']).proveConfinement, true);
+  assert.match(parseRunnerArguments(['--prove-confinement', '--as', INTAKE]).error, /do not apply/);
+  assert.match(parseRunnerArguments(['--scope', INTAKE_A2]).error, /goes with --as/);
+  assert.match(parseRunnerArguments(['--as']).error, /needs a value/);
+  assert.match(parseRunnerArguments(['--as', '--then', 'x.yaml']).error, /needs a value/);
+  assert.match(parseRunnerArguments(['--shard-all', '2']).error, /unknown argument/);
 });

@@ -24,7 +24,12 @@ describe('reviewReducer', () => {
     ]);
     expect(chosen).toEqual({
       name: 'idle',
-      draft: { verdict: 'RETURN', note: 'Missing page (Synthetic)', filing: EMPTY_FILING },
+      draft: {
+        verdict: 'RETURN',
+        note: 'Missing page (Synthetic)',
+        filing: EMPTY_FILING,
+        closing: null,
+      },
     });
     expect(canAct(chosen)).toBe(true);
     const confirming = reviewReducer(chosen, {
@@ -51,7 +56,7 @@ describe('reviewReducer', () => {
     ]);
     expect(reviewReducer(confirming, { type: 'CANCELED' })).toEqual({
       name: 'idle',
-      draft: { verdict: null, note: 'kept', filing: EMPTY_FILING },
+      draft: { verdict: null, note: 'kept', filing: EMPTY_FILING, closing: null },
     });
   });
 
@@ -88,6 +93,7 @@ describe('reviewReducer', () => {
       draft: {
         verdict: null,
         note: '',
+        closing: null,
         filing: {
           documentId: 'doc-1',
           driveFileId: 'drv-synthetic-0001',

@@ -8,6 +8,7 @@ import { RequestDetailView } from '../RequestDetailView';
 
 const request: RequestDetail = {
   id: 'dddddddd-0000-4000-8000-0000000000a1',
+  caseId: 'eeeeeeee-0000-4000-8000-0000000000a1',
   title: 'Bank statement for the closing month (Synthetic)',
   detail: 'The final month statement is needed to complete the records (Synthetic).',
   status: 'OPEN',

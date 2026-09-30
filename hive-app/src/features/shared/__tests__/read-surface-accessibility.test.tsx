@@ -48,6 +48,7 @@ const CASES: ScopedList<CaseSummary> = {
       attentionSummary: 'One statement is still needed (Synthetic)',
       nextActionSummary: 'Provide the missing statement (Synthetic)',
       nextActionOwnerRole: 'client_user',
+      openClientRequests: 1,
     },
   ],
   recordedThrough: '2026-08-21T00:00:00Z',
@@ -62,6 +63,8 @@ const REQUESTS: ScopedList<RequestSummary> = {
       ownerRole: 'client_user',
       requestedOn: '2026-08-01',
       dueOn: '2026-08-30',
+      caseId: 'eeeeeeee-0000-4000-8000-0000000000a1',
+      version: 1,
     },
   ],
   recordedThrough: '2026-08-01',
@@ -69,6 +72,7 @@ const REQUESTS: ScopedList<RequestSummary> = {
 
 const REQUEST_DETAIL: RequestDetail = {
   id: 'req-a',
+  caseId: 'eeeeeeee-0000-4000-8000-0000000000a1',
   title: 'June bank statement (Synthetic)',
   status: 'OPEN',
   ownerRole: 'client_user',

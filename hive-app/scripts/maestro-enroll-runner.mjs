@@ -63,9 +63,123 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { SYNTHETIC_IDENTITIES } from './lib/synthetic-identities.mjs';
+
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const QA_EMAIL = 'reviewer.rae@example.invalid';
+/** The identity the sequence signs in when `--as` is not given: the
+ * single-membership reviewer, who goes straight to Home after the second
+ * factor. */
+export const DEFAULT_QA_EMAIL = 'reviewer.rae@example.invalid';
+/** Kept under its historical name for the callers that read it. */
+export const QA_EMAIL = DEFAULT_QA_EMAIL;
+
+/** WO-013: the sequence signs in whichever synthetic STAFF identity the
+ * extra flow needs (`--as <email>`). Only a canonical example.invalid
+ * identity with a staff membership qualifies: the flows enroll and verify
+ * a second factor, which a client is never asked for, and reset-totp
+ * refuses anything outside the matrix anyway. An identity with more than
+ * one membership meets the workspace chooser after the second factor,
+ * so it needs `--scope <label>` — the row's full accessibility label,
+ * exactly as the chooser reads it — and an identity with one membership
+ * must not be given one (no chooser will appear to tap). */
+export function resolveDeviceIdentity(email, scopeLabel) {
+  const normalized = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const identity = SYNTHETIC_IDENTITIES.find((entry) => entry.email === normalized);
+  if (!identity) {
+    return {
+      error: `--as names a canonical synthetic identity (example.invalid); "${email ?? ''}" is not one`,
+    };
+  }
+  if (!identity.memberships.some(([, , role]) => role !== 'client_user')) {
+    return {
+      error: `--as ${identity.email} holds no staff membership — the sequence enrolls a second factor, which only staff are asked for`,
+    };
+  }
+  const chooser = identity.memberships.length > 1;
+  if (chooser && (typeof scopeLabel !== 'string' || scopeLabel.trim() === '')) {
+    return {
+      error: `--as ${identity.email} holds ${identity.memberships.length} memberships and meets the workspace chooser — give --scope "<the row's full label>"`,
+    };
+  }
+  if (!chooser && typeof scopeLabel === 'string') {
+    return {
+      error: `--as ${identity.email} holds one membership and goes straight to Home — --scope has nothing to tap`,
+    };
+  }
+  if (chooser) {
+    const selector = scopeSelector(scopeLabel);
+    if (selector.error) return { error: selector.error };
+    return { email: identity.email, chooser, scope: scopeLabel.trim(), selector: selector.text };
+  }
+  return { email: identity.email, chooser, scope: null, selector: '' };
+}
+
+/** The chooser row's label as a Maestro text selector. Maestro matches
+ * text as a REGEX, so the label's parentheses must not read as a group
+ * (find 13) — but a backslash cannot be trusted to survive the trip
+ * through the CLI, the command processor, and the flow's variable table
+ * intact. A character class needs no backslash: "[(]Synthetic[)]" matches
+ * the literal text and nothing else, whatever each hop does to the
+ * string. The label's alphabet is bounded to what the seeded names use
+ * (letters, digits, spaces, commas, periods, parentheses, hyphens); an
+ * apostrophe, an ampersand, or a bracket would need an escape whose
+ * survival is exactly what cannot be assumed, so they are refused. */
+export function scopeSelector(label) {
+  const trimmed = typeof label === 'string' ? label.trim() : '';
+  if (trimmed === '') return { error: '--scope needs the chooser row label' };
+  if (!/^[A-Za-z0-9 ,.()-]+$/.test(trimmed)) {
+    return {
+      error:
+        '--scope may hold letters, digits, spaces, commas, periods, parentheses and hyphens only',
+    };
+  }
+  return { text: trimmed.replace(/[().]/g, (char) => `[${char}]`) };
+}
+
+/** The variables every flow of the sequence receives (`-e KEY=value`):
+ * the identity's address for the sign-in field and the Mailpit helpers,
+ * the helper's account label, and whether the MFA flows take the chooser
+ * branch. No secret is among them. */
+export function flowParams({ email, chooser, selector }) {
+  return {
+    QA_EMAIL: email,
+    TOTP_USER: email,
+    QA_CHOOSE_SCOPE: chooser ? 'yes' : 'no',
+    QA_SCOPE: chooser ? selector : '',
+  };
+}
+
+/** argv after the script name -> the run's options, or the first problem. */
+export function parseRunnerArguments(argv) {
+  const options = { proveConfinement: false, thenFlow: null, as: null, scope: null };
+  const rest = [...argv];
+  while (rest.length > 0) {
+    const arg = rest.shift();
+    if (arg === '--prove-confinement') {
+      options.proveConfinement = true;
+    } else if (arg === '--then' || arg === '--as' || arg === '--scope') {
+      if (rest.length === 0 || rest[0].startsWith('--')) {
+        return { error: `${arg} needs a value` };
+      }
+      const value = rest.shift();
+      if (arg === '--then') options.thenFlow = value;
+      else if (arg === '--as') options.as = value;
+      else options.scope = value;
+    } else {
+      return { error: `unknown argument "${arg}"` };
+    }
+  }
+  if (options.proveConfinement && (options.as !== null || options.scope !== null)) {
+    return {
+      error: '--prove-confinement runs the fixed probe; --as and --scope do not apply to it',
+    };
+  }
+  if (options.scope !== null && options.as === null) {
+    return { error: '--scope goes with --as' };
+  }
+  return options;
+}
 export const DEFAULT_MAESTRO_TESTS = path.join(homedir(), '.maestro', 'tests');
 
 /** The deterministic sequence. Enrollment is followed by sign-out and a
@@ -122,14 +236,27 @@ export function detectDefaultLocationLeak(before, after) {
 /** The exact argv for one flow. Screenshots follow --test-output-dir;
  * --debug-output takes logs only. Both are private, mode-0700 dirs.
  * One flow file per invocation: execution is sequential by construction,
- * and no sharding flag (--shard-all/--shard-split) is ever passed. */
-export function maestroArgs(flowFile, { debugDir, testOutputDir }) {
+ * and no sharding flag (--shard-all/--shard-split) is ever passed. Flow
+ * variables travel as `-e KEY=value` pairs, one argv entry each — never
+ * a secret (WO-013). */
+export function maestroArgs(flowFile, { debugDir, testOutputDir, params = {} }) {
+  const variables = [];
+  for (const [key, value] of Object.entries(params)) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(key)) {
+      throw new Error(`flow variable "${key}" is not an upper-case identifier`);
+    }
+    if (typeof value !== 'string' || /[\r\n]/.test(value)) {
+      throw new Error(`flow variable ${key} must be a single-line string`);
+    }
+    variables.push('-e', `${key}=${value}`);
+  }
   return [
     'test',
     '--debug-output',
     debugDir,
     '--test-output-dir',
     testOutputDir,
+    ...variables,
     path.join('.maestro', flowFile),
   ];
 }
@@ -267,10 +394,15 @@ function privateDir(parent, name) {
 
 const isMain = process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href;
 if (isMain) {
-  const proveConfinement = process.argv.includes('--prove-confinement');
-  const thenIndex = process.argv.indexOf('--then');
-  const thenFlow = thenIndex >= 0 ? process.argv[thenIndex + 1] : null;
-  if (thenIndex >= 0 && !isExtraFlowName(thenFlow)) {
+  const options = parseRunnerArguments(process.argv.slice(2));
+  if (options.error) {
+    console.error(
+      `maestro:enroll ENGINE FAILURE: ${options.error} (usage: maestro:enroll [--then <flow.yaml>] [--as <synthetic staff email> [--scope "<chooser row label>"]] | --prove-confinement)`,
+    );
+    process.exit(2);
+  }
+  const { proveConfinement, thenFlow } = options;
+  if (thenFlow !== null && !isExtraFlowName(thenFlow)) {
     console.error(
       'maestro:enroll ENGINE FAILURE: --then names a flow file in .maestro/ (letters, digits, dashes, .yaml)',
     );
@@ -280,6 +412,13 @@ if (isMain) {
     console.error(`maestro:enroll ENGINE FAILURE: .maestro/${thenFlow} does not exist`);
     process.exit(2);
   }
+  const device = resolveDeviceIdentity(options.as ?? DEFAULT_QA_EMAIL, options.scope);
+  if (device.error) {
+    console.error(`maestro:enroll ENGINE FAILURE: ${device.error}`);
+    process.exit(2);
+  }
+  const qaEmail = device.email;
+  const params = flowParams(device);
   const sequence = sequenceWith(thenFlow);
 
   if (!existsSync(path.join(appRoot, '.maestro'))) {
@@ -470,7 +609,7 @@ if (isMain) {
   const helperPort = Number(process.env.HIVE_TOTP_HELPER_PORT ?? 8477);
   if (await portInUse(helperPort)) {
     console.error(
-      `maestro:enroll HOLD — 127.0.0.1:${helperPort} is already in use, most likely a totp-helper left listening by a previous hung run (find 36). End the stray Node.js process (Task Manager -> Details -> node.exe on Windows; lsof -i :${helperPort} elsewhere), run \`node scripts/local-supabase.mjs reset-totp ${QA_EMAIL}\` to confirm no factor survived, then rerun (exit 3)`,
+      `maestro:enroll HOLD — 127.0.0.1:${helperPort} is already in use, most likely a totp-helper left listening by a previous hung run (find 36). End the stray Node.js process (Task Manager -> Details -> node.exe on Windows; lsof -i :${helperPort} elsewhere), run \`node scripts/local-supabase.mjs reset-totp ${qaEmail}\` to confirm no factor survived, then rerun (exit 3)`,
     );
     process.exit(3);
   }
@@ -513,7 +652,7 @@ if (isMain) {
     // so a wedged stack cannot suspend cleanup (find 36).
     const result = spawnSync(
       process.execPath,
-      [path.join(appRoot, 'scripts', 'local-supabase.mjs'), 'reset-totp', QA_EMAIL],
+      [path.join(appRoot, 'scripts', 'local-supabase.mjs'), 'reset-totp', qaEmail],
       {
         cwd: appRoot,
         stdio: ['ignore', 'inherit', 'inherit'],
@@ -530,7 +669,7 @@ if (isMain) {
     process.exitCode = 1;
     const timedOut = result.error && result.error.code === 'ETIMEDOUT';
     console.error(
-      `maestro:enroll: FACTOR REVOCATION FAILED (${reason})${timedOut ? ` — timed out after ${CLEANUP_STEP_TIMEOUT_MS}ms` : ''} — run \`node scripts/local-supabase.mjs reset-totp ${QA_EMAIL}\` by hand and verify zero factors`,
+      `maestro:enroll: FACTOR REVOCATION FAILED (${reason})${timedOut ? ` — timed out after ${CLEANUP_STEP_TIMEOUT_MS}ms` : ''} — run \`node scripts/local-supabase.mjs reset-totp ${qaEmail}\` by hand and verify zero factors`,
     );
     return false;
   }
@@ -624,9 +763,9 @@ if (isMain) {
    * find-36 watchdog bounding it. */
   async function runFlow(flowFile) {
     const before = snapshotDefaultLocation();
-    const args = maestroArgs(flowFile, { debugDir, testOutputDir });
+    const args = maestroArgs(flowFile, { debugDir, testOutputDir, params });
     console.log(
-      `maestro:enroll: running ${flowFile} (sequential; artifacts confined to ${runRoot}; watchdog ${flowTimeout}ms)`,
+      `maestro:enroll: running ${flowFile} as ${qaEmail}${device.chooser ? ` in "${device.scope}"` : ''} (sequential; artifacts confined to ${runRoot}; watchdog ${flowTimeout}ms)`,
     );
     const result = await runMaestro(args, {
       timeoutMs: flowTimeout,

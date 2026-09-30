@@ -353,6 +353,29 @@ in server-controlled tables).
 - **The tooling prints no whole address**, and revocation ends access in
   sessions already held, because every read re-checks membership.
 
+## Controls added for intake (WO-013)
+
+- **Authoring is a reviewed server transition, never a client write.**
+  `open_case`, `record_case_intake`, `open_request`, `close_request`,
+  and `discard_case_draft` run for the staff of the exact scope at AAL2
+  (intake alone for the case; intake or the preparer for requests), each
+  with an idempotency key, the object version, and the exact scope; a
+  stale version is refused, a repeated key returns the first result and
+  writes nothing; every write leaves a receipt of ids and facts, never a
+  title or a detail.
+- **Nothing is asked on a draft**, a request's subject must be a checked
+  document of the same case, and a draft can be discarded only while it
+  holds nothing; a recorded case cannot be discarded.
+- **Text is cleaned and bounded on both sides** (titles 2–120
+  characters on one line, details up to 2,000 with no control character
+  but line breaks and tabs), with the server the authority; workspaces
+  hold at most 20 drafts and a case at most 50 open requests.
+- **The device lane's identity is chosen by the runner, never typed
+  into a flow**: `--as` admits only a canonical synthetic staff identity,
+  the flows receive it as a variable, and the runner resets and revokes
+  that identity's factor around the run; the chooser row's selector is
+  built without a backslash so no hop can turn it into a regex group.
+
 ## Deliberately not used (per brief)
 
 Root/jailbreak detection, device attestation, certificate pinning,

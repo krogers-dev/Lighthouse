@@ -14,6 +14,7 @@ import {
 
 const request: RequestDetail = {
   id: 'dddddddd-0000-4000-8000-0000000000a3',
+  caseId: 'eeeeeeee-0000-4000-8000-0000000000a1',
   title: 'Confirm the November statement balance (Synthetic)',
   detail: 'Does the closing balance match your records? (Synthetic)',
   status: 'OPEN',

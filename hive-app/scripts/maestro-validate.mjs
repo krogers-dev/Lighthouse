@@ -14,6 +14,8 @@
  *  - every runScript target exists in .maestro/;
  *  - no step is a FORBIDDEN command (hideKeyboard, find 37) — refused with
  *    the reason, not merely unknown;
+ *  - a runFlow block (WO-013) carries inline commands, never a file, and
+ *    its commands are validated as steps at their nested location;
  *  - banned patterns: any TOTP_SECRET channel, a secret in a URL query,
  *    and the nondeterministic constant '000000' as an input.
  * Helper .js files are checked for the URL-secret and TOTP_SECRET bans.
@@ -46,6 +48,14 @@ export const KNOWN_COMMANDS = new Set([
   // element below the fold — Help's content version — could not be asserted
   // at all. assertVisible sees the viewport, not the document.
   'scrollUntilVisible',
+  // Added 2026-09-30 (WO-013): a conditional block. The enrollment runner
+  // now signs in whichever synthetic staff identity a device flow needs,
+  // and an identity with more than one membership meets the workspace
+  // chooser where reviewer.rae goes straight to Home; the MFA flows take
+  // that branch only when the runner says so. Inline commands only — a
+  // `file` reference is refused, so every step of a flow stays in the
+  // file the validator reads.
+  'runFlow',
   // hideKeyboard is deliberately ABSENT: see FORBIDDEN_COMMANDS (find 37).
 ]);
 
@@ -114,6 +124,14 @@ const SCROLL_FIELDS = new Set([
   'visibilityPercentage',
   'centerElement',
 ]);
+
+const RUN_FLOW_FIELDS = new Set(['when', 'commands', 'env', 'label', 'optional']);
+
+/** A `when` condition: at least one test, each of a known shape. The
+ * `true` test is a Maestro expression string (`${VAR == 'yes'}`), which
+ * YAML hands over as the key "true"; `platform` is one of the two names
+ * Maestro knows. */
+const CONDITION_FIELDS = new Set(['visible', 'notVisible', 'true', 'platform', 'label']);
 
 const LAUNCH_FIELDS = new Set([
   'appId',
@@ -197,6 +215,45 @@ function envMapProblems(where, env) {
     if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
       problems.push(`${where}: env variable "${key}" must be a scalar value`);
     }
+  }
+  return problems;
+}
+
+function conditionProblems(where, condition) {
+  if (typeof condition !== 'object' || condition === null || Array.isArray(condition)) {
+    return [`${where}: runFlow when must be a map of conditions`];
+  }
+  const problems = [];
+  const keys = Object.keys(condition);
+  for (const key of keys) {
+    if (!CONDITION_FIELDS.has(key)) problems.push(`${where}: unknown runFlow when field "${key}"`);
+  }
+  if (!keys.some((key) => ['visible', 'notVisible', 'true', 'platform'].includes(key))) {
+    problems.push(
+      `${where}: runFlow when needs at least one of visible, notVisible, true, platform`,
+    );
+  }
+  if (typeof condition.visible !== 'undefined') {
+    problems.push(...selectorProblems(where, condition.visible, 'when visible selector'));
+  }
+  if (typeof condition.notVisible !== 'undefined') {
+    problems.push(...selectorProblems(where, condition.notVisible, 'when notVisible selector'));
+  }
+  if (typeof condition.true !== 'undefined') {
+    if (typeof condition.true !== 'string' || condition.true.trim() === '') {
+      problems.push(
+        `${where}: runFlow when true must be a non-empty expression string (a bare YAML boolean is not a condition)`,
+      );
+    }
+  }
+  if (
+    typeof condition.platform !== 'undefined' &&
+    !['Android', 'iOS'].includes(condition.platform)
+  ) {
+    problems.push(`${where}: runFlow when platform must be Android or iOS`);
+  }
+  if (typeof condition.label !== 'undefined' && typeof condition.label !== 'string') {
+    problems.push(`${where}: runFlow when label must be a string`);
   }
   return problems;
 }
@@ -299,6 +356,36 @@ export function validateStepPayload(command, payload, where, scriptFiles) {
         if (typeof payload[numeric] !== 'undefined' && !Number.isInteger(payload[numeric])) {
           problems.push(`${where}: scrollUntilVisible ${numeric} must be an integer`);
         }
+      }
+      break;
+    }
+    case 'runFlow': {
+      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+        problems.push(`${where}: runFlow payload must be a map with inline commands`);
+        break;
+      }
+      if (typeof payload.file !== 'undefined') {
+        problems.push(
+          `${where}: runFlow file is refused — every step of a flow stays in the file the validator reads; write the steps inline under commands`,
+        );
+      }
+      for (const key of Object.keys(payload)) {
+        if (key !== 'file' && !RUN_FLOW_FIELDS.has(key)) {
+          problems.push(`${where}: unknown runFlow field "${key}"`);
+        }
+      }
+      if (!Array.isArray(payload.commands) || payload.commands.length === 0) {
+        problems.push(`${where}: runFlow needs a non-empty commands list`);
+      }
+      if (typeof payload.when !== 'undefined') {
+        problems.push(...conditionProblems(where, payload.when));
+      }
+      problems.push(...envMapProblems(where, payload.env));
+      if (typeof payload.label !== 'undefined' && typeof payload.label !== 'string') {
+        problems.push(`${where}: runFlow label must be a string`);
+      }
+      if (typeof payload.optional !== 'undefined' && typeof payload.optional !== 'boolean') {
+        problems.push(`${where}: runFlow optional must be a boolean`);
       }
       break;
     }
@@ -437,30 +524,19 @@ function walkSelectors(node, visit) {
   }
 }
 
-/** Validate one flow file's text with a real YAML parse. */
-export function validateFlowText(text, { fileName, knownTestIds, scriptFiles }) {
-  const problems = [];
-  const label = fileName;
-  const documents = YAML.parseAllDocuments(text, { prettyErrors: true });
-  for (const document of documents) {
-    for (const error of document.errors) {
-      problems.push(`${label}: YAML parse error — ${error.message.split('\n')[0]}`);
+/** Validate a list of steps. The same rules apply at every depth: the
+ * commands inside a runFlow block are steps too (WO-013), located as
+ * "<file> step N (runFlow) step M" so a finding names the exact line of
+ * intent. A forbidden or unknown command, a malformed payload, a missing
+ * testID, or the nondeterministic wrong code is refused inside a block
+ * exactly as it is at the top level. */
+function validateSteps(steps, label, context, problems) {
+  const { knownTestIds, scriptFiles } = context;
+  const checkIds = (where) => (key, value) => {
+    if (key === 'id' && typeof value === 'string' && !knownTestIds.has(value)) {
+      problems.push(`${where}: selector id "${value}" matches no testID in app/ or src/`);
     }
-  }
-  if (problems.length > 0) return problems;
-  if (documents.length !== 2) {
-    problems.push(
-      `${label}: expected exactly two YAML documents (header, steps); found ${documents.length}`,
-    );
-    return problems;
-  }
-  const header = documents[0].toJS();
-  const steps = documents[1].toJS();
-  problems.push(...validateHeader(header, label));
-  if (!Array.isArray(steps)) {
-    problems.push(`${label}: the steps document must be a list`);
-    return problems;
-  }
+  };
   for (const [index, step] of steps.entries()) {
     const where = `${label} step ${index + 1}`;
     let command;
@@ -491,12 +567,45 @@ export function validateFlowText(text, { fileName, knownTestIds, scriptFiles }) 
         `${where}: '000000' is a nondeterministic wrong code — derive the wrong code from the real one`,
       );
     }
-    walkSelectors(payload, (key, value) => {
-      if (key === 'id' && typeof value === 'string' && !knownTestIds.has(value)) {
-        problems.push(`${where}: selector id "${value}" matches no testID in app/ or src/`);
+    if (command === 'runFlow' && typeof payload === 'object' && payload !== null) {
+      // The condition's selectors are cross-checked here; the block's
+      // commands are validated as steps of their own, so their ids are
+      // checked exactly once, at the nested location.
+      walkSelectors(payload.when, checkIds(where));
+      if (Array.isArray(payload.commands)) {
+        validateSteps(payload.commands, `${where} (runFlow)`, context, problems);
       }
-    });
+      continue;
+    }
+    walkSelectors(payload, checkIds(where));
   }
+}
+
+/** Validate one flow file's text with a real YAML parse. */
+export function validateFlowText(text, { fileName, knownTestIds, scriptFiles }) {
+  const problems = [];
+  const label = fileName;
+  const documents = YAML.parseAllDocuments(text, { prettyErrors: true });
+  for (const document of documents) {
+    for (const error of document.errors) {
+      problems.push(`${label}: YAML parse error — ${error.message.split('\n')[0]}`);
+    }
+  }
+  if (problems.length > 0) return problems;
+  if (documents.length !== 2) {
+    problems.push(
+      `${label}: expected exactly two YAML documents (header, steps); found ${documents.length}`,
+    );
+    return problems;
+  }
+  const header = documents[0].toJS();
+  const steps = documents[1].toJS();
+  problems.push(...validateHeader(header, label));
+  if (!Array.isArray(steps)) {
+    problems.push(`${label}: the steps document must be a list`);
+    return problems;
+  }
+  validateSteps(steps, label, { knownTestIds, scriptFiles }, problems);
   if (/TOTP_SECRET/.test(text)) {
     problems.push(`${label}: TOTP_SECRET channel is banned — secrets stay in the helper's memory`);
   }

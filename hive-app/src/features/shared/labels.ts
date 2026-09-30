@@ -8,6 +8,7 @@
  * the words below changes the app, and nothing else.
  */
 import type { ServiceReason } from '@/core/service-status';
+import { formatCount } from '@/core/text';
 import type { AccountRefusal } from '@/data/supabase/account';
 import type { AnswerStatus } from '@/data/supabase/answers';
 import type { DocumentStatus } from '@/data/supabase/documents';
@@ -25,6 +26,7 @@ import type {
 } from '@/data/supabase/repositories';
 import type { AnswerFlowRefusal } from '@/features/answers/answer-flow';
 import type { AddDocumentRefusal } from '@/features/documents/add-document-flow';
+import type { CreationRefusal } from '@/features/intake/intake-flow';
 import type { ReviewFlowRefusal } from '@/features/review/review-flow';
 import type { CaseAction } from '@/features/review/review-rules';
 import type { MembershipRole } from '@/tenancy/types';
@@ -74,6 +76,7 @@ export const REQUEST_STATUS_PRESENTATION: Record<
 
 export const ACTIVITY_KIND_LABEL: Record<ActivityEventKind, string> = {
   'case.status_changed': 'Status changed',
+  'case.intake_recorded': 'Received by Honeybee',
   'request.opened': 'Request opened',
   'request.answered': 'Request answered',
   'request.closed': 'Request closed',
@@ -328,6 +331,14 @@ export function caseActionLabel(action: CaseAction, status: CaseStatus): string 
       return 'Resume work';
     case 'record_filing':
       return 'Record filing receipt';
+    case 'record_intake':
+      return 'Record intake';
+    case 'discard_draft':
+      return 'Discard this draft';
+    case 'add_request':
+      return 'Ask the client for something';
+    case 'close_request':
+      return 'Close request';
   }
 }
 
@@ -438,6 +449,59 @@ export const REVIEW_REFUSAL_WORDING: Record<ReviewFlowRefusal, { title: string; 
     title: 'Choose the document first',
     body: 'Pick the checked document you filed, then record the receipt.',
   },
+  // Intake (WO-013).
+  invalid_title: {
+    title: 'The title could not be used',
+    body: 'Give it two to 120 characters on one line, without unusual characters.',
+  },
+  too_many_drafts: {
+    title: 'Too many drafts are open here',
+    body: 'Record or discard some of the drafts in this workspace before opening another.',
+  },
+  case_not_draft: {
+    title: 'This case is past its draft',
+    body: 'Refresh the case to see its current status.',
+  },
+  case_has_children: {
+    title: 'This draft already holds something',
+    body: 'Only an empty draft can be discarded. Refresh the case to see what it holds.',
+  },
+  case_not_open_for_requests: {
+    title: 'This case is not taking requests right now',
+    body: 'Record the intake first, or refresh the case to see its current status.',
+  },
+  invalid_detail: {
+    title: 'The detail could not be used',
+    body: 'Up to 2,000 characters can be recorded. Remove any unusual characters and try again.',
+  },
+  invalid_due: {
+    title: 'That due date is not available',
+    body: 'A due date is between one day and a year from today, or none.',
+  },
+  document_not_checked: {
+    title: 'That document cannot be the subject',
+    body: 'Only a checked document of this case can be. Choose another, or none.',
+  },
+  too_many_requests: {
+    title: 'Too many requests are open on this case',
+    body: 'Close some of the open requests before asking for more.',
+  },
+  request_not_found: {
+    title: 'Request not found here',
+    body: 'This request is not part of the case you are viewing. Refresh the case.',
+  },
+  request_changed: {
+    title: 'This request changed while you were here',
+    body: 'Refresh the case and look again before acting.',
+  },
+  request_not_closable: {
+    title: 'This request is already closed',
+    body: 'Refresh the case to see its requests as they stand.',
+  },
+  request_missing: {
+    title: 'Choose the request first',
+    body: 'Pick the request to close, then confirm.',
+  },
 };
 
 /** What each transition means, said before it is confirmed. */
@@ -466,6 +530,22 @@ export const CASE_ACTION_CONFIRMATION: Record<CaseAction, { title: string; body:
     title: 'Record this filing receipt?',
     body: 'The receipt says you filed exactly this checked document, by its bytes, at this Drive file. HIVE writes nothing to Drive; the record adapter then checks, read-only, that the file holds those bytes.',
   },
+  record_intake: {
+    title: 'Record the intake?',
+    body: 'The client sees the case as received. From here you can ask them for documents and answers.',
+  },
+  discard_draft: {
+    title: 'Discard this draft?',
+    body: "The draft is removed from the workspace and from the client's view. Only an empty draft can be discarded; the record of it stays.",
+  },
+  add_request: {
+    title: 'Ask the client for something',
+    body: 'A request is opened on its own screen.',
+  },
+  close_request: {
+    title: 'Close this request?',
+    body: 'The client can no longer add a document or an answer to it. The case stays where it is.',
+  },
 };
 
 /** What happened, once the server settled it. */
@@ -487,6 +567,22 @@ export const CASE_ACTION_DONE: Record<CaseAction, { title: string; body: string 
   record_filing: {
     title: 'Filing receipt recorded',
     body: 'It shows as recorded until the record adapter verifies the file.',
+  },
+  record_intake: {
+    title: 'Intake recorded',
+    body: 'The client now sees the case as received. Ask them for what is needed.',
+  },
+  discard_draft: {
+    title: 'Draft discarded',
+    body: 'The draft is gone from the workspace.',
+  },
+  add_request: {
+    title: 'Request opened',
+    body: 'The client sees it on their Requests.',
+  },
+  close_request: {
+    title: 'Request closed',
+    body: 'The client sees it as closed. The case stays where it is.',
   },
 };
 
@@ -576,3 +672,83 @@ export const DELETION_WORDING = {
 export function deletionRequestedLine(requestedAt: string): string {
   return `Requested ${formatServerTimestamp(requestedAt)}. Honeybee will complete it and confirm by email.`;
 }
+
+// ---------------------------------------------------------------------------
+// Guidance Home derives for a case nobody authored guidance for (WO-013):
+// one attention item and one owned next action from the status and the
+// requests waiting on the client. Placeholder wording; Stacie's to
+// replace. An authored item, where one exists, always wins.
+// ---------------------------------------------------------------------------
+
+export interface DerivedGuidance {
+  attention: string | null;
+  nextAction: { summary: string; ownerRole: MembershipRole } | null;
+}
+
+export function derivedGuidance(status: CaseStatus, openClientRequests: number): DerivedGuidance {
+  const waiting =
+    openClientRequests === 1
+      ? 'One request is waiting for your response.'
+      : openClientRequests > 1
+        ? `${formatCount(openClientRequests)} requests are waiting for your response.`
+        : null;
+  switch (status) {
+    case 'DRAFT':
+      return {
+        attention: null,
+        nextAction: { summary: 'Honeybee is setting this case up.', ownerRole: 'intake' },
+      };
+    case 'INTAKE_RECORDED':
+      return {
+        attention: null,
+        nextAction: { summary: 'Honeybee is deciding what is needed.', ownerRole: 'intake' },
+      };
+    case 'EVIDENCE_PENDING':
+    case 'RETURNED':
+      return waiting
+        ? {
+            attention: waiting,
+            nextAction: { summary: 'Respond to the open requests.', ownerRole: 'client_user' },
+          }
+        : {
+            attention: null,
+            nextAction: { summary: 'Honeybee is preparing the case.', ownerRole: 'preparer' },
+          };
+    case 'READY_FOR_REVIEW':
+    case 'IN_REVIEW':
+      return {
+        attention: null,
+        nextAction: { summary: 'Honeybee is reviewing the case.', ownerRole: 'reviewer' },
+      };
+    case 'APPROVAL_PENDING':
+      return {
+        attention: null,
+        nextAction: { summary: 'Honeybee is approving the case.', ownerRole: 'approver' },
+      };
+    case 'HOLD':
+      return {
+        attention: 'The case is on hold.',
+        nextAction: { summary: 'Honeybee will lift the hold.', ownerRole: 'approver' },
+      };
+    case 'APPROVED':
+      return { attention: null, nextAction: null };
+  }
+}
+
+/** What a refused creation says (WO-013): the server's tokens as the
+ * transition wording has them, and the three the screen checks first. */
+export const INTAKE_REFUSAL_WORDING: Record<CreationRefusal, { title: string; body: string }> = {
+  ...REVIEW_REFUSAL_WORDING,
+  title_missing: {
+    title: 'Give it a title first',
+    body: 'Two to 120 characters on one line: what the client will read.',
+  },
+  title_too_long: {
+    title: 'The title is too long',
+    body: 'Up to 120 characters can be used. Shorten it and try again.',
+  },
+  detail_too_long: {
+    title: 'The detail is too long',
+    body: 'Up to 2,000 characters can be recorded. Shorten it and try again.',
+  },
+};

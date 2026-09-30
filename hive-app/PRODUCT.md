@@ -70,7 +70,7 @@ binary and called protected.
 | 3. Review and response          | Client answers, source-linked questions, draft retention, explicit submission                               | No accounting decision or approval by Beth or automation              | Requires communication and record contracts _[built 2026-09-28 under Kody's standing instruction; the limits, the citation rule, and the wording are provisional in security/APPROVALS.md; how Honeybee is told of a submission stays HOLD for Stacie; see docs/plans/2026-09-28-wo-004-review-and-response.md]_                                                                                                                                                                                                                                                                                           |
 | 4. Internal review and approval | Frozen package, read-only PASS/RETURN/HOLD, exact expiring approval                                         | Approval is not release, reconciliation, completion, or filing        | Requires conflict-free approvers _[built 2026-09-28 under Kody's standing instruction; the binding, the expiry, the destination, and the conflict rules are provisional in security/APPROVALS.md; see docs/plans/2026-09-28-wo-005-review-and-approval.md]_                                                                                                                                                                                                                                                                                                                                                |
 | 5. Source adapters              | QBO read-only references and verified manual Drive filing receipts                                          | No QBO write and no automatic Drive mutation                          | Requires separate adapter PASS _[built 2026-09-28 under Kody's standing instruction against NAMED synthetic adapters only; the reference shape, the filing rules, and the verification are provisional in security/APPROVALS.md; the live QuickBooks Online and Drive adapters stay HOLD; see docs/plans/2026-09-28-wo-006-source-adapters.md]_                                                                                                                                                                                                                                                            |
-| 7. Intake and onboarding        | The operator brings a client, an entity, and its people in; staff open a case and ask for what is needed    | No self-registration; no case or request created by automation        | Requires Kody's values for production and his check against the Recordkeeping Bible _[onboarding built 2026-09-30 under Kody's standing instruction and "move forward", proven locally and on staging, provisional in security/APPROVALS.md (docs/plans/2026-09-30-wo-012-onboarding.md); intake is WO-013, in progress]_                                                                                                                                                                                                                                                                                  |
+| 7. Intake and onboarding        | The operator brings a client, an entity, and its people in; staff open a case and ask for what is needed    | No self-registration; no case or request created by automation        | Requires Kody's values for production and his check against the Recordkeeping Bible _[both halves built 2026-09-30 under Kody's standing instruction and "move forward": onboarding (docs/plans/2026-09-30-wo-012-onboarding.md) proven locally and on staging; intake (docs/plans/2026-09-30-wo-013-intake.md) proven locally, on the device, and on staging; the migrations on production; provisional in security/APPROVALS.md]_                                                                                                                                                                        |
 | 6. Store release candidate      | Signed builds, disclosures, review tenant, support/deletion flows, store assets, rollback                   | No automatic public release                                           | Requires joint exact-build approval _[prepared 2026-09-28 under Kody's standing instruction within the HOLD boundary: the kill switch, the deletion request, the disclosures and their reconciliation, the backup drill, and the runbooks exist and are proven on the local synthetic stack; signing, accounts, submission, release, and the public pages are HOLD rows in docs/release/signing-and-submission.md; the hosted STAGING project exists since 2026-09-29 with every suite passing on it (docs/release/hosted-project-setup.md); see docs/plans/2026-09-28-wo-007-store-release-candidate.md]_ |
 
 ### Upload lifecycle (implemented in Milestone 2)
@@ -105,7 +105,7 @@ about a document (the request's source link, seeded only for now); how
 Honeybee learns of a submission is a communication contract still to be
 approved.
 
-### Case lifecycle (review and approval implemented in Milestone 4; intake later)
+### Case lifecycle (review and approval implemented in Milestone 4; intake in Milestone 7)
 
 `DRAFT -> INTAKE_RECORDED -> EVIDENCE_PENDING -> READY_FOR_REVIEW -> IN_REVIEW -> APPROVAL_PENDING -> APPROVED`
 
@@ -113,6 +113,13 @@ Correctable review findings go to `RETURNED`, then back to
 `EVIDENCE_PENDING`. Identity, authority, evidence, policy, boundary,
 destination, or security gaps go to `HOLD`. `APPROVED` does not mean
 released, final, closed, reconciled, filed, archived, or locked.
+
+Intake opens a case as a `DRAFT` the client sees as "Being set up", with
+nothing asked of them; recording the intake makes it `INTAKE_RECORDED`
+("Received", the trail's "Received by Honeybee"); the first request
+intake or the preparer opens moves it to `EVIDENCE_PENDING`, and later
+requests, and closing one, leave the case where it is. A draft that
+holds nothing can be discarded (WO-013).
 
 From `EVIDENCE_PENDING` the assigned preparer freezes the case's evidence
 into a review package (every request, every submitted answer, every

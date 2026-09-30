@@ -12,9 +12,13 @@ name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, corr
 # Pre-steps the runner performs for you:
 #   1. Seeded stack up; `node scripts/totp-helper.mjs` running (loopback).
 #   2. Factors reset with the CHECKED loopback command (seeding does NOT
-#      clear factors): reset-totp reviewer.rae@example.invalid, which
-#      verifies a zero-factor readback, making this flow repeatable after
-#      previous successful AND failed runs.
+#      clear factors): reset-totp <the identity>, which verifies a
+#      zero-factor readback, making this flow repeatable after previous
+#      successful AND failed runs.
+#   The identity is reviewer.rae@example.invalid unless the runner is given
+#   --as <synthetic staff email>; it reaches this flow as QA_EMAIL (with
+#   TOTP_USER for the helper and, for an identity that meets the workspace
+#   chooser, QA_CHOOSE_SCOPE and QA_SCOPE). WO-013.
 #   3. The email code is read from Mailpit MID-FLOW by otp-fetch.js
 #      (snapshot semantics: only a message that arrives after
 #      otp-snapshot.js is accepted) — no out-of-band OTP_CODE variable.
@@ -47,7 +51,7 @@ name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, corr
     timeout: 30000
 - tapOn:
     id: 'sign-in-email'
-- inputText: 'reviewer.rae@example.invalid'
+- inputText: ${QA_EMAIL}
 # Snapshot Mailpit BEFORE requesting the code (stale-code replay is
 # rejected), then read the fresh code mid-flow.
 - runScript: otp-snapshot.js
@@ -123,11 +127,26 @@ name: First staff login enrolls TOTP (QR + setup key), wrong code recovers, corr
     centerElement: false
 - tapOn:
     id: 'mfa-submit'
-# reviewer.rae holds a single membership -> straight to Home at AAL2.
 # Evidence retention may begin from here: the secret is no longer visible.
-# TOTP verify is a server round trip (challenge, verify, then the scoped
-# read), so the dashboard is not instantaneous: assert with a bounded
-# wait rather than racing it (find 31).
+# An identity with more than one membership meets the workspace chooser
+# here, where reviewer.rae goes straight to Home (WO-013). The runner
+# signs in whichever synthetic staff identity the extra flow needs and
+# says whether the chooser is due (QA_CHOOSE_SCOPE) and which row to tap
+# (QA_SCOPE, the row's full accessibility label). Conditional rather than
+# optional: optional does not WAIT, and skipped past the chooser before it
+# rendered (find 34).
+- runFlow:
+    when:
+      true: ${QA_CHOOSE_SCOPE == 'yes'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            text: 'Choose a workspace'
+          timeout: 30000
+      - tapOn: ${QA_SCOPE}
+# Home at AAL2. TOTP verify is a server round trip (challenge, verify, then
+# the scoped read), so the dashboard is not instantaneous: assert with a
+# bounded wait rather than racing it (find 31).
 - extendedWaitUntil:
     visible:
       id: 'dashboard-workspace'

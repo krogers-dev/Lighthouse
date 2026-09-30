@@ -28,6 +28,7 @@ function snapshotFor(title: string): ScopedList<CaseSummary> {
         attentionSummary: `${title} attention`,
         nextActionSummary: `${title} next action`,
         nextActionOwnerRole: 'client_user',
+        openClientRequests: 1,
       },
     ],
     recordedThrough: '2026-08-21T00:00:00Z',

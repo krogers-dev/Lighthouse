@@ -13,6 +13,7 @@ const newer: CaseSummary = {
   attentionSummary: 'One statement is still needed (Synthetic)',
   nextActionSummary: 'Provide the missing statement (Synthetic)',
   nextActionOwnerRole: 'client_user',
+  openClientRequests: 1,
 };
 
 const older: CaseSummary = {
@@ -23,6 +24,7 @@ const older: CaseSummary = {
   attentionSummary: null,
   nextActionSummary: null,
   nextActionOwnerRole: null,
+  openClientRequests: 0,
 };
 
 const data: ScopedList<CaseSummary> = {
@@ -118,5 +120,35 @@ describe('DashboardView states', () => {
     for (const forbidden of ['Respond', 'Reply', 'Upload', 'Attach', 'Edit', 'Send', 'Approve']) {
       expect(screen.queryByText(forbidden)).toBeNull();
     }
+  });
+});
+
+describe('DashboardView for intake (WO-013)', () => {
+  it('offers intake the new-case control when given it, and nobody else', async () => {
+    const onNewCase = jest.fn();
+    await render(<DashboardView {...baseProps} state="ready" data={data} onNewCase={onNewCase} />);
+    await fireEvent.press(screen.getByTestId('dashboard-new-case'));
+    expect(onNewCase).toHaveBeenCalledTimes(1);
+    await render(<DashboardView {...baseProps} state="ready" data={data} />);
+    expect(screen.queryByTestId('dashboard-new-case')).toBeNull();
+  });
+
+  it('derives guidance for a case nobody authored guidance for, and keeps an authored item', async () => {
+    const unauthored: CaseSummary = {
+      ...older,
+      id: 'case-open',
+      status: 'EVIDENCE_PENDING',
+      openClientRequests: 2,
+    };
+    await render(
+      <DashboardView
+        {...baseProps}
+        state="ready"
+        data={{ items: [newer, unauthored], recordedThrough: null }}
+      />,
+    );
+    expect(screen.getByText('2 requests are waiting for your response.')).toBeTruthy();
+    expect(screen.getByText('Respond to the open requests.')).toBeTruthy();
+    expect(screen.getByText('One statement is still needed (Synthetic)')).toBeTruthy();
   });
 });

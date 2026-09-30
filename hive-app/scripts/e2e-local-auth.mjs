@@ -41,6 +41,7 @@ import { performAnswerReset } from './lib/answer-reset.mjs';
 import { performCaseReset } from './lib/case-reset.mjs';
 import { verifyFilingReceipts } from './lib/filing-verify.mjs';
 import { syncLedgerReferences } from './lib/ledger-sync.mjs';
+import { assertIntakePath } from './lib/intake-path.mjs';
 import { assertReleaseControlsPath } from './lib/release-controls-path.mjs';
 import { assertReviewPath } from './lib/review-path.mjs';
 import { assertReviewTenantPath } from './lib/review-tenant-path.mjs';
@@ -950,6 +951,31 @@ for (const identity of SYNTHETIC_IDENTITIES) {
               staff: { email: identity.email, token: refreshed.access_token },
             },
           );
+          // 4e. Milestone 7 (WO-013): intake authors a case and its requests
+          //     on the entity the seed leaves empty (A2), so the exact reach
+          //     sets asserted below on A1 and B1 stay exact — and the
+          //     identities asserted there prove the rows stay in A2.
+          const authorToken = await staffAal2Token('intake.beth@example.invalid', 'intake path');
+          if (authorToken) {
+            await assertIntakePath(
+              { rest, rpc, check, uuidV4, url, serviceKey, gatewayKey, SCOPE, DOCUMENTS },
+              {
+                intake: { email: 'intake.beth@example.invalid', token: authorToken },
+                intakeAal1: {
+                  email: 'intake.beth@example.invalid',
+                  token: intakeSession.access_token,
+                },
+                preparer: { email: identity.email, token: refreshed.access_token },
+                client: {
+                  email: 'client.owner@example.invalid',
+                  token: clientSession.access_token,
+                },
+                other: { email: 'client.second@example.invalid', token: otherSession.access_token },
+              },
+            );
+          } else {
+            check(false, 'intake path: intake could not reach AAL2');
+          }
         } else {
           check(false, 'review path: the sessions it needs are not all available');
         }

@@ -15,6 +15,8 @@ import {
   type ReviewWriter,
   type TransitionReceipt,
   type VerdictInput,
+  type RequestReceipt,
+  type RequestTransitionInput,
 } from '@/data/supabase/reviews';
 import type { ScopeKey } from '@/tenancy/scope-key';
 
@@ -27,7 +29,11 @@ const scope = {
   membershipId: 'mmmmmmmm-0000-4000-8000-000000000001',
 } as unknown as ScopeKey;
 
-const caseRecord = { id: 'eeeeeeee-0000-4000-8000-0000000000a1', version: 3 };
+const caseRecord = {
+  id: 'eeeeeeee-0000-4000-8000-0000000000a1',
+  version: 3,
+  status: 'EVIDENCE_PENDING' as const,
+};
 const currentPackage = { id: 'pkg-2', manifestDigest: 'c'.repeat(64) };
 
 function makeRandom(): RandomSource {
@@ -43,7 +49,7 @@ function makeRandom(): RandomSource {
 class FakeWriter implements ReviewWriter {
   calls: {
     name: string;
-    input: CaseTransitionInput | VerdictInput | ApproveInput | FilingInput;
+    input: CaseTransitionInput | VerdictInput | ApproveInput | FilingInput | RequestTransitionInput;
   }[] = [];
   error: unknown = null;
   private async answer(name: string, input: CaseTransitionInput, status: string) {
@@ -65,6 +71,21 @@ class FakeWriter implements ReviewWriter {
   }
   approve(_scope: ScopeKey, input: ApproveInput) {
     return this.answer('approve', input, 'APPROVED');
+  }
+  recordIntake(_scope: ScopeKey, input: CaseTransitionInput) {
+    return this.answer('recordIntake', input, 'INTAKE_RECORDED');
+  }
+  discardDraft(_scope: ScopeKey, input: CaseTransitionInput) {
+    return this.answer('discardDraft', input, 'DRAFT');
+  }
+  async closeRequest(_scope: ScopeKey, input: RequestTransitionInput): Promise<RequestReceipt> {
+    this.calls.push({ name: 'closeRequest', input });
+    if (this.error) throw this.error;
+    return {
+      requestId: input.requestId,
+      requestStatus: 'CLOSED',
+      requestVersion: input.requestVersion + 1,
+    };
   }
   async recordFiling(_scope: ScopeKey, input: FilingInput): Promise<FilingRecord> {
     this.calls.push({ name: 'recordFiling', input });
@@ -174,7 +195,10 @@ describe('useCaseReview', () => {
         input: { caseId: caseRecord.id, caseVersion: 3, idempotencyKey: expect.any(String) },
       },
     ]);
-    expect(onSettled).toHaveBeenCalledWith({ caseStatus: 'READY_FOR_REVIEW', caseVersion: 4 });
+    expect(onSettled).toHaveBeenCalledWith(
+      { caseStatus: 'READY_FOR_REVIEW', caseVersion: 4 },
+      'freeze',
+    );
   });
 
   it('refuses a verdict without a choice before any round trip, then records it with the sanitized note', async () => {
@@ -284,6 +308,9 @@ describe('useCaseReview', () => {
         drivePath: '/Clients/Harbor Light Bakery LLC (Synthetic)',
       },
     });
-    expect(settled).toHaveBeenCalledWith({ caseStatus: 'APPROVED', caseVersion: 3 });
+    expect(settled).toHaveBeenCalledWith(
+      { caseStatus: 'APPROVED', caseVersion: 3 },
+      'record_filing',
+    );
   });
 });

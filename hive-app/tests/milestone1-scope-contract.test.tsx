@@ -48,11 +48,13 @@ const noAnswers: AnswerLoader = { get: async () => null };
 function requestNamed(title: string): RequestSummary {
   return {
     id: `id-${title}`,
+    caseId: 'eeeeeeee-0000-4000-8000-0000000000a1',
     title,
     status: 'OPEN',
     ownerRole: 'client_user',
     requestedOn: '2026-08-10',
     dueOn: null,
+    version: 1,
   };
 }
 
@@ -120,6 +122,7 @@ class ScopedDetailLoader implements RequestsLoader {
       requestedOn: '2026-08-10',
       dueOn: null,
       version: 1,
+      caseId: 'eeeeeeee-0000-4000-8000-0000000000a1',
       subjectDocumentId: null,
     };
   }

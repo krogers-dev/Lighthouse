@@ -18,13 +18,20 @@ import type { ReviewRefusal, ReviewVerdict, TransitionReceipt } from '@/data/sup
 
 import type { CaseAction, FilingDraft, FilingRefusal } from './review-rules';
 
+/** The request a close names: its id and the version the screen read. */
+export interface ClosingTarget {
+  readonly requestId: string;
+  readonly requestVersion: number;
+}
+
 export interface VerdictDraft {
   readonly verdict: ReviewVerdict | null;
   readonly note: string;
   readonly filing: FilingDraft;
+  readonly closing: ClosingTarget | null;
 }
 
-export type LocalRefusal = 'note_too_long' | 'verdict_missing' | FilingRefusal;
+export type LocalRefusal = 'note_too_long' | 'verdict_missing' | 'request_missing' | FilingRefusal;
 
 export type ReviewFlowState =
   | { readonly name: 'idle'; readonly draft: VerdictDraft }
@@ -57,6 +64,7 @@ export type ReviewFlowEvent =
   | { type: 'FILING_DOCUMENT_CHOSEN'; documentId: string }
   | { type: 'FILING_FILE_ID_CHANGED'; driveFileId: string }
   | { type: 'FILING_PATH_CHANGED'; drivePath: string }
+  | { type: 'REQUEST_TARGETED'; target: ClosingTarget }
   | { type: 'ACTION_REQUESTED'; action: CaseAction }
   | { type: 'LOCALLY_REFUSED'; action: CaseAction; refusal: LocalRefusal }
   | { type: 'CANCELED' }
@@ -72,6 +80,7 @@ export const initialReviewState: ReviewFlowState = {
     verdict: null,
     note: '',
     filing: { documentId: null, driveFileId: '', drivePath: '' },
+    closing: null,
   },
 };
 
@@ -92,7 +101,13 @@ export function isStaleRefusal(refusal: ReviewFlowRefusal): boolean {
     refusal === 'package_missing' ||
     refusal === 'review_missing' ||
     refusal === 'document_not_approved' ||
-    refusal === 'receipt_exists'
+    refusal === 'receipt_exists' ||
+    refusal === 'case_not_draft' ||
+    refusal === 'case_has_children' ||
+    refusal === 'case_not_open_for_requests' ||
+    refusal === 'request_not_found' ||
+    refusal === 'request_changed' ||
+    refusal === 'request_not_closable'
   );
 }
 
@@ -126,6 +141,9 @@ export function reviewReducer(state: ReviewFlowState, event: ReviewFlowEvent): R
           ...state.draft,
           filing: { ...state.draft.filing, drivePath: event.drivePath },
         });
+      }
+      if (event.type === 'REQUEST_TARGETED') {
+        return withDraft({ ...state.draft, closing: event.target });
       }
       if (event.type === 'ACTION_REQUESTED') {
         return { name: 'confirming', action: event.action, draft: state.draft };

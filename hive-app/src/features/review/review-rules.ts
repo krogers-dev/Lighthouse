@@ -10,12 +10,28 @@
  */
 import { codePointLength, stripControlCharacters } from '@/core/text';
 import type { DocumentSummary } from '@/data/supabase/documents';
-import type { CaseStatus } from '@/data/supabase/repositories';
+import type { CaseStatus, RequestStatus } from '@/data/supabase/repositories';
 import type { ReviewVerdict } from '@/data/supabase/reviews';
 import type { MembershipRole } from '@/tenancy/types';
 
 export type CaseAction =
-  'freeze' | 'start_review' | 'record_verdict' | 'approve' | 'resume' | 'record_filing';
+  | 'freeze'
+  | 'start_review'
+  | 'record_verdict'
+  | 'approve'
+  | 'resume'
+  | 'record_filing'
+  // Intake (WO-013): the draft recorded or discarded, a request asked for
+  // (a screen of its own, not a transition here), a request closed.
+  | 'record_intake'
+  | 'discard_draft'
+  | 'add_request'
+  | 'close_request';
+
+/** The one action that opens a screen instead of a confirmation. */
+export function isNavigationAction(action: CaseAction): boolean {
+  return action === 'add_request';
+}
 
 export const NOTE_LIMITS = { maxLength: 2000 } as const;
 
@@ -37,10 +53,12 @@ export function actionsFor(
   if (!role || !status) return [];
   switch (role) {
     case 'intake':
+      if (status === 'DRAFT') return ['record_intake', 'discard_draft'];
+      if (status === 'INTAKE_RECORDED' || status === 'EVIDENCE_PENDING') return ['add_request'];
       if (status === 'APPROVED') return ['record_filing'];
       return [];
     case 'preparer':
-      if (status === 'EVIDENCE_PENDING') return ['freeze'];
+      if (status === 'EVIDENCE_PENDING') return ['freeze', 'add_request'];
       if (status === 'RETURNED') return ['resume'];
       if (status === 'APPROVED') return ['record_filing', 'resume'];
       return [];
@@ -55,6 +73,20 @@ export function actionsFor(
     default:
       return [];
   }
+}
+
+export type RequestAction = 'close_request';
+
+/** What a role may do to one request of the case (WO-013): intake or the
+ * preparer closes an open or answered one. */
+export function requestActionsFor(
+  role: MembershipRole | null,
+  status: RequestStatus | null,
+): readonly RequestAction[] {
+  if ((role === 'intake' || role === 'preparer') && (status === 'OPEN' || status === 'ANSWERED')) {
+    return ['close_request'];
+  }
+  return [];
 }
 
 /** The verdicts a role may record: a reviewer any of the three, an

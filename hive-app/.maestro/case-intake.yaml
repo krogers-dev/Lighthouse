@@ -1,0 +1,303 @@
+appId: com.myhbcfo.hive.development
+name: Intake opens a case from Home, records the intake, asks the client for a document, and closes the request
+tags:
+  - milestone7
+# RUN THIS THROUGH THE RUNNER, as the extra step after the staff login,
+# signed in as the intake identity on the empty Harbor Light Holdings
+# workspace (WO-013):
+#   npm run maestro:enroll -- --as intake.beth@example.invalid --scope "Harbor Light Bakery LLC (Synthetic), Harbor Light Holdings LLC (Synthetic), Intake" --then case-intake.yaml
+# Pre-steps: the seeded stack up. Entity A2 (Harbor Light Holdings) is
+# seeded with no case, so what this flow opens is the only work there.
+# The runner has just signed intake.beth@example.invalid in at AAL2
+# (mfa-login.yaml) and chosen that workspace. What this proves on glass:
+# Home offers intake ONE way to open a case; the title is confirmed with
+# what the client will see ("Being set up"); the new case opens on its
+# own screen as a draft with nothing yet asked of the client; recording
+# the intake goes through a confirmation and the case then shows as
+# received; asking the client for a document happens on its own screen
+# with a due date and no subject (a fresh case has no checked document to
+# name); the first request moves the case to waiting on documents; the
+# request shows on the case as needing a response; closing it goes through
+# a confirmation and it then shows as closed with nothing left to close;
+# and Home lists the case in its new state. Every run adds one case to A2;
+# `npx supabase db reset` and `node scripts/local-supabase.mjs seed`
+# return the workspace to empty.
+---
+- launchApp
+# ScopeKey is memory-only by design (docs/data-classification.md), so the
+# resumed session is re-asked which workspace: intake.beth holds four.
+# Bounded wait: a dev build fetches its bundle on a cold start (find 31).
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+# The row's full accessibility label: the client name differs from the
+# entity name here, so the label carries both. Parentheses are escaped
+# because Maestro matches text as a regex (find 13).
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Harbor Light Holdings LLC \(Synthetic\), Intake'
+- extendedWaitUntil:
+    visible:
+      id: 'dashboard-workspace'
+    timeout: 20000
+- assertVisible: 'Harbor Light Holdings LLC \(Synthetic\)'
+# Intake's one way in: the control sits above the list and the empty state.
+- scrollUntilVisible:
+    element:
+      id: 'dashboard-new-case'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'dashboard-new-case'
+- extendedWaitUntil:
+    visible:
+      id: 'new-case-form'
+    timeout: 20000
+- assertVisible: 'For Harbor Light Holdings LLC \(Synthetic\).'
+- tapOn:
+    id: 'new-case-title'
+- inputText: 'Device intake (Synthetic)'
+# Bring the primary control into view rather than dismissing the keyboard
+# (finds 30, 37, 47).
+- scrollUntilVisible:
+    element:
+      id: 'new-case-open'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'new-case-open'
+- extendedWaitUntil:
+    visible:
+      id: 'new-case-confirm-panel'
+    timeout: 10000
+- assertVisible: 'Device intake \(Synthetic\)'
+- assertVisible: 'Shown to the client as "Being set up" until you record the intake.'
+- scrollUntilVisible:
+    element:
+      id: 'new-case-confirm'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'new-case-confirm'
+- extendedWaitUntil:
+    visible:
+      id: 'new-case-done'
+    timeout: 30000
+# A Notice prints its tone before its title (Milestone 6 desktop run).
+- assertVisible: 'Done: Case opened'
+- tapOn:
+    id: 'new-case-go'
+# The case screen: a draft, nothing asked of the client yet, intake's two
+# actions.
+- extendedWaitUntil:
+    visible:
+      id: 'case-review-ready'
+    timeout: 20000
+- assertVisible: 'Device intake \(Synthetic\)'
+- assertVisible: 'Being set up'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-no-requests'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- assertVisible: 'Nothing has been asked of the client on this case yet.'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-action-record-intake'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- assertVisible:
+    id: 'case-review-action-discard-draft'
+- tapOn:
+    id: 'case-review-action-record-intake'
+- extendedWaitUntil:
+    visible:
+      id: 'case-review-confirm-notice'
+    timeout: 10000
+- assertVisible: 'Note: Record the intake?'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-confirm'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'case-review-confirm'
+# The transition settles, the case reloads, and the flow starts fresh on
+# the new version: received, with the one way on being a request.
+- extendedWaitUntil:
+    visible:
+      text: 'Received'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'case-review-action-add-request'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- assertNotVisible:
+    id: 'case-review-action-record-intake'
+- assertNotVisible:
+    id: 'case-review-action-discard-draft'
+- tapOn:
+    id: 'case-review-action-add-request'
+# The request's own screen: title, detail, a due date, and no subject
+# choice, because a fresh case has no checked document.
+- extendedWaitUntil:
+    visible:
+      id: 'new-request-form'
+    timeout: 20000
+- assertVisible: 'Device intake \(Synthetic\)'
+- assertNotVisible:
+    id: 'new-request-subject'
+- tapOn:
+    id: 'new-request-title'
+- inputText: 'July bank statement (Synthetic)'
+- tapOn:
+    id: 'new-request-detail'
+- inputText: 'The statement for July 2026, every page.'
+- scrollUntilVisible:
+    element:
+      id: 'new-request-due-14'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'new-request-due-14'
+- assertVisible: 'In 14 days \(chosen\)'
+- scrollUntilVisible:
+    element:
+      id: 'new-request-open'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'new-request-open'
+- extendedWaitUntil:
+    visible:
+      id: 'new-request-confirm-panel'
+    timeout: 10000
+- assertVisible: 'July bank statement \(Synthetic\)'
+- assertVisible: 'The client sees it on their Requests, and the case moves to waiting on documents.'
+- scrollUntilVisible:
+    element:
+      id: 'new-request-confirm'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'new-request-confirm'
+- extendedWaitUntil:
+    visible:
+      id: 'new-request-done'
+    timeout: 30000
+- assertVisible: 'Done: Request opened'
+- tapOn:
+    id: 'new-request-done-back'
+# Back on the case: waiting on documents, the request needing a response,
+# and the one thing intake can do to it.
+- extendedWaitUntil:
+    visible:
+      id: 'case-review-ready'
+    timeout: 20000
+- extendedWaitUntil:
+    visible:
+      text: 'Waiting on documents'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: 'July bank statement \(Synthetic\)'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- assertVisible: 'Needs a response'
+# The request's row carries its own id, which this run generated; the
+# control's label names it exactly once on this case.
+- scrollUntilVisible:
+    element:
+      text: 'Close request'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn: 'Close request'
+# The confirmation renders in the action section at the foot of the case,
+# below the fold from the request's row: scroll to it, never a
+# viewport-only wait (find 17).
+- scrollUntilVisible:
+    element:
+      id: 'case-review-confirm-close'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- assertVisible: 'July bank statement \(Synthetic\)'
+- assertVisible: 'Note: Close this request?'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-confirm'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'case-review-confirm'
+# The transition settles and the case reloads; the request's row, near the
+# top, now reads closed. Scrolling up covers a viewport left at the foot.
+- scrollUntilVisible:
+    element:
+      text: 'Closed'
+    direction: UP
+    timeout: 30000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- assertNotVisible: 'Close request'
+- assertNotVisible: 'Needs a response'
+# The case stays where it is; Home lists it in that state.
+- assertVisible: 'Waiting on documents'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-back'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'case-review-back'
+- extendedWaitUntil:
+    visible:
+      id: 'dashboard-workspace'
+    timeout: 20000
+- assertVisible: 'Device intake \(Synthetic\)'
+- assertVisible: 'Waiting on documents'

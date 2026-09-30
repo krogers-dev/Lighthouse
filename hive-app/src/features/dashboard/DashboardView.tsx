@@ -16,6 +16,7 @@ import type { CaseSummary, ScopedList } from '@/data/supabase/repositories';
 import {
   CASE_STATUS_PRESENTATION,
   OWNER_LABEL,
+  derivedGuidance,
   formatServerTimestamp,
   recordedThroughLabel,
 } from '@/features/shared/labels';
@@ -36,6 +37,8 @@ export interface DashboardViewProps {
   onSwitchScope?: () => void;
   /** Present for staff only: a row opens the case for review. */
   onOpenCase?: (caseId: string) => void;
+  /** Present for intake only (WO-013): opens a new case in this workspace. */
+  onNewCase?: () => void;
 }
 
 const styles = StyleSheet.create({
@@ -63,6 +66,13 @@ const styles = StyleSheet.create({
 
 function CaseRowBody({ item }: { item: CaseSummary }): React.JSX.Element {
   const presentation = CASE_STATUS_PRESENTATION[item.status];
+  // An authored item wins; a case nobody authored guidance for shows what
+  // its status and its open requests say (WO-013).
+  const derived = derivedGuidance(item.status, item.openClientRequests);
+  const attention = item.attentionSummary ?? derived.attention;
+  const nextAction = item.nextActionSummary
+    ? { summary: item.nextActionSummary, ownerRole: item.nextActionOwnerRole }
+    : derived.nextAction;
   return (
     <>
       <AppText variant="heading">{item.title}</AppText>
@@ -70,23 +80,23 @@ function CaseRowBody({ item }: { item: CaseSummary }): React.JSX.Element {
       <AppText variant="caption" tone="secondary">
         {`Status changed ${formatServerTimestamp(item.statusChangedAt)}`}
       </AppText>
-      {item.attentionSummary ? (
+      {attention ? (
         <View style={styles.block}>
           <AppText variant="labelSmall">Needs attention</AppText>
-          <AppText variant="body">{item.attentionSummary}</AppText>
+          <AppText variant="body">{attention}</AppText>
         </View>
       ) : (
         <AppText variant="caption" tone="secondary">
           Nothing is waiting on you right now.
         </AppText>
       )}
-      {item.nextActionSummary ? (
+      {nextAction ? (
         <View style={styles.block}>
           <AppText variant="labelSmall">Next action</AppText>
-          <AppText variant="body">{item.nextActionSummary}</AppText>
-          {item.nextActionOwnerRole ? (
+          <AppText variant="body">{nextAction.summary}</AppText>
+          {nextAction.ownerRole ? (
             <AppText variant="caption" tone="secondary">
-              {`Owner: ${OWNER_LABEL[item.nextActionOwnerRole]}`}
+              {`Owner: ${OWNER_LABEL[nextAction.ownerRole]}`}
             </AppText>
           ) : null}
         </View>
@@ -144,6 +154,7 @@ export function DashboardView({
   onRetry,
   onSwitchScope,
   onOpenCase,
+  onNewCase,
 }: DashboardViewProps): React.JSX.Element {
   const colors = useThemeColors();
   const recordedThrough = recordedThroughLabel(data?.recordedThrough ?? null);
@@ -166,6 +177,15 @@ export function DashboardView({
         onRetry={onRetry}
         onSwitchScope={onSwitchScope}
       />
+
+      {onNewCase && (state === 'ready' || state === 'empty') ? (
+        <Button
+          label="Open a new case"
+          onPress={onNewCase}
+          accessibilityHint="Opens the screen where a case is set up for this workspace"
+          testID="dashboard-new-case"
+        />
+      ) : null}
 
       {state === 'empty' ? (
         <EmptyState

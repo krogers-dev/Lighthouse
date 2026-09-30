@@ -15,6 +15,7 @@ import { useCallback, useEffect, useReducer, useRef } from 'react';
 
 import { toSafeError } from '@/core/errors';
 import { type RandomSource, cryptoRandomSource, newUuid } from '@/core/ids';
+import type { CaseStatus } from '@/data/supabase/repositories';
 import {
   ReviewRefusedError,
   type ReviewVerdict,
@@ -34,12 +35,13 @@ import {
   type CaseAction,
   checkFiling,
   checkNote,
+  isNavigationAction,
   sanitizeNote,
 } from './review-rules';
 
 export interface CaseReviewDeps {
   scope: ScopeKey;
-  caseRecord: { readonly id: string; readonly version: number };
+  caseRecord: { readonly id: string; readonly version: number; readonly status: CaseStatus };
   /** The current package as the screen showed it; an approval binds to it. */
   package: { readonly id: string; readonly manifestDigest: string } | null;
   writer: ReviewWriter;
@@ -47,8 +49,9 @@ export interface CaseReviewDeps {
    * find 14); the default serves jest and the live bridge. */
   random?: RandomSource;
   onSessionExpired?: () => void;
-  /** A settled transition: the screen reloads the case from the server. */
-  onSettled?: (receipt: TransitionReceipt) => void;
+  /** A settled transition: the screen reloads the case from the server,
+   * or leaves it, when the draft was discarded. */
+  onSettled?: (receipt: TransitionReceipt, action: CaseAction) => void;
 }
 
 export interface CaseReviewController {
@@ -59,6 +62,8 @@ export interface CaseReviewController {
   setFileId: (driveFileId: string) => void;
   setPath: (drivePath: string) => void;
   request: (action: CaseAction) => void;
+  /** Names the request a close will act on, then asks for the close. */
+  requestClose: (requestId: string, requestVersion: number) => void;
   cancel: () => void;
   confirm: () => void;
   retry: () => void;
@@ -114,6 +119,12 @@ export function useCaseReview(deps: CaseReviewDeps): CaseReviewController {
   const request = useCallback(
     (action: CaseAction) => {
       if (state.name !== 'idle') return;
+      // Opening a screen is the screen's to do; nothing to confirm here.
+      if (isNavigationAction(action)) return;
+      if (action === 'close_request' && state.draft.closing === null) {
+        dispatch({ type: 'LOCALLY_REFUSED', action, refusal: 'request_missing' });
+        return;
+      }
       if (action === 'record_verdict') {
         if (state.draft.verdict === null) {
           dispatch({ type: 'LOCALLY_REFUSED', action, refusal: 'verdict_missing' });
@@ -138,6 +149,16 @@ export function useCaseReview(deps: CaseReviewDeps): CaseReviewController {
     [random, state],
   );
 
+  const requestClose = useCallback(
+    (requestId: string, requestVersion: number) => {
+      if (state.name !== 'idle') return;
+      dispatch({ type: 'REQUEST_TARGETED', target: { requestId, requestVersion } });
+      key.current = newUuid(random);
+      dispatch({ type: 'ACTION_REQUESTED', action: 'close_request' });
+    },
+    [random, state.name],
+  );
+
   const cancel = useCallback(() => {
     if (state.name !== 'confirming') return;
     key.current = null;
@@ -160,6 +181,23 @@ export function useCaseReview(deps: CaseReviewDeps): CaseReviewController {
             receipt = await writer.startReview(scope, base);
           } else if (action === 'resume') {
             receipt = await writer.resume(scope, base);
+          } else if (action === 'record_intake') {
+            receipt = await writer.recordIntake(scope, base);
+          } else if (action === 'discard_draft') {
+            receipt = await writer.discardDraft(scope, base);
+          } else if (action === 'close_request') {
+            if (draft.closing === null) throw new ReviewRefusedError('request_not_found');
+            const closed = await writer.closeRequest(scope, {
+              requestId: draft.closing.requestId,
+              requestVersion: draft.closing.requestVersion,
+              idempotencyKey,
+            });
+            // Closing a request leaves the case where it stands.
+            receipt = { caseStatus: caseRecord.status, caseVersion: caseRecord.version };
+            if (closed.requestStatus !== 'CLOSED')
+              throw new ReviewRefusedError('request_not_closable');
+          } else if (action === 'add_request') {
+            throw new ReviewRefusedError('invalid_idempotency_key');
           } else if (action === 'record_verdict') {
             if (draft.verdict === null) throw new ReviewRefusedError('invalid_verdict');
             receipt = await writer.recordVerdict(scope, {
@@ -190,7 +228,7 @@ export function useCaseReview(deps: CaseReviewDeps): CaseReviewController {
           if (stale(started)) return;
           key.current = null;
           dispatch({ type: 'SUCCEEDED', receipt });
-          onSettled?.(receipt);
+          onSettled?.(receipt, action);
         } catch (error) {
           if (stale(started)) return;
           if (error instanceof ReviewRefusedError) {
@@ -207,6 +245,7 @@ export function useCaseReview(deps: CaseReviewDeps): CaseReviewController {
     },
     [
       caseRecord.id,
+      caseRecord.status,
       caseRecord.version,
       currentPackage,
       onSessionExpired,
@@ -241,6 +280,7 @@ export function useCaseReview(deps: CaseReviewDeps): CaseReviewController {
     setFileId,
     setPath,
     request,
+    requestClose,
     cancel,
     confirm,
     retry,

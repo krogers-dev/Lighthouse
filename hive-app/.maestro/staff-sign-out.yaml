@@ -13,12 +13,30 @@ tags:
 # cover both with an optional chooser step, and optional does not WAIT — on
 # a resumed session it skipped past the chooser before it had rendered and
 # then failed on the dashboard (find 34). Two identities, two flows, both
-# deterministic.
+# deterministic. Since WO-013 the runner can sign in another synthetic
+# staff identity (--as), and one with several memberships IS re-asked on
+# resume: that branch is taken on the runner's word (QA_CHOOSE_SCOPE), as
+# a conditional block that waits, never an optional step.
 ---
 - launchApp
-# reviewer.rae holds a single membership, so a resumed session lands
-# directly on Home. Bounded wait: a dev build fetches its bundle on a cold
-# start and that is not instantaneous (find 31).
+# An identity with more than one membership meets the workspace chooser
+# here, where reviewer.rae goes straight to Home (WO-013). The runner
+# signs in whichever synthetic staff identity the extra flow needs and
+# says whether the chooser is due (QA_CHOOSE_SCOPE) and which row to tap
+# (QA_SCOPE, the row's full accessibility label). Conditional rather than
+# optional: optional does not WAIT, and skipped past the chooser before it
+# rendered (find 34).
+- runFlow:
+    when:
+      true: ${QA_CHOOSE_SCOPE == 'yes'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            text: 'Choose a workspace'
+          timeout: 30000
+      - tapOn: ${QA_SCOPE}
+# A resumed session lands on Home. Bounded wait: a dev build fetches its
+# bundle on a cold start and that is not instantaneous (find 31).
 - extendedWaitUntil:
     visible:
       id: 'dashboard-workspace'

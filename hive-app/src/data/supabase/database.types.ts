@@ -936,6 +936,17 @@ export interface Database {
         };
         Returns: Json;
       };
+      close_request: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_request_id: string;
+          p_request_version: number;
+          p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
       close_review_window: {
         Args: {
           p_idempotency_key: string;
@@ -951,6 +962,17 @@ export interface Database {
       complete_document_upload: {
         Args: {
           p_upload_id: string;
+        };
+        Returns: Json;
+      };
+      discard_case_draft: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_case_id: string;
+          p_case_version: number;
+          p_idempotency_key: string;
         };
         Returns: Json;
       };
@@ -994,6 +1016,31 @@ export interface Database {
         };
         Returns: Json;
       };
+      open_case: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_title: string;
+          p_idempotency_key: string;
+        };
+        Returns: Json;
+      };
+      open_request: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_case_id: string;
+          p_case_version: number;
+          p_title: string;
+          p_detail: string;
+          p_due_in_days?: number;
+          p_subject_document_id?: string;
+          p_idempotency_key?: string;
+        };
+        Returns: Json;
+      };
       open_review_window: {
         Args: {
           p_hours: number;
@@ -1006,6 +1053,17 @@ export interface Database {
           p_email: string;
         };
         Returns: string;
+      };
+      record_case_intake: {
+        Args: {
+          p_environment_id: string;
+          p_client_id: string;
+          p_entity_id: string;
+          p_case_id: string;
+          p_case_version: number;
+          p_idempotency_key: string;
+        };
+        Returns: Json;
       };
       record_case_verdict: {
         Args: {

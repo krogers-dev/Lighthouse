@@ -300,7 +300,9 @@ Metro to the local environment afterwards, as the runbook lane expects.
 
 `hive-production`, ref `nceencyvxfhkffbjqlea`, us-east-2, the same
 organization, Free plan until Kody upgrades it (section 8). Sections 1 and
-4 are done: thirteen migrations by `db push --db-url`, the committed types
+4 are done: thirteen migrations by `db push --db-url` on creation, the
+two Milestone 7 migrations (onboarding, intake) the same way on
+2026-09-30 while the project held no rows, the committed types
 matching, no seed of any kind, the release profile of the manifest now
 naming its origin and publishable key (`security/evidence/2026-09-29-hosted-production/`).
 Its dashboard settings were entered by Kody the same day ("production

@@ -1,0 +1,46 @@
+== counts (read-only)
+ users | sessions | environments | clients | entities | memberships | cases | requests | audit_receipts 
+-------+----------+--------------+---------+----------+-------------+-------+----------+----------------
+    11 |        1 |            2 |       4 |        6 |          16 |     5 |        7 |             17
+(1 row)
+
+== the migrations the project holds (last four)
+    version     |          name          
+----------------+------------------------
+ 20260930120016 | intake
+ 20260930120015 | onboarding
+ 20260929120014 | review_tenant_fallback
+ 20260929120013 | review_tenant
+(4 rows)
+
+== the intake functions and who may execute them
+      proname       | authenticated_may | anon_may | security_definer 
+--------------------+-------------------+----------+------------------
+ close_request      | t                 | f        | t
+ discard_case_draft | t                 | f        | t
+ open_case          | t                 | f        | t
+ open_request       | t                 | f        | t
+ record_case_intake | t                 | f        | t
+(5 rows)
+
+== the onboarding functions (server role only)
+          proname          | authenticated_may | service_role_may 
+---------------------------+-------------------+------------------
+ grant_membership          | f                 | t
+ onboard_entity            | f                 | t
+ operator_user_id_by_email | f                 | t
+ revoke_membership         | f                 | t
+(4 rows)
+
+== the intake bounds
+                                         limits                                         
+----------------------------------------------------------------------------------------
+ {"max_due_in_days": 365, "max_drafts_per_scope": 20, "max_open_requests_per_case": 50}
+(1 row)
+
+== the activity kind the trail may carry
+ intake_kind_present 
+---------------------
+                   1
+(1 row)
+

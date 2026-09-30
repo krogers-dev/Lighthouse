@@ -33,6 +33,9 @@ export interface CaseSummary {
   attentionSummary: string | null;
   nextActionSummary: string | null;
   nextActionOwnerRole: MembershipRole | null;
+  /** How many requests on the case wait on the client (WO-013): what Home
+   * derives its guidance from when nothing was authored for the case. */
+  openClientRequests: number;
 }
 
 interface PostgrestishError {
@@ -118,6 +121,17 @@ export class DashboardRepository implements ScopedResource, DashboardLoader {
         client.from('case_next_actions').select('case_id, summary, owner_role'),
       ).order('created_at', { ascending: false });
       if (nextActions.error) throw nextActions.error;
+      // The requests waiting on the client, counted per case (WO-013): the
+      // guidance Home derives for a case nobody authored guidance for.
+      const openRequests = await scoped(
+        client.from('requests').select('case_id, status, owner_role'),
+      ).eq('status', 'OPEN');
+      if (openRequests.error) throw openRequests.error;
+      const openByCase = new Map<string, number>();
+      for (const row of openRequests.data) {
+        if (row.owner_role !== 'client_user') continue;
+        openByCase.set(row.case_id, (openByCase.get(row.case_id) ?? 0) + 1);
+      }
 
       const firstByCase = <T extends { case_id: string }>(rows: readonly T[]): Map<string, T> => {
         const map = new Map<string, T>();
@@ -137,6 +151,7 @@ export class DashboardRepository implements ScopedResource, DashboardLoader {
           attentionSummary: topAttention.get(row.id)?.summary ?? null,
           nextActionSummary: nextAction?.summary ?? null,
           nextActionOwnerRole: (nextAction?.owner_role as MembershipRole | undefined) ?? null,
+          openClientRequests: openByCase.get(row.id) ?? 0,
         };
       });
       return { items, recordedThrough: newest(items.map((item) => item.statusChangedAt)) };
@@ -154,18 +169,22 @@ export type RequestStatus = 'OPEN' | 'ANSWERED' | 'CLOSED' | 'EXPIRED';
 
 export interface RequestSummary {
   id: string;
+  /** The case the request belongs to (WO-013): staff read a case's own
+   * requests on the case screen. */
+  caseId: string;
   title: string;
   status: RequestStatus;
   ownerRole: MembershipRole;
   requestedOn: string;
   dueOn: string | null;
+  /** The request's object version (WO-003, WO-013): a reservation or a
+   * close names the version the screen read, and the server refuses a
+   * stale one. */
+  version: number;
 }
 
 export interface RequestDetail extends RequestSummary {
   detail: string;
-  /** The request's object version (WO-003): a document reservation names
-   * the version the screen read, and the server refuses a stale one. */
-  version: number;
   /** The document this request is about, when it has one (WO-004): an id
    * inside the scope, resolved by a separate scoped read so a foreign id
    * could never render a name. Seeded only in Milestone 3. */
@@ -177,6 +196,7 @@ export interface RequestDetail extends RequestSummary {
  * migration comment for why (threat T3). */
 export type ActivityEventKind =
   | 'case.status_changed'
+  | 'case.intake_recorded'
   | 'request.opened'
   | 'request.answered'
   | 'request.closed'
@@ -263,7 +283,7 @@ export class RequestsRepository implements ScopedResource, RequestsLoader {
     try {
       const result = await client
         .from('requests')
-        .select('id, title, status, owner_role, requested_on, due_on')
+        .select('id, case_id, title, status, owner_role, requested_on, due_on, version')
         .eq('environment_id', scope.environmentId)
         .eq('client_id', scope.clientId)
         .eq('entity_id', scope.entityId)
@@ -271,11 +291,13 @@ export class RequestsRepository implements ScopedResource, RequestsLoader {
       if (result.error) throw result.error;
       const items = result.data.map((row) => ({
         id: row.id,
+        caseId: row.case_id,
         title: row.title,
         status: row.status as RequestStatus,
         ownerRole: row.owner_role as MembershipRole,
         requestedOn: row.requested_on,
         dueOn: row.due_on,
+        version: row.version,
       }));
       return { items, recordedThrough: newest(items.map((item) => item.requestedOn)) };
     } catch (error) {
@@ -293,7 +315,7 @@ export class RequestsRepository implements ScopedResource, RequestsLoader {
       const result = await client
         .from('requests')
         .select(
-          'id, title, detail, status, owner_role, requested_on, due_on, version, subject_document_id',
+          'id, case_id, title, detail, status, owner_role, requested_on, due_on, version, subject_document_id',
         )
         .eq('environment_id', scope.environmentId)
         .eq('client_id', scope.clientId)
@@ -305,6 +327,7 @@ export class RequestsRepository implements ScopedResource, RequestsLoader {
       if (!row) return null;
       return {
         id: row.id,
+        caseId: row.case_id,
         title: row.title,
         detail: row.detail,
         status: row.status as RequestStatus,

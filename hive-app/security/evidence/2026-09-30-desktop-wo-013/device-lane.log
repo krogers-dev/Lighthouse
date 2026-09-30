@@ -1,0 +1,177 @@
+totp-helper listening on http://127.0.0.1:8477 (loopback only; synthetic QA identities only; secrets memory-only)
+reset-totp: intake.beth@example.invalid is factor-clean (0 deleted, readback verified zero)
+maestro:enroll: factor revoked and verified clean (pre-run reset)
+maestro:enroll: running mfa-enroll.yaml as intake.beth@example.invalid in "Harbor Light Bakery LLC (Synthetic), Harbor Light Holdings LLC (Synthetic), Intake" (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-VsdPeT; watchdog 600000ms)
+Running on Pixel_8
+ > Flow First staff login enrolls TOTP (QR + setup key), wrong code recovers, correct code reaches AAL2
+Launch app "com.myhbcfo.hive.development" with clear state... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Tap on id: sign-in-email... COMPLETED
+Input text ${QA_EMAIL}... COMPLETED
+Run otp-snapshot.js... COMPLETED
+Tap on id: sign-in-submit... COMPLETED
+Assert that "Enter your sign-in code" is visible... COMPLETED
+Run otp-fetch.js... COMPLETED
+Tap on id: otp-code... COMPLETED
+Input text ${output.otpCode}... COMPLETED
+Tap on id: otp-submit... COMPLETED
+Assert that "Set up your authenticator" is visible... COMPLETED
+Assert that id: mfa-enroll-qr is visible... COMPLETED
+Assert that id: mfa-enroll-secret is visible... COMPLETED
+Copy text from element with id: mfa-enroll-secret... COMPLETED
+Run totp-capture.js...totp-helper: captured factor for intake.beth@example.invalid (secret held in memory only)
+ COMPLETED
+Copy text from element with "Set up your authenticator"... COMPLETED
+Tap on id: mfa-code... COMPLETED
+Input text ${output.totpWrongCode}... COMPLETED
+Scrolling DOWN until id: mfa-submit is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: mfa-submit... COMPLETED
+Assert that id: mfa-notice is visible... COMPLETED
+Assert that id: mfa-enroll-qr is visible... COMPLETED
+Tap on id: mfa-code... COMPLETED
+Erase text... COMPLETED
+Run totp-code.js... COMPLETED
+Input text ${output.totpCode}... COMPLETED
+Scrolling DOWN until id: mfa-submit is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: mfa-submit... COMPLETED
+Run flow when ${QA_CHOOSE_SCOPE == 'yes'} is true...
+  Assert that "Choose a workspace" is visible... COMPLETED
+  Tap on "${QA_SCOPE}"... COMPLETED
+Run flow when true is true... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+maestro:enroll: mfa-enroll.yaml artifacts discarded unread — the enrollment screen shows the QR and setup key, so nothing from it is retained
+maestro:enroll: running staff-sign-out.yaml as intake.beth@example.invalid in "Harbor Light Bakery LLC (Synthetic), Harbor Light Holdings LLC (Synthetic), Intake" (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-VsdPeT; watchdog 600000ms)
+Running on Pixel_8
+ > Flow Staff sign-out between enrollment and the subsequent login
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Run flow when ${QA_CHOOSE_SCOPE == 'yes'} is true...
+  Assert that "Choose a workspace" is visible... COMPLETED
+  Tap on "${QA_SCOPE}"... COMPLETED
+Run flow when true is true... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Tap on id: nav-account... COMPLETED
+Assert that id: settings-screen is visible... COMPLETED
+Scrolling DOWN until id: settings-sign-out is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: settings-sign-out... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Stop com.myhbcfo.hive.development... COMPLETED
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Assert that id: dashboard-workspace is not visible... COMPLETED
+maestro:enroll: running mfa-login.yaml as intake.beth@example.invalid in "Harbor Light Bakery LLC (Synthetic), Harbor Light Holdings LLC (Synthetic), Intake" (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-VsdPeT; watchdog 600000ms)
+Running on Pixel_8
+ > Flow Subsequent staff login verifies against the existing factor (no second QR)
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Tap on id: sign-in-email... COMPLETED
+Input text ${QA_EMAIL}... COMPLETED
+Run otp-snapshot.js... COMPLETED
+Tap on id: sign-in-submit... COMPLETED
+Assert that "Enter your sign-in code" is visible... COMPLETED
+Run otp-fetch.js... COMPLETED
+Tap on id: otp-code... COMPLETED
+Input text ${output.otpCode}... COMPLETED
+Tap on id: otp-submit... COMPLETED
+Assert that id: mfa-enroll-qr is not visible... COMPLETED
+Assert that id: mfa-code is visible... COMPLETED
+Run totp-code.js... COMPLETED
+Tap on id: mfa-code... COMPLETED
+Input text ${output.totpCode}... COMPLETED
+Scrolling DOWN until id: mfa-submit is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: mfa-submit... COMPLETED
+Run flow when ${QA_CHOOSE_SCOPE == 'yes'} is true...
+  Assert that "Choose a workspace" is visible... COMPLETED
+  Tap on "${QA_SCOPE}"... COMPLETED
+Run flow when true is true... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+maestro:enroll: running case-intake.yaml as intake.beth@example.invalid in "Harbor Light Bakery LLC (Synthetic), Harbor Light Holdings LLC (Synthetic), Intake" (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-VsdPeT; watchdog 600000ms)
+Running on Pixel_8
+ > Flow Intake opens a case from Home, records the intake, asks the client for a document, and closes the request
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that "Choose a workspace" is visible... COMPLETED
+Tap on "Harbor Light Bakery LLC \(Synthetic\), Harbor Light Holdings LLC \(Synthetic\), Intake"... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Assert that "Harbor Light Holdings LLC \(Synthetic\)" is visible... COMPLETED
+Scrolling DOWN until id: dashboard-new-case is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: dashboard-new-case... COMPLETED
+Assert that id: new-case-form is visible... COMPLETED
+Assert that "For Harbor Light Holdings LLC \(Synthetic\)." is visible... COMPLETED
+Tap on id: new-case-title... COMPLETED
+Input text Device intake (Synthetic)... COMPLETED
+Scrolling DOWN until id: new-case-open is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: new-case-open... COMPLETED
+Assert that id: new-case-confirm-panel is visible... COMPLETED
+Assert that "Device intake \(Synthetic\)" is visible... COMPLETED
+Assert that "Shown to the client as "Being set up" until you record the intake." is visible... COMPLETED
+Scrolling DOWN until id: new-case-confirm is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: new-case-confirm... COMPLETED
+Assert that id: new-case-done is visible... COMPLETED
+Assert that "Done: Case opened" is visible... COMPLETED
+Tap on id: new-case-go... COMPLETED
+Assert that id: case-review-ready is visible... COMPLETED
+Assert that "Device intake \(Synthetic\)" is visible... COMPLETED
+Assert that "Being set up" is visible... COMPLETED
+Scrolling DOWN until id: case-review-no-requests is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Assert that "Nothing has been asked of the client on this case yet." is visible... COMPLETED
+Scrolling DOWN until id: case-review-action-record-intake is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Assert that id: case-review-action-discard-draft is visible... COMPLETED
+Tap on id: case-review-action-record-intake... COMPLETED
+Assert that id: case-review-confirm-notice is visible... COMPLETED
+Assert that "Note: Record the intake?" is visible... COMPLETED
+Scrolling DOWN until id: case-review-confirm is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: case-review-confirm... COMPLETED
+Assert that "Received" is visible... COMPLETED
+Scrolling DOWN until id: case-review-action-add-request is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Assert that id: case-review-action-record-intake is not visible... COMPLETED
+Assert that id: case-review-action-discard-draft is not visible... COMPLETED
+Tap on id: case-review-action-add-request... COMPLETED
+Assert that id: new-request-form is visible... COMPLETED
+Assert that "Device intake \(Synthetic\)" is visible... COMPLETED
+Assert that id: new-request-subject is not visible... COMPLETED
+Tap on id: new-request-title... COMPLETED
+Input text July bank statement (Synthetic)... COMPLETED
+Tap on id: new-request-detail... COMPLETED
+Input text The statement for July 2026, every page.... COMPLETED
+Scrolling DOWN until id: new-request-due-14 is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: new-request-due-14... COMPLETED
+Assert that "In 14 days \(chosen\)" is visible... COMPLETED
+Scrolling DOWN until id: new-request-open is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: new-request-open... COMPLETED
+Assert that id: new-request-confirm-panel is visible... COMPLETED
+Assert that "July bank statement \(Synthetic\)" is visible... COMPLETED
+Assert that "The client sees it on their Requests, and the case moves to waiting on documents." is visible... COMPLETED
+Scrolling DOWN until id: new-request-confirm is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: new-request-confirm... COMPLETED
+Assert that id: new-request-done is visible... COMPLETED
+Assert that "Done: Request opened" is visible... COMPLETED
+Tap on id: new-request-done-back... COMPLETED
+Assert that id: case-review-ready is visible... COMPLETED
+Assert that "Waiting on documents" is visible... COMPLETED
+Scrolling DOWN until "July bank statement \(Synthetic\)" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Assert that "Needs a response" is visible... COMPLETED
+Scrolling DOWN until "Close request" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on "Close request"... COMPLETED
+Scrolling DOWN until id: case-review-confirm-close is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Assert that "July bank statement \(Synthetic\)" is visible... COMPLETED
+Assert that "Note: Close this request?" is visible... COMPLETED
+Scrolling DOWN until id: case-review-confirm is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: case-review-confirm... COMPLETED
+Scrolling UP until "Closed" is visible with speed 40, visibility percentage 100%, timeout 30000 ms, with centering disabled... COMPLETED
+Assert that "Close request" is not visible... COMPLETED
+Assert that "Needs a response" is not visible... COMPLETED
+Assert that "Waiting on documents" is visible... COMPLETED
+Scrolling DOWN until id: case-review-back is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: case-review-back... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Assert that "Device intake \(Synthetic\)" is visible... COMPLETED
+Assert that "Waiting on documents" is visible... COMPLETED
+reset-totp: intake.beth@example.invalid is factor-clean (1 deleted, readback verified zero)
+maestro:enroll: factor revoked and verified clean (post-run revocation)
+maestro:enroll: totp-helper terminated (in-memory secret discarded)
+Running on Pixel_8
+ > Flow Overwrite the device clipboard with harmless text
+Launch app "com.myhbcfo.hive.development" with clear state... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Copy text from element with "HIVE"... COMPLETED
+maestro:enroll: device clipboard overwritten (success)
+maestro:enroll: artifact tree scrubbed (C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-VsdPeT removed and verified gone)
+maestro:enroll OK — reset -> enroll -> sign-out -> login on the SAME factor -> revoke completed sequentially; helper terminated, clipboard scrubbed, artifacts confined and removed

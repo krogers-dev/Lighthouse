@@ -19,6 +19,9 @@ export interface DashboardScreenProps {
   /** Staff open a case for review (WO-005); offered only when the
    * server-confirmed role is a staff role, absent for clients. */
   onOpenCase?: (caseId: string) => void;
+  /** Intake opens a new case (WO-013); offered only when the
+   * server-confirmed role is intake. */
+  onNewCase?: () => void;
 }
 
 const isEmpty = (list: ScopedList<CaseSummary>): boolean => list.items.length === 0;
@@ -26,6 +29,7 @@ const isEmpty = (list: ScopedList<CaseSummary>): boolean => list.items.length ==
 export function DashboardScreen({
   repository,
   onOpenCase,
+  onNewCase,
 }: DashboardScreenProps): React.JSX.Element | null {
   const load = useCallback((scope: ScopeKey) => repository.load(scope), [repository]);
   const { scope, state, data, error, workspaceName, role, retry, switchScope } = useScopedLoad(
@@ -44,6 +48,7 @@ export function DashboardScreen({
       onRetry={retry}
       onSwitchScope={switchScope}
       onOpenCase={onOpenCase && role && isStaffRole(role) ? onOpenCase : undefined}
+      onNewCase={onNewCase && role === 'intake' ? onNewCase : undefined}
     />
   );
 }

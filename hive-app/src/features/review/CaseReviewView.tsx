@@ -73,7 +73,9 @@ import {
   FILING_LIMITS,
   NOTE_LIMITS,
   filableDocuments,
+  isNavigationAction,
   noteLength,
+  requestActionsFor,
 } from './review-rules';
 
 export interface CaseReviewViewProps {
@@ -106,6 +108,10 @@ export interface CaseReviewViewProps {
   onChangeFileId: (driveFileId: string) => void;
   onChangePath: (drivePath: string) => void;
   onRequestAction: (action: CaseAction) => void;
+  /** Intake (WO-013): names the request to close and asks to confirm. */
+  onCloseRequest: (requestId: string, requestVersion: number) => void;
+  /** Intake (WO-013): opens the screen that asks the client for something. */
+  onAddRequest?: () => void;
   onConfirm: () => void;
   onCancel: () => void;
   onDismiss: () => void;
@@ -121,6 +127,10 @@ const CASE_ACTION_TEST_IDS = {
   approve: 'case-review-action-approve',
   resume: 'case-review-action-resume',
   record_filing: 'case-review-action-record-filing',
+  record_intake: 'case-review-action-record-intake',
+  discard_draft: 'case-review-action-discard-draft',
+  add_request: 'case-review-action-add-request',
+  close_request: 'case-review-action-close-request',
 } as const;
 
 const VERDICT_TEST_IDS = {
@@ -136,6 +146,10 @@ const RUNNING_LABEL: Record<CaseAction, string> = {
   approve: 'Recording the approval',
   resume: 'Resuming the case',
   record_filing: 'Recording the filing receipt',
+  record_intake: 'Recording the intake',
+  discard_draft: 'Discarding the draft',
+  add_request: 'Opening the request',
+  close_request: 'Closing the request',
 };
 
 const styles = StyleSheet.create({
@@ -160,6 +174,68 @@ const styles = StyleSheet.create({
   verdicts: { gap: spacing.sm },
   filing: { gap: spacing.sm },
 });
+
+/** The case's own requests, for intake and the preparer: what has been
+ * asked of the client, and the close of one that is open or answered
+ * (WO-013). Read-only for everyone else. */
+function RequestsSection({
+  requests,
+  role,
+  offersClose,
+  onCloseRequest,
+}: {
+  requests: readonly RequestSummary[];
+  role: MembershipRole | null;
+  offersClose: boolean;
+  onCloseRequest: (requestId: string, requestVersion: number) => void;
+}): React.JSX.Element {
+  const colors = useThemeColors();
+  return (
+    <View
+      style={[styles.section, { borderTopColor: colors.divider }]}
+      testID="case-review-requests"
+    >
+      <AppText variant="subheading" accessibilityRole="header">
+        Requests to the client
+      </AppText>
+      {requests.length === 0 ? (
+        <AppText variant="body" tone="secondary" testID="case-review-no-requests">
+          Nothing has been asked of the client on this case yet.
+        </AppText>
+      ) : (
+        requests.map((request) => {
+          const presentation = REQUEST_STATUS_PRESENTATION[request.status];
+          const closable =
+            offersClose && requestActionsFor(role, request.status).includes('close_request');
+          return (
+            <View
+              key={request.id}
+              style={[styles.row, { borderTopColor: colors.divider }]}
+              testID={`case-review-request-${request.id}`}
+            >
+              <AppText variant="bodyStrong">{request.title}</AppText>
+              <StatusBadge kind={presentation.kind} label={presentation.label} />
+              <AppText variant="caption" tone="secondary">
+                {request.dueOn
+                  ? `Requested ${request.requestedOn} · due ${request.dueOn}`
+                  : `Requested ${request.requestedOn} · no due date`}
+              </AppText>
+              {closable ? (
+                <Button
+                  kind="secondary"
+                  label="Close request"
+                  onPress={() => onCloseRequest(request.id, request.version)}
+                  accessibilityHint="Asks you to confirm before the request is closed"
+                  testID={`case-review-close-request-${request.id}`}
+                />
+              ) : null}
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
 
 function shortDigest(digest: string): string {
   return digest.length > 16 ? `${digest.slice(0, 16)}…` : digest;
@@ -469,6 +545,8 @@ export function CaseReviewView({
   onChangeFileId,
   onChangePath,
   onRequestAction,
+  onCloseRequest,
+  onAddRequest,
   onConfirm,
   onCancel,
   onDismiss,
@@ -483,6 +561,14 @@ export function CaseReviewView({
   const showsFilingForm = actions.includes('record_filing') && canAct(flow);
   const filable = showsFilingForm ? filableDocuments(documents) : [];
   const filing = flow.draft.filing;
+  const caseRequests = caseRecord
+    ? requests.filter((request) => request.caseId === caseRecord.id)
+    : [];
+  const closingTitle =
+    flow.draft.closing === null
+      ? null
+      : (caseRequests.find((request) => request.id === flow.draft.closing?.requestId)?.title ??
+        'Request');
   return (
     <View style={styles.container} testID="case-review">
       <AppText variant="title" accessibilityRole="header">
@@ -529,6 +615,12 @@ export function CaseReviewView({
             </AppText>
           </View>
 
+          <RequestsSection
+            requests={caseRequests}
+            role={role}
+            offersClose={canAct(flow)}
+            onCloseRequest={onCloseRequest}
+          />
           <PackageSection current={current} requests={requests} />
           <ReviewsSection reviews={reviews} />
           <ApprovalsSection approvals={approvals} />
@@ -656,6 +748,16 @@ export function CaseReviewView({
                     </AppText>
                   </View>
                 ) : null}
+                {flow.action === 'close_request' && closingTitle ? (
+                  <View
+                    style={[styles.panel, { backgroundColor: colors.panelInfoBackground }]}
+                    testID="case-review-confirm-close"
+                  >
+                    <AppText variant="bodyStrong" style={{ color: colors.panelInfoText }}>
+                      {closingTitle}
+                    </AppText>
+                  </View>
+                ) : null}
                 {flow.action === 'record_filing' && flow.draft.filing.documentId ? (
                   <View
                     style={[styles.panel, { backgroundColor: colors.panelInfoBackground }]}
@@ -717,16 +819,29 @@ export function CaseReviewView({
 
             <View style={styles.actions}>
               {canAct(flow)
-                ? actions.map((action) => (
-                    <Button
-                      key={action}
-                      kind={action === primary ? 'primary' : 'secondary'}
-                      label={caseActionLabel(action, caseRecord.status)}
-                      onPress={() => onRequestAction(action)}
-                      accessibilityHint="Asks you to confirm before anything is recorded"
-                      testID={CASE_ACTION_TEST_IDS[action]}
-                    />
-                  ))
+                ? actions.map((action) =>
+                    isNavigationAction(action) ? (
+                      onAddRequest ? (
+                        <Button
+                          key={action}
+                          kind={action === primary ? 'primary' : 'secondary'}
+                          label={caseActionLabel(action, caseRecord.status)}
+                          onPress={onAddRequest}
+                          accessibilityHint="Opens the screen where you ask the client for a document or an answer"
+                          testID={CASE_ACTION_TEST_IDS[action]}
+                        />
+                      ) : null
+                    ) : (
+                      <Button
+                        key={action}
+                        kind={action === primary ? 'primary' : 'secondary'}
+                        label={caseActionLabel(action, caseRecord.status)}
+                        onPress={() => onRequestAction(action)}
+                        accessibilityHint="Asks you to confirm before anything is recorded"
+                        testID={CASE_ACTION_TEST_IDS[action]}
+                      />
+                    ),
+                  )
                 : null}
               {flow.name === 'confirming' ? (
                 <>

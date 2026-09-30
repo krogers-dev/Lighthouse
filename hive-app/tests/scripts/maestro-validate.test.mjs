@@ -164,8 +164,12 @@ test('EVERY real flow in .maestro/ validates cleanly', () => {
   // the review code on the ordinary code screen and lands in the review
   // workspace alone.
   //
+  // Plus the Milestone 7 intake flow (WO-013): intake opens a case from
+  // Home, records the intake, asks the client for a document, and closes
+  // the request.
+  //
   // Exact, not a floor: an accidental extra flow should be noticed.
-  assert.equal(flowCount, 25);
+  assert.equal(flowCount, 26);
   assert.ok(scriptCount >= 4);
 });
 
@@ -466,6 +470,151 @@ test('finds 37 and 47: the MFA flows bring the verify control into view before e
       );
       assert.equal(before.scrollUntilVisible?.element?.id, 'mfa-submit');
       assert.equal(before.scrollUntilVisible?.direction, 'DOWN');
+    }
+  }
+});
+
+// ---- WO-013: runFlow blocks (inline commands under a condition) ----
+
+const RUN_FLOW_HEADER = `appId: com.myhbcfo.hive.development
+name: fixture
+---
+`;
+
+test('a runFlow block with inline commands under an expression condition validates', () => {
+  const flow = `${RUN_FLOW_HEADER}- launchApp
+- runFlow:
+    when:
+      true: \${QA_CHOOSE_SCOPE == 'yes'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            text: 'Choose a workspace'
+          timeout: 30000
+      - tapOn: \${QA_SCOPE}
+- runFlow:
+    when:
+      visible:
+        id: 'mfa-code'
+      platform: Android
+    label: 'second factor'
+    optional: true
+    commands:
+      - tapOn:
+          id: 'mfa-code'
+`;
+  assert.deepEqual(validateFlowText(flow, context), []);
+  assert.ok(KNOWN_COMMANDS.has('runFlow'));
+});
+
+test('NEGATIVE: a runFlow that references a FILE is refused, with the reason', () => {
+  const flow = `${RUN_FLOW_HEADER}- runFlow:
+    when:
+      visible: 'Choose a workspace'
+    file: choose-scope.yaml
+`;
+  const problems = validateFlowText(flow, context);
+  assert.equal(problems.length, 2, problems.join('\n'));
+  assert.ok(problems[0].includes('runFlow file is refused'));
+  assert.ok(problems[1].includes('non-empty commands list'));
+});
+
+test('NEGATIVE: the commands inside a runFlow block are validated as steps, at their nested location', () => {
+  const flow = `${RUN_FLOW_HEADER}- launchApp
+- runFlow:
+    when:
+      true: \${QA_CHOOSE_SCOPE == 'yes'}
+    commands:
+      - tapOn:
+          id: 'no-such-id'
+      - hideKeyboard
+      - frobnicate
+      - inputText: '000000'
+      - tapOn: 'Harbor Light (Synthetic)'
+`;
+  const problems = validateFlowText(flow, context);
+  const where = 'fixture.yaml step 2 (runFlow) step ';
+  assert.ok(
+    problems.some((p) => p.startsWith(`${where}1:`) && p.includes('no-such-id')),
+    problems.join('\n'),
+  );
+  assert.ok(
+    problems.some((p) => p.startsWith(`${where}2:`) && p.includes('hideKeyboard is forbidden')),
+  );
+  assert.ok(
+    problems.some((p) => p.startsWith(`${where}3:`) && p.includes('unknown Maestro command')),
+  );
+  assert.ok(problems.some((p) => p.startsWith(`${where}4:`) && p.includes('nondeterministic')));
+  assert.ok(problems.some((p) => p.startsWith(`${where}5:`) && p.includes('unescaped')));
+  // Exactly those five: the nested ids are checked once, not once per depth.
+  assert.equal(problems.length, 5, problems.join('\n'));
+});
+
+test('NEGATIVE: runFlow conditions and fields are shape-checked', () => {
+  const cases = [
+    [`- runFlow: []\n`, 'must be a map'],
+    [`- runFlow:\n    commands:\n      - launchApp\n    when: 'yes'\n`, 'when must be a map'],
+    [
+      `- runFlow:\n    commands:\n      - launchApp\n    when:\n      label: 'x'\n`,
+      'at least one of',
+    ],
+    [
+      `- runFlow:\n    commands:\n      - launchApp\n    when:\n      true: true\n`,
+      'non-empty expression string',
+    ],
+    [
+      `- runFlow:\n    commands:\n      - launchApp\n    when:\n      platform: Web\n`,
+      'Android or iOS',
+    ],
+    [
+      `- runFlow:\n    commands:\n      - launchApp\n    when:\n      sometimes: 'x'\n`,
+      'unknown runFlow when field',
+    ],
+    [
+      `- runFlow:\n    commands:\n      - launchApp\n    when:\n      visible: '(Synthetic)'\n`,
+      'unescaped',
+    ],
+    [
+      `- runFlow:\n    commands:\n      - launchApp\n    when:\n      notVisible:\n        id: 'ghost'\n`,
+      'matches no testID',
+    ],
+    [`- runFlow:\n    commands:\n      - launchApp\n    retries: 2\n`, 'unknown runFlow field'],
+    [
+      `- runFlow:\n    commands:\n      - launchApp\n    optional: 'yes'\n`,
+      'optional must be a boolean',
+    ],
+    [`- runFlow:\n    commands: []\n`, 'non-empty commands list'],
+  ];
+  for (const [steps, expected] of cases) {
+    const problems = validateFlowText(`${RUN_FLOW_HEADER}${steps}`, context);
+    assert.ok(
+      problems.some((p) => p.includes(expected)),
+      `expected "${expected}" for ${JSON.stringify(steps)}; got ${JSON.stringify(problems)}`,
+    );
+  }
+});
+
+test("WO-013: the three shared staff flows take the chooser only on the runner's word, as a waiting block", () => {
+  for (const flow of ['mfa-enroll.yaml', 'mfa-login.yaml', 'staff-sign-out.yaml']) {
+    const text = readFileSync(new URL(`../../.maestro/${flow}`, import.meta.url), 'utf8');
+    const [, stepsDoc] = YAML.parseAllDocuments(text);
+    const steps = stepsDoc.toJS();
+    const blocks = steps.filter((s) => typeof s === 'object' && s !== null && 'runFlow' in s);
+    assert.equal(blocks.length, 1, `${flow} carries exactly one conditional block`);
+    const block = blocks[0].runFlow;
+    assert.equal(block.when.true, "\${QA_CHOOSE_SCOPE == 'yes'}");
+    assert.equal(block.optional, undefined, 'conditional, never optional (find 34)');
+    assert.deepEqual(Object.keys(block.commands[0]), ['extendedWaitUntil']);
+    assert.equal(block.commands[0].extendedWaitUntil.visible.text, 'Choose a workspace');
+    assert.deepEqual(block.commands[1], { tapOn: '\${QA_SCOPE}' });
+    // The sign-in field takes the runner's identity, never a literal.
+    if (flow !== 'staff-sign-out.yaml') {
+      const typed = steps.filter((s) => typeof s === 'object' && s !== null && 'inputText' in s);
+      assert.equal(typed[0].inputText, '\${QA_EMAIL}', `${flow} types the runner's identity`);
+      assert.ok(
+        !text.includes("reviewer.rae@example.invalid'"),
+        `${flow} has no literal address in a step`,
+      );
     }
   }
 });

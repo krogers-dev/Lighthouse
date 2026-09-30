@@ -1,7 +1,8 @@
 appId: com.myhbcfo.hive.development
 name: Subsequent staff login verifies against the existing factor (no second QR)
 # Pre-steps (performed by scripts/maestro-enroll-runner.mjs):
-#   1. mfa-enroll.yaml has run for reviewer.rae@example.invalid in the
+#   1. mfa-enroll.yaml has run for the same identity (QA_EMAIL, given to
+#      the runner as --as or reviewer.rae@example.invalid by default) in the
 #      SAME totp-helper session (the secret lives only in that loopback
 #      process's memory) and the app was signed out. The factor is NOT
 #      revoked between enrollment and this login — revocation is the last
@@ -14,7 +15,7 @@ name: Subsequent staff login verifies against the existing factor (no second QR)
 - launchApp
 - tapOn:
     id: 'sign-in-email'
-- inputText: 'reviewer.rae@example.invalid'
+- inputText: ${QA_EMAIL}
 - runScript: otp-snapshot.js
 - tapOn:
     id: 'sign-in-submit'
@@ -51,6 +52,22 @@ name: Subsequent staff login verifies against the existing factor (no second QR)
     centerElement: false
 - tapOn:
     id: 'mfa-submit'
+# An identity with more than one membership meets the workspace chooser
+# here, where reviewer.rae goes straight to Home (WO-013). The runner
+# signs in whichever synthetic staff identity the extra flow needs and
+# says whether the chooser is due (QA_CHOOSE_SCOPE) and which row to tap
+# (QA_SCOPE, the row's full accessibility label). Conditional rather than
+# optional: optional does not WAIT, and skipped past the chooser before it
+# rendered (find 34).
+- runFlow:
+    when:
+      true: ${QA_CHOOSE_SCOPE == 'yes'}
+    commands:
+      - extendedWaitUntil:
+          visible:
+            text: 'Choose a workspace'
+          timeout: 30000
+      - tapOn: ${QA_SCOPE}
 # TOTP verify is a server round trip (challenge, verify, then the scoped
 # read), so the dashboard is not instantaneous: assert with a bounded
 # wait rather than racing it (find 31).

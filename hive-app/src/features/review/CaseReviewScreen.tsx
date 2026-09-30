@@ -24,6 +24,7 @@ import type {
   ReviewLoader,
   ReviewPackage,
   ReviewWriter,
+  TransitionReceipt,
 } from '@/data/supabase/reviews';
 import { useScopedLoad } from '@/features/shared/useScopedLoad';
 import type { ScopeKey } from '@/tenancy/scope-key';
@@ -33,6 +34,7 @@ import { CaseReviewView, type CaseReviewViewProps } from './CaseReviewView';
 import { initialReviewState } from './review-flow';
 import { actionsFor, verdictsFor } from './review-rules';
 import { useCaseReview } from './useCaseReview';
+import type { CaseAction } from './review-rules';
 
 export interface CaseReviewContext {
   caseRecord: CaseRecord | null;
@@ -52,6 +54,8 @@ export interface CaseReviewScreenProps {
   random?: RandomSource;
   caseId: string;
   onBack: () => void;
+  /** Intake (WO-013): opens the screen that asks the client for something. */
+  onAddRequest?: (caseId: string) => void;
 }
 
 const EMPTY: CaseReviewContext = {
@@ -104,6 +108,7 @@ type FlowHandlers =
   | 'onChangeFileId'
   | 'onChangePath'
   | 'onRequestAction'
+  | 'onCloseRequest'
   | 'onConfirm'
   | 'onCancel'
   | 'onDismiss'
@@ -126,13 +131,13 @@ function CaseReviewFlow({
   writer: ReviewWriter;
   random: RandomSource | undefined;
   view: FlowViewProps;
-  onSettled: () => void;
+  onSettled: (receipt: TransitionReceipt, action: CaseAction) => void;
 }): React.JSX.Element {
   const controller = useAuthController();
   const onSessionExpired = useCallback(() => void controller.sessionExpired(), [controller]);
   const flow = useCaseReview({
     scope,
-    caseRecord: { id: caseRecord.id, version: caseRecord.version },
+    caseRecord: { id: caseRecord.id, version: caseRecord.version, status: caseRecord.status },
     package: currentPackage
       ? { id: currentPackage.id, manifestDigest: currentPackage.manifestDigest }
       : null,
@@ -151,6 +156,7 @@ function CaseReviewFlow({
       onChangeFileId={flow.setFileId}
       onChangePath={flow.setPath}
       onRequestAction={flow.request}
+      onCloseRequest={flow.requestClose}
       onConfirm={flow.confirm}
       onCancel={flow.cancel}
       onDismiss={flow.dismiss}
@@ -166,6 +172,7 @@ export function CaseReviewScreen({
   random,
   caseId,
   onBack,
+  onAddRequest,
 }: CaseReviewScreenProps): React.JSX.Element | null {
   const load = useCallback(
     (scope: ScopeKey) =>
@@ -200,6 +207,14 @@ export function CaseReviewScreen({
     onRetry: retry,
     onSwitchScope: switchScope,
     onBack,
+    onAddRequest: onAddRequest ? () => onAddRequest(caseId) : undefined,
+  };
+
+  // A discarded draft has nowhere to reload to: the person goes back to
+  // Home. Everything else reloads the case at its new version.
+  const settled = (_receipt: TransitionReceipt, action: CaseAction): void => {
+    if (action === 'discard_draft') onBack();
+    else retry();
   };
 
   if (state === 'ready' && data && caseRecord && staff) {
@@ -212,7 +227,7 @@ export function CaseReviewScreen({
         writer={reviewRepository}
         random={random}
         view={view}
-        onSettled={retry}
+        onSettled={settled}
       />
     );
   }
@@ -228,6 +243,7 @@ export function CaseReviewScreen({
       onChangeFileId={noop}
       onChangePath={noop}
       onRequestAction={noop}
+      onCloseRequest={noop}
       onConfirm={noop}
       onCancel={noop}
       onDismiss={noop}

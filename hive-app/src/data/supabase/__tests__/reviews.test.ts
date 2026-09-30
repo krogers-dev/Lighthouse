@@ -421,3 +421,130 @@ describe('mapReviewError and decodeManifest', () => {
     });
   });
 });
+
+describe('ReviewRepository intake (WO-013)', () => {
+  const base = { caseId: CASE, caseVersion: 3, idempotencyKey: 'k1' };
+  const scopeArgs = {
+    p_environment_id: scope.environmentId,
+    p_client_id: scope.clientId,
+    p_entity_id: scope.entityId,
+  };
+
+  it('sends the exact scope, the version, and the key to the three intake transitions and decodes each receipt', async () => {
+    const fake = makeFakeClient({
+      rpc: (name) =>
+        name === 'close_request'
+          ? {
+              data: { request_id: 'r-1', request_status: 'CLOSED', request_version: 2 },
+              error: null,
+            }
+          : { data: { case_status: 'INTAKE_RECORDED', case_version: 4 }, error: null },
+    });
+    const r = repo(fake.client);
+    await expect(r.recordIntake(scope, base)).resolves.toEqual({
+      caseStatus: 'INTAKE_RECORDED',
+      caseVersion: 4,
+    });
+    await r.discardDraft(scope, base);
+    await expect(
+      r.closeRequest(scope, { requestId: 'r-1', requestVersion: 1, idempotencyKey: 'k2' }),
+    ).resolves.toEqual({ requestId: 'r-1', requestStatus: 'CLOSED', requestVersion: 2 });
+    expect(fake.rpcs.map((call) => call.name)).toEqual([
+      'record_case_intake',
+      'discard_case_draft',
+      'close_request',
+    ]);
+    for (const call of fake.rpcs.slice(0, 2)) {
+      expect(call.args).toEqual({
+        ...scopeArgs,
+        p_case_id: CASE,
+        p_case_version: 3,
+        p_idempotency_key: 'k1',
+      });
+    }
+    expect(fake.rpcs[2]?.args).toEqual({
+      ...scopeArgs,
+      p_request_id: 'r-1',
+      p_request_version: 1,
+      p_idempotency_key: 'k2',
+    });
+  });
+
+  it('opens a case and a request with the exact scope and decodes what came back, leaving optional fields out', async () => {
+    const fake = makeFakeClient({
+      rpc: (name) =>
+        name === 'open_case'
+          ? { data: { case_id: 'c-1', case_status: 'DRAFT', case_version: 1 }, error: null }
+          : {
+              data: {
+                request_id: 'r-1',
+                request_version: 1,
+                case_status: 'EVIDENCE_PENDING',
+                case_version: 3,
+              },
+              error: null,
+            },
+    });
+    const r = repo(fake.client);
+    await expect(
+      r.openCase(scope, { title: 'Books (Synthetic)', idempotencyKey: 'k3' }),
+    ).resolves.toEqual({ caseId: 'c-1', caseStatus: 'DRAFT', caseVersion: 1 });
+    await expect(
+      r.openRequest(scope, {
+        ...base,
+        title: 'Bank statements (Synthetic)',
+        detail: '',
+        dueInDays: null,
+        subjectDocumentId: null,
+        idempotencyKey: 'k4',
+      }),
+    ).resolves.toEqual({
+      requestId: 'r-1',
+      requestVersion: 1,
+      caseStatus: 'EVIDENCE_PENDING',
+      caseVersion: 3,
+    });
+    expect(fake.rpcs[0]).toEqual({
+      name: 'open_case',
+      args: { ...scopeArgs, p_title: 'Books (Synthetic)', p_idempotency_key: 'k3' },
+    });
+    expect(fake.rpcs[1]?.args).toEqual({
+      ...scopeArgs,
+      p_case_id: CASE,
+      p_case_version: 3,
+      p_title: 'Bank statements (Synthetic)',
+      p_detail: '',
+      p_due_in_days: undefined,
+      p_subject_document_id: undefined,
+      p_idempotency_key: 'k4',
+    });
+    await r.openRequest(scope, {
+      ...base,
+      title: 'Question (Synthetic)',
+      detail: 'Which account?',
+      dueInDays: 7,
+      subjectDocumentId: 'd-1',
+      idempotencyKey: 'k5',
+    });
+    expect(fake.rpcs[2]?.args).toMatchObject({ p_due_in_days: 7, p_subject_document_id: 'd-1' });
+  });
+
+  it('turns an intake refusal token into a typed error and refuses a malformed answer', async () => {
+    const refused = makeFakeClient({
+      rpc: () => ({ data: null, error: { code: 'P0001', message: 'case_not_open_for_requests' } }),
+    });
+    await expect(
+      repo(refused.client).openRequest(scope, {
+        ...base,
+        title: 'x (Synthetic)',
+        detail: '',
+        dueInDays: null,
+        subjectDocumentId: null,
+      }),
+    ).rejects.toMatchObject({ refusal: 'case_not_open_for_requests' });
+    const malformed = makeFakeClient({ rpc: () => ({ data: { case_id: 'c-1' }, error: null }) });
+    await expect(
+      repo(malformed.client).openCase(scope, { title: 'x (Synthetic)', idempotencyKey: 'k' }),
+    ).rejects.toMatchObject({ code: 'unknown' });
+  });
+});

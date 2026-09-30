@@ -10,6 +10,8 @@ import {
   checkFiling,
   checkNote,
   filableDocuments,
+  isNavigationAction,
+  requestActionsFor,
   verdictsFor,
 } from '../review-rules';
 
@@ -27,7 +29,7 @@ const STATUSES: readonly CaseStatus[] = [
 
 describe('actionsFor', () => {
   it('gives the preparer freeze on evidence, resume after a return, and filing-or-resume after an approval', () => {
-    expect(actionsFor('preparer', 'EVIDENCE_PENDING')).toEqual(['freeze']);
+    expect(actionsFor('preparer', 'EVIDENCE_PENDING')).toEqual(['freeze', 'add_request']);
     expect(actionsFor('preparer', 'RETURNED')).toEqual(['resume']);
     expect(actionsFor('preparer', 'APPROVED')).toEqual(['record_filing', 'resume']);
     for (const status of ['READY_FOR_REVIEW', 'IN_REVIEW', 'APPROVAL_PENDING', 'HOLD'] as const) {
@@ -47,9 +49,19 @@ describe('actionsFor', () => {
     expect(actionsFor('approver', 'IN_REVIEW')).toEqual([]);
   });
 
-  it('gives intake the filing receipt on an approved case only, and clients and nobody nothing', () => {
-    for (const status of STATUSES) {
-      expect(actionsFor('intake', status)).toEqual(status === 'APPROVED' ? ['record_filing'] : []);
+  it('gives intake the draft steps, then requests, then the filing receipt on an approved case, and clients and nobody nothing', () => {
+    expect(actionsFor('intake', 'DRAFT')).toEqual(['record_intake', 'discard_draft']);
+    expect(actionsFor('intake', 'INTAKE_RECORDED')).toEqual(['add_request']);
+    expect(actionsFor('intake', 'EVIDENCE_PENDING')).toEqual(['add_request']);
+    expect(actionsFor('intake', 'APPROVED')).toEqual(['record_filing']);
+    for (const status of [
+      'READY_FOR_REVIEW',
+      'IN_REVIEW',
+      'APPROVAL_PENDING',
+      'RETURNED',
+      'HOLD',
+    ] as const) {
+      expect(actionsFor('intake', status)).toEqual([]);
     }
     for (const role of ['client_user', null] as (MembershipRole | null)[]) {
       for (const status of STATUSES) expect(actionsFor(role, status)).toEqual([]);
@@ -145,5 +157,25 @@ describe('filing receipts (WO-006)', () => {
 describe('the approval destination', () => {
   it('is the HIVE record and nothing external', () => {
     expect(APPROVAL_DESTINATION).toBe('hive-record');
+  });
+});
+
+describe('requestActionsFor (WO-013)', () => {
+  it('lets intake or the preparer close an open or answered request and nobody else', () => {
+    expect(requestActionsFor('intake', 'OPEN')).toEqual(['close_request']);
+    expect(requestActionsFor('preparer', 'ANSWERED')).toEqual(['close_request']);
+    expect(requestActionsFor('intake', 'CLOSED')).toEqual([]);
+    expect(requestActionsFor('preparer', 'EXPIRED')).toEqual([]);
+    expect(requestActionsFor('reviewer', 'OPEN')).toEqual([]);
+    expect(requestActionsFor('client_user', 'OPEN')).toEqual([]);
+    expect(requestActionsFor(null, 'OPEN')).toEqual([]);
+    expect(requestActionsFor('intake', null)).toEqual([]);
+  });
+
+  it('names the one action that opens a screen instead of a confirmation', () => {
+    expect(isNavigationAction('add_request')).toBe(true);
+    for (const action of ['freeze', 'record_intake', 'discard_draft', 'close_request'] as const) {
+      expect(isNavigationAction(action)).toBe(false);
+    }
   });
 });
