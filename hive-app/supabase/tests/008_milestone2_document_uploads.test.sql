@@ -158,13 +158,13 @@ select is(
   has_function_privilege('authenticated', 'public.begin_document_scan(uuid)', 'execute'),
   false, 'authenticated cannot execute begin_document_scan');               -- 14
 select is(
-  has_function_privilege('authenticated', 'public.record_document_scan(uuid,text,text)', 'execute'),
+  has_function_privilege('authenticated', 'public.record_document_scan(uuid,text,text,text,text)', 'execute'),
   false, 'authenticated cannot execute record_document_scan');              -- 15
 select is(
   has_function_privilege('authenticated', 'public.expire_stale_document_uploads()', 'execute'),
   false, 'authenticated cannot execute the expiry sweep');                  -- 16
 select is(
-  has_function_privilege('service_role', 'public.record_document_scan(uuid,text,text)', 'execute'),
+  has_function_privilege('service_role', 'public.record_document_scan(uuid,text,text,text,text)', 'execute'),
   true, 'the server role may record a scan verdict');                       -- 17
 
 -- ---------------------------------------------------------------------------

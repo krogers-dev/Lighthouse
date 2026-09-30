@@ -31,6 +31,7 @@ export const READ_COMMANDS = new Set([
   'service-status',
   'list-entities',
   'list-access',
+  'quarantine-status',
 ]);
 export const CHANGE_COMMANDS = new Set([
   'seed-review',
@@ -44,6 +45,7 @@ export const CHANGE_COMMANDS = new Set([
   'onboard-entity',
   'invite',
   'revoke-access',
+  'sweep-uploads',
 ]);
 export const PROOF_COMMAND = 'prove-review';
 

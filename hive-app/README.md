@@ -266,6 +266,15 @@ destination (`docs/release/signing-and-submission.md`). Records:
    and resets and revokes that identity's factor around the run; each
    run adds one case to the workspace, which `db reset` and `seed`
    return to empty).
+10. The malware scanner (WO-015): with clamd up
+    (`docker compose -f deploy/scanner/docker-compose.yml up -d clamd`),
+    `node scripts/local-supabase.mjs prove-scanner` uploads a clean
+    document and the EICAR test file as the client, runs one pass of the
+    ClamAV runner, and reads the verdicts, the receipts, the sweep, and
+    an outage back; `scan-quarantine-clamav` is one pass on its own,
+    `quarantine-status` the counts. On a hosted project
+    `hosted-supabase.mjs <target> quarantine-status` and `sweep-uploads`;
+    the scanning itself runs on a host (`docs/release/scanner-deployment.md`).
 
 ### Milestones 3, 4, and 5 on the desktop
 

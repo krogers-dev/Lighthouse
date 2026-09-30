@@ -520,6 +520,39 @@ async function sweepUploads() {
   await runHarness('quarantine-scan.mjs', { HIVE_QUARANTINE_MODE: 'sweep' });
 }
 
+async function quarantineStatus() {
+  await runHarness('quarantine-scan.mjs', { HIVE_QUARANTINE_MODE: 'status' });
+}
+
+/** The approved scanner on the loopback stack (WO-015): one pass of the
+ * ClamAV runner exactly as the deployment runs it, against a clamd on
+ * 127.0.0.1:3310 (deploy/scanner/docker-compose.yml, the clamd service
+ * alone), with the privileged bearer in memory. */
+async function scanQuarantineClamav() {
+  const creds = await resolveServiceCredentials();
+  const child = spawnSync('node', [path.join(appRoot, 'scripts', 'scanner-runner.mjs')], {
+    cwd: appRoot,
+    encoding: 'utf8',
+    stdio: ['ignore', 'inherit', 'pipe'],
+    env: {
+      ...process.env,
+      HIVE_SCANNER_SUPABASE_URL: creds.url,
+      HIVE_SCANNER_SECRET_KEY: creds.bearer,
+      HIVE_SCANNER_GATEWAY_KEY: creds.gatewayKey,
+      HIVE_SCANNER_ONCE: '1',
+    },
+  });
+  if (child.status !== 0) {
+    fail(`scanner-runner exited ${child.status}`, redactSecrets(child.stderr ?? ''));
+  }
+}
+
+/** The ClamAV lane proven end to end (WO-015): two uploads as the
+ * client, one pass, the receipts, the sweep, the outage. */
+async function proveScanner() {
+  await runHarness('scanner-proof.mjs');
+}
+
 function stop() {
   const result = runCli(['stop']);
   if (result.status !== 0) {
@@ -631,12 +664,21 @@ if (isMain) {
     case 'sweep-uploads':
       await sweepUploads();
       break;
+    case 'quarantine-status':
+      await quarantineStatus();
+      break;
+    case 'scan-quarantine-clamav':
+      await scanQuarantineClamav();
+      break;
+    case 'prove-scanner':
+      await proveScanner();
+      break;
     case 'stop':
       stop();
       break;
     default:
       fail(
-        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|sync-ledger <caseKey>|stage-filing <caseKey>|verify-filings [caseKey]|service-status|pause-service [maintenance|incident]|resume-service|request-deletion <email>|reset-deletion <email>|complete-deletion <email>|drill-backup|seed-review|retire-review|open-review-window [hours]|check-review-sign-in|close-review-window|sweep-review-window|review-window-status|onboard-entity "<client>" "<entity>"|invite <address> <role> <entity id>|revoke-access <address> <role> <entity id>|list-entities|list-access <entity id>|scan-quarantine|sweep-uploads|stop>',
+        'usage: local-supabase.mjs <up [--android-emulator]|status|seed|e2e|bridge|reset-totp|restore-membership <email> <entityKey>|reset-answer <requestKey>|reset-case <caseKey>|stage-case <caseKey> <state>|sync-ledger <caseKey>|stage-filing <caseKey>|verify-filings [caseKey]|service-status|pause-service [maintenance|incident]|resume-service|request-deletion <email>|reset-deletion <email>|complete-deletion <email>|drill-backup|seed-review|retire-review|open-review-window [hours]|check-review-sign-in|close-review-window|sweep-review-window|review-window-status|onboard-entity "<client>" "<entity>"|invite <address> <role> <entity id>|revoke-access <address> <role> <entity id>|list-entities|list-access <entity id>|scan-quarantine|scan-quarantine-clamav|prove-scanner|quarantine-status|sweep-uploads|stop>',
       );
   }
 }

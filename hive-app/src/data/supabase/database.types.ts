@@ -1083,6 +1083,8 @@ export interface Database {
           p_upload_id: string;
           p_verdict: string;
           p_reason?: string;
+          p_scanner?: string;
+          p_scanner_version?: string;
         };
         Returns: Json;
       };

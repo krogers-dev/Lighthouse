@@ -1,0 +1,30 @@
+ok - client.owner: two documents received into quarantine (a clean PDF and the EICAR test file)
+scanner: loopback (http://127.0.0.1:54321), clamd 127.0.0.1:3310, one pass, batches of 20
+ClamAV: 6d9d415d-d45c-4d43-9cfc-282ec146e0d2 -> accepted
+ClamAV: 83074019-c49d-4696-862f-52b908aef63b -> rejected (malware_detected) [Eicar-Test-Signature]
+scanner-runner: ClamAV 1.4.6 (signatures 28136); 2 waiting, 1 accepted, 1 not accepted, 0 deferred, 0 refused
+ok - the runner recorded every waiting document in one pass (exit 0)
+ok - ClamAV: the clean document is ACCEPTED
+ok - ClamAV: the EICAR test file is REJECTED as malware_detected
+ok - server: the acceptance receipt names ClamAV with its engine and signature version (ClamAV 1.4.6 (signatures 28136))
+ok - server: the rejection receipt names ClamAV, the reason, and the same signature version
+ok - the trail tells the client of one check and one refusal, by the system
+ok - the runner printed no document name, no digest, no key
+ok - the runner named the detection by its signature and the document by its id
+quarantine-scan: 0 expired; 1 settled object(s) removed from quarantine
+ok - the sweep removed the rejected object from quarantine (the server cannot fetch it)
+scanner: loopback (http://127.0.0.1:54321), clamd 127.0.0.1:3310, one pass, batches of 20
+scanner-runner: ClamAV 1.4.6 (signatures 28136); 0 waiting, 0 accepted, 0 not accepted, 0 deferred, 0 refused
+ok - a second pass finds nothing waiting and records nothing
+scanner: loopback (http://127.0.0.1:54321), clamd 127.0.0.1:3319, one pass, batches of 20
+scanner-runner: clamd did not answer, nothing begun (clamd at 127.0.0.1:3319: connect ECONNREFUSED 127.0.0.1:3319)
+ok - with clamd unreachable the runner begins nothing (exit 3) and the document stays QUARANTINED
+scanner: loopback (http://127.0.0.1:54321), clamd 127.0.0.1:3310, one pass, batches of 20
+ClamAV: 311c2e5b-de9f-4082-8e9a-c7a472148c4c -> accepted
+scanner-runner: ClamAV 1.4.6 (signatures 28136); 1 waiting, 1 accepted, 0 not accepted, 0 deferred, 0 refused
+ok - once clamd answers again the held document is scanned and accepted
+scanner-runner: HIVE_SCANNER_SECRET_KEY must be the project secret key (sb_secret_…); a legacy service-role token is refused
+ok - a hosted origin with a legacy-shaped key is refused before anything is reached (exit 2)
+scanner-runner: HIVE_SCANNER_SUPABASE_URL is not the exact origin of a project in security/hosted-targets.json
+ok - an origin outside security/hosted-targets.json is refused (exit 2)
+scanner-proof: 15 passed, 0 failed

@@ -1,0 +1,14 @@
+== staging quarantine-status
+quarantine-scan [staging]: UPLOADING 0, QUARANTINED 0, VALIDATING 0, ACCEPTED 4, REJECTED 1, EXPIRED 0
+quarantine-scan [staging]: verdicts in the last seven days by scanner: none
+exit 0
+== staging sweep-uploads
+quarantine-scan [staging]: 0 expired; 0 settled object(s) removed from quarantine
+exit 0
+== production quarantine-status
+quarantine-scan [production]: UPLOADING 0, QUARANTINED 0, VALIDATING 0, ACCEPTED 0, REJECTED 0, EXPIRED 0
+quarantine-scan [production]: verdicts in the last seven days by scanner: none
+exit 0
+== production sweep-uploads without the ref
+hosted-supabase: sweep-uploads changes production: repeat its project ref to go on (--confirm nceencyvxfhkffbjqlea)
+exit 1

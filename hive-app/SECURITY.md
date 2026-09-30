@@ -104,10 +104,12 @@ in server-controlled tables).
   `record_document_scan`, and `expire_stale_document_uploads` run as
   their caller (no borrowed authority) and are executable by
   `service_role` alone; a belt-and-brace check inside refuses any other
-  role. No real scanner is approved (HOLD); the local lane's
-  `HiveSyntheticScanner` recomputes size and digest and refuses a
-  synthetic marker, and talks to the database only through this
-  interface.
+  role. The approved scanner is ClamAV (WO-015, decided 2026-09-30),
+  run by `scripts/scanner-runner.mjs` as a puller next to a clamd
+  daemon; the local lane's `HiveSyntheticScanner` still recomputes size
+  and digest and refuses a synthetic marker, and both talk to the
+  database only through this interface, which since migration 017
+  records the engine and its signature version on every verdict.
 - **Memory-only on the phone.** The picked file's cache copy and its
   bytes exist for one attempt; the hook discards them on success,
   refusal, reset, and unmount, and an epoch drops late results. One
@@ -375,6 +377,29 @@ in server-controlled tables).
   the flows receive it as a variable, and the runner resets and revokes
   that identity's factor around the run; the chooser row's selector is
   built without a backslash so no hop can turn it into a regex group.
+
+## Controls added for the malware scanner (WO-015)
+
+- **The runner reaches one project, exactly.** A loopback stack, or one
+  of the two hosted projects by its exact origin over https with the
+  project's secret key shape; a legacy service-role token, another
+  origin, or a path on the origin is refused before a byte moves, from
+  the script and from inside the container image alike.
+- **Nothing is accepted by default.** The declaration (size, then
+  digest) is checked before the engine is asked; only a clean answer on
+  an honest declaration is accepted; an outage holds documents in
+  quarantine rather than judging them; an unreadable object or an engine
+  error is `scan_failed`.
+- **No inbound surface.** The runner pulls and listens on nothing; clamd
+  listens only on the compose network; the host publishes no port and
+  holds one secret, read from the host's secret store into the runner's
+  environment, never into the image or the repository.
+- **The record names the judge.** Every verdict's receipt carries the
+  engine and the signature version, bounded and printable; the client
+  never sees a signature name, the operator's log does.
+- **The synthetic stand-in never runs against a hosted project**; the
+  tool refuses, and the hosted commands it does offer read counts or
+  sweep what has already been judged.
 
 ## Deliberately not used (per brief)
 

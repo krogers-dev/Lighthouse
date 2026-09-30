@@ -111,6 +111,10 @@ function childFor(command, hours, codeFile, reason, rest) {
       };
     case 'resume-service':
       return { script: 'service-state.mjs', env: { HIVE_SERVICE_MODE: 'resume' } };
+    case 'quarantine-status':
+      return { script: 'quarantine-scan.mjs', env: { HIVE_QUARANTINE_MODE: 'status' } };
+    case 'sweep-uploads':
+      return { script: 'quarantine-scan.mjs', env: { HIVE_QUARANTINE_MODE: 'sweep' } };
     case 'review-window-status':
       return { script: 'review-window.mjs', env: { HIVE_REVIEW_WINDOW_MODE: 'status' } };
     case 'open-review-window':

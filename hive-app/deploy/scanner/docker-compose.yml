@@ -1,0 +1,62 @@
+# The HIVE quarantine scanner (WO-015): clamd and the runner on one
+# private network. Nothing is published to the host; the runner reaches
+# clamd by service name and the hosted project over https.
+#
+# On the operator's machine, for the loopback lane:
+#   docker compose -f deploy/scanner/docker-compose.yml up -d clamd
+#   node scripts/local-supabase.mjs prove-scanner
+# (the clamd service alone publishes 3310 on the loopback for that lane).
+#
+# On the scanning host (docs/release/scanner-deployment.md): copy this
+# file and the built runner image, write the runner's environment from
+# the host's secret store to a root-only file, and
+#   docker compose -f docker-compose.yml --env-file /etc/hive-scanner/runner.env up -d
+#
+# The ClamAV image is pinned by digest (the 1.4 release read on
+# 2026-09-30); freshclam inside it keeps the signatures current, so the
+# receipts' signature version advances without a redeploy.
+services:
+  clamd:
+    image: clamav/clamav:1.4@sha256:57deb108fc4c72778aa83eafbca7bb7153e28c3f57c005afd38d31f16da86f23
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:3310:3310'
+    volumes:
+      - clamav-signatures:/var/lib/clamav
+    healthcheck:
+      test: ['CMD', 'clamdcheck.sh']
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+
+  runner:
+    image: hive-scanner-runner:latest
+    build:
+      context: ../..
+      dockerfile: deploy/scanner/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      clamd:
+        condition: service_healthy
+    environment:
+      HIVE_SCANNER_SUPABASE_URL: ${HIVE_SCANNER_SUPABASE_URL}
+      HIVE_SCANNER_SECRET_KEY: ${HIVE_SCANNER_SECRET_KEY}
+      HIVE_SCANNER_CLAMD_HOST: clamd
+      HIVE_SCANNER_CLAMD_PORT: '3310'
+      HIVE_SCANNER_INTERVAL_MS: ${HIVE_SCANNER_INTERVAL_MS:-30000}
+      HIVE_SCANNER_BATCH: ${HIVE_SCANNER_BATCH:-20}
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    profiles:
+      - hosted
+
+volumes:
+  clamav-signatures:

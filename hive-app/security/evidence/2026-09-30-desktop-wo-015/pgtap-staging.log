@@ -1,0 +1,21 @@
+/dev/Lighthouse/hive-app/supabase/tests/001_constraints.test.sql ..................... ok
+/dev/Lighthouse/hive-app/supabase/tests/002_grants.test.sql .......................... ok
+/dev/Lighthouse/hive-app/supabase/tests/003_rls_isolation.test.sql ................... ok
+/dev/Lighthouse/hive-app/supabase/tests/004_staff_aal2.test.sql ...................... ok
+/dev/Lighthouse/hive-app/supabase/tests/005_mixed_role_aal2.test.sql ................. ok
+/dev/Lighthouse/hive-app/supabase/tests/006_restrictive_gate.test.sql ................ ok
+/dev/Lighthouse/hive-app/supabase/tests/007_milestone1_read_surfaces.test.sql ........ ok
+/dev/Lighthouse/hive-app/supabase/tests/008_milestone2_document_uploads.test.sql ..... ok
+/dev/Lighthouse/hive-app/supabase/tests/009_milestone3_review_and_response.test.sql .. ok
+/dev/Lighthouse/hive-app/supabase/tests/010_milestone4_review_and_approval.test.sql .. ok
+/dev/Lighthouse/hive-app/supabase/tests/011_milestone5_source_adapters.test.sql ...... ok
+/dev/Lighthouse/hive-app/supabase/tests/012_milestone6_release_controls.test.sql ..... ok
+/dev/Lighthouse/hive-app/supabase/tests/013_review_tenant.test.sql ................... ok
+/dev/Lighthouse/hive-app/supabase/tests/014_review_tenant_fallback.test.sql .......... ok
+/dev/Lighthouse/hive-app/supabase/tests/015_onboarding.test.sql ...................... ok
+/dev/Lighthouse/hive-app/supabase/tests/016_intake.test.sql .......................... ok
+/dev/Lighthouse/hive-app/supabase/tests/017_scanner_receipts.test.sql ................ ok
+All tests successful.
+Files=17, Tests=615, 77 wallclock secs ( 0.16 usr  0.04 sys +  0.19 cusr  0.10 csys =  0.49 CPU)
+Result: PASS
+Connecting to remote database...

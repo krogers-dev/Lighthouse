@@ -2,53 +2,75 @@
 /**
  * quarantine-scan — the local quarantine tooling (WO-003).
  *
- *   node scripts/local-supabase.mjs scan-quarantine     # scan every QUARANTINED document
+ *   node scripts/local-supabase.mjs scan-quarantine     # scan every QUARANTINED document (synthetic)
  *   node scripts/local-supabase.mjs sweep-uploads       # expire stale rows, empty settled objects
+ *   node scripts/local-supabase.mjs quarantine-status   # counts by status, nothing else
+ *   node scripts/hosted-supabase.mjs <staging|production> quarantine-status
+ *   node scripts/hosted-supabase.mjs <staging|production> sweep-uploads [--confirm <ref>]
  *
- * Runs only against the loopback stack, with the privileged bearer handed
- * to it in memory by scripts/local-supabase.mjs (never printed, never
- * persisted). Speaks to the database only through the privileged scan
- * interface (public.begin_document_scan, public.record_document_scan,
- * public.expire_stale_document_uploads: executable by the server role
- * alone) and to the storage service through its API, as the platform
- * requires (a direct DELETE on storage rows is refused by the service).
+ * The stack it speaks to is decided by scripts/lib/operator-context.mjs
+ * (WO-011): the loopback stack handed over by scripts/local-supabase.mjs,
+ * or one of the two hosted projects handed over by
+ * scripts/hosted-supabase.mjs, with the privileged bearer in memory
+ * (never printed, never persisted). Speaks to the database only through
+ * the privileged scan interface (public.begin_document_scan,
+ * public.record_document_scan, public.expire_stale_document_uploads:
+ * executable by the server role alone) and to the storage service
+ * through its API, as the platform requires (a direct DELETE on storage
+ * rows is refused by the service).
  *
- *   scan   For each QUARANTINED row: move it to VALIDATING, download the
- *          object, run HiveSyntheticScanner (size, digest, marker), record
- *          the verdict. A row whose object cannot be fetched is recorded
- *          as scan_failed, not skipped: a document nobody can check is
- *          not accepted by default.
- *   sweep  Expire every stale transfer or over-retention document through
- *          the server function, then remove the storage objects of every
- *          REJECTED or EXPIRED row: quarantine holds nothing it has judged.
+ *   scan    LOOPBACK ONLY. For each QUARANTINED row: move it to
+ *           VALIDATING, download the object, run HiveSyntheticScanner
+ *           (size, digest, marker), record the verdict. A row whose object
+ *           cannot be fetched is recorded as scan_failed, not skipped: a
+ *           document nobody can check is not accepted by default. The
+ *           approved scanner is the ClamAV runner (scripts/scanner-runner.mjs,
+ *           WO-015); this stand-in never runs against a hosted project.
+ *   sweep   Expire every stale transfer or over-retention document through
+ *           the server function, then remove the storage objects of every
+ *           REJECTED or EXPIRED row: quarantine holds nothing it has judged.
+ *   status  How many documents stand in each status, and the receipts'
+ *           scanner names of the last seven days: counts and names only.
  *
- * Output is ids and outcomes only. No name, digest, or byte of content
- * is ever printed.
+ * Output is ids, counts, and outcomes only. No name, digest, or byte of
+ * content is ever printed.
  */
 import process from 'node:process';
 
-import { describeOutcome, scanVerdict } from './lib/synthetic-scanner.mjs';
+import { loadHostedManifest } from './lib/hosted-targets.mjs';
+import { changeRefusal, resolveOperatorContext } from './lib/operator-context.mjs';
+import {
+  SCANNER_NAME,
+  SCANNER_VERSION,
+  describeOutcome,
+  scanVerdict,
+} from './lib/synthetic-scanner.mjs';
 
-const url = process.env.HIVE_LOCAL_SUPABASE_URL;
-const serviceKey = process.env.HIVE_LOCAL_SERVICE_KEY;
-// Kong's apikey gate wants an ISSUED key; the bearer carries the role.
-const gatewayKey = process.env.HIVE_LOCAL_GATEWAY_KEY ?? serviceKey;
 const mode = process.env.HIVE_QUARANTINE_MODE ?? '';
-
-if (!url || !serviceKey) {
+if (!['scan', 'sweep', 'status'].includes(mode)) {
+  console.error('quarantine-scan: HIVE_QUARANTINE_MODE must be scan, sweep, or status');
+  process.exit(1);
+}
+const context = resolveOperatorContext(process.env, loadHostedManifest());
+if (context.error) {
+  console.error(`quarantine-scan: ${context.error}`);
+  process.exit(1);
+}
+if (mode === 'scan' && context.kind !== 'loopback') {
   console.error(
-    'quarantine-scan: run through `node scripts/local-supabase.mjs scan-quarantine|sweep-uploads`',
+    'quarantine-scan: the synthetic scan runs on the loopback stack alone; a hosted project is scanned by the ClamAV runner (docs/release/scanner-deployment.md)',
   );
   process.exit(1);
 }
-if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(new URL(url).hostname)) {
-  console.error('quarantine-scan: refusing a non-loopback URL');
-  process.exit(1);
+if (mode === 'sweep') {
+  const refusal = changeRefusal(context, 'sweep-uploads');
+  if (refusal) {
+    console.error(`quarantine-scan: ${refusal}`);
+    process.exit(1);
+  }
 }
-if (mode !== 'scan' && mode !== 'sweep') {
-  console.error('quarantine-scan: HIVE_QUARANTINE_MODE must be scan or sweep');
-  process.exit(1);
-}
+const { url, serviceKey, gatewayKey } = context;
+const where = context.kind === 'hosted' ? ` [${context.name}]` : '';
 
 const headers = {
   apikey: gatewayKey,
@@ -101,8 +123,38 @@ async function removeObjects(bucket, paths) {
 }
 
 function fail(message) {
-  console.error(`quarantine-scan: ${message}`);
+  console.error(`quarantine-scan${where}: ${message}`);
   process.exit(1);
+}
+
+/** Counts by status and the scanners named on the week's receipts:
+ * numbers and names, never a document. */
+async function status() {
+  const rows = await rest('/document_uploads?select=status');
+  if (!rows.ok) fail(`listing documents failed with status ${rows.status}`);
+  const counts = {};
+  for (const row of rows.body ?? []) counts[row.status] = (counts[row.status] ?? 0) + 1;
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const receipts = await rest(
+    `/audit_receipts?select=details&action=in.(document.checked,document.not_accepted)&occurred_at=gte.${since}`,
+  );
+  if (!receipts.ok) fail(`listing receipts failed with status ${receipts.status}`);
+  const scanners = {};
+  for (const receipt of receipts.body ?? []) {
+    const name = receipt.details?.scanner ?? '(unnamed)';
+    scanners[name] = (scanners[name] ?? 0) + 1;
+  }
+  const statuses = ['UPLOADING', 'QUARANTINED', 'VALIDATING', 'ACCEPTED', 'REJECTED', 'EXPIRED'];
+  console.log(
+    `quarantine-scan${where}: ${statuses.map((name) => `${name} ${counts[name] ?? 0}`).join(', ')}`,
+  );
+  const named = Object.entries(scanners)
+    .sort()
+    .map(([name, count]) => `${name} ${count}`)
+    .join(', ');
+  console.log(
+    `quarantine-scan${where}: verdicts in the last seven days by scanner: ${named || 'none'}`,
+  );
 }
 
 async function scan() {
@@ -128,6 +180,8 @@ async function scan() {
       p_upload_id: row.id,
       p_verdict: outcome.verdict,
       p_reason: outcome.reason,
+      p_scanner: SCANNER_NAME,
+      p_scanner_version: SCANNER_VERSION,
     });
     if (!recorded.ok) {
       fail(`record_document_scan refused ${row.id} with status ${recorded.status}`);
@@ -137,7 +191,7 @@ async function scan() {
     console.log(describeOutcome(row.id, outcome));
   }
   console.log(
-    `quarantine-scan: ${rows.length} scanned, ${accepted} accepted, ${rejected} not accepted`,
+    `quarantine-scan${where}: ${rows.length} scanned, ${accepted} accepted, ${rejected} not accepted`,
   );
 }
 
@@ -161,9 +215,10 @@ async function sweep() {
     removed += result.removed;
   }
   console.log(
-    `quarantine-scan: ${expired.body ?? 0} expired; ${removed} settled object(s) removed from quarantine`,
+    `quarantine-scan${where}: ${expired.body ?? 0} expired; ${removed} settled object(s) removed from quarantine`,
   );
 }
 
 if (mode === 'scan') await scan();
-else await sweep();
+else if (mode === 'sweep') await sweep();
+else await status();
