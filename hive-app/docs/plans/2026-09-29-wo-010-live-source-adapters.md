@@ -109,12 +109,16 @@ working. make your adjustments"):**
   Drive interface enabled on it; the service account
   `hive-drive-reader@hive-510122.iam.gserviceaccount.com`, no project
   roles, no key yet. A duplicate from a first attempt,
-  `hive-drive-reader-636@hive-510122.iam.gserviceaccount.com`, also exists
-  with no key and no role; Kody deletes it from the service-accounts page,
-  or it is disabled on the next pass. Still Kody's: sharing the permanent-record folder with
-  that address as a viewer (read-only), and, when the adapter is built,
-  creating the account's key and placing it in the hosted project's function
-  secrets, never seen here.
+  `hive-drive-reader-636@hive-510122.iam.gserviceaccount.com` (no key, no
+  role), was disabled and then deleted on 2026-09-30 at Kody's request
+  ("can you do #4 for me?"), from its own detail page by unique ID so the
+  kept account could not be the one selected; the project's list now shows
+  the one account, enabled, with no keys. Still Kody's: sharing a folder
+  with that address as a viewer (read-only), first a test folder of
+  synthetic documents for the contract tests of section 7, the
+  permanent-record folder only after the security review of door 3; and,
+  when the adapter is built, creating the account's key and placing it in
+  the hosted project's function secrets, never seen here.
 - **Intuit, done by Kody:** the workspace "Honeybee Accounting"
   (`9341457864870122`) and in it the app "HONEYBEE HIVE"
   (AppID `186083bd-f96f-4f52-ac3e-6bc9832ddcb4`, QuickBooks, in
