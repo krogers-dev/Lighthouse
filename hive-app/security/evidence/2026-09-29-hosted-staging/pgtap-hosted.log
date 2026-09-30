@@ -1,0 +1,20 @@
+Connecting to remote database...
+/dev/Lighthouse/hive-app/supabase/tests/001_constraints.test.sql ..................... ok
+/dev/Lighthouse/hive-app/supabase/tests/002_grants.test.sql .......................... ok
+/dev/Lighthouse/hive-app/supabase/tests/003_rls_isolation.test.sql ................... ok
+/dev/Lighthouse/hive-app/supabase/tests/004_staff_aal2.test.sql ...................... ok
+/dev/Lighthouse/hive-app/supabase/tests/005_mixed_role_aal2.test.sql ................. ok
+/dev/Lighthouse/hive-app/supabase/tests/006_restrictive_gate.test.sql ................ ok
+/dev/Lighthouse/hive-app/supabase/tests/007_milestone1_read_surfaces.test.sql ........ ok
+/dev/Lighthouse/hive-app/supabase/tests/008_milestone2_document_uploads.test.sql ..... ok
+/dev/Lighthouse/hive-app/supabase/tests/009_milestone3_review_and_response.test.sql .. ok
+/dev/Lighthouse/hive-app/supabase/tests/010_milestone4_review_and_approval.test.sql .. ok
+/dev/Lighthouse/hive-app/supabase/tests/011_milestone5_source_adapters.test.sql ...... ok
+/dev/Lighthouse/hive-app/supabase/tests/012_milestone6_release_controls.test.sql ..... ok
+/dev/Lighthouse/hive-app/supabase/tests/013_review_tenant.test.sql ................... ok
+All tests successful.
+Files=13, Tests=487, 69 wallclock secs ( 0.22 usr  0.09 sys +  0.16 cusr  0.09 csys =  0.56 CPU)
+Result: PASS
+A new version of Supabase CLI is available: v2.118.0 (currently installed v2.115.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+exit 0

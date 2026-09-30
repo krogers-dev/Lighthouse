@@ -1,0 +1,34 @@
+$ staging seed-review
+seed-review-tenant [staging]: review environment in place (1 client, 1 entity, 1 case, 2 requests); identity verified as review@myhbcfo.com; registered as the review identity; no password set
+  exit 0
+$ staging review-window-status
+review-window [staging]: closed (1 review identity registered); the sweep last ran at 2026-09-30T16:20:00.013673+00:00 (expired 0, scrubbed 0; totals 1 expired, 2 scrubbed)
+  exit 0
+$ staging open-review-window 1
+review-window [staging]: open until 2026-09-30T17:20:19.07467+00:00; the review code was generated into C:\Users\kodyr\HIVE-approvals\review-code-staging.txt and set for review@myhbcfo.com (never printed)
+  exit 0
+$ staging check-review-sign-in
+review-window [staging]: the code in the file signs review@myhbcfo.com in and the session sees exactly the review workspace (1 environment, 1 case, 2 requests); the check's session was signed out; nothing was printed
+  exit 0
+$ staging review-window-status
+review-window [staging]: OPEN until 2026-09-30T17:20:19.07467+00:00 (0 of 10 failed attempts where the hook runs; 1 review identity); the sweep last ran at 2026-09-30T16:20:00.013673+00:00 (expired 0, scrubbed 0; totals 1 expired, 2 scrubbed)
+  exit 0
+$ staging close-review-window
+review-window [staging]: closed at 2026-09-30T16:20:40.200638+00:00 (sessions revoked, password replaced on the server); the review identity's password replaced once more through the Auth Admin API
+  exit 0
+$ staging check-review-sign-in   (negative: the window is closed)
+review-window: the code in the file does not sign review@myhbcfo.com in (400); is a window open, and was the file's code the one set?
+hosted-supabase: check-review-sign-in on staging failed
+  exit 1
+$ staging sweep-review-window
+review-window [staging]: swept as of 2026-09-30T16:20:47.315154+00:00; 0 window(s) expired, 1 stray hash(es) replaced
+  exit 0
+$ staging retire-review
+seed-review-tenant [staging]: retired (no open window; password replaced with an unknown value; identity unregistered; membership removed)
+  exit 0
+$ staging review-window-status
+review-window [staging]: closed (0 review identity registered); the sweep last ran at 2026-09-30T16:20:47.315154+00:00 (expired 0, scrubbed 1; totals 1 expired, 3 scrubbed)
+  exit 0
+$ production review-window-status
+review-window [production]: closed (0 review identity registered); the sweep last ran at 2026-09-30T16:20:00.020773+00:00 (expired 0, scrubbed 0; totals 0 expired, 0 scrubbed)
+  exit 0

@@ -1,0 +1,52 @@
+$ staging list-entities
+onboarding [staging]: 2 environment(s), 3 client(s), 5 entit(ies)
+  environment local-development (development)
+    client Cedar Grove Consulting LLC (Synthetic)  bbbbbbbb-0000-4000-8000-000000000001
+      entity Cedar Grove Consulting LLC (Synthetic)  bbbbbbbb-1111-4000-8000-000000000001
+      entity Cedar Grove Properties LLC (Synthetic)  bbbbbbbb-2222-4000-8000-000000000002
+    client Harbor Light Bakery LLC (Synthetic)  aaaaaaaa-0000-4000-8000-000000000001
+      entity Harbor Light Bakery LLC (Synthetic)  aaaaaaaa-1111-4000-8000-000000000001
+      entity Harbor Light Holdings LLC (Synthetic)  aaaaaaaa-2222-4000-8000-000000000002
+  environment store-review (development)
+    client Review Bakery LLC (Synthetic)  77777777-0000-4000-8000-000000000001
+      entity Review Bakery LLC (Synthetic)  77777777-1111-4000-8000-000000000001
+  exit 0
+$ staging onboard-entity "Onboarding Proof Client (Synthetic)" "Onboarding Proof Entity (Synthetic)"
+onboarding [staging]: entity 0e774f7a-5eb0-40cf-9e10-588492424b26 onboarded under client d24e71f0-045c-4800-bb71-ba4ec70e8fa4 (client created) in environment local-development (existing); give people access with: invite <address> <role> 0e774f7a-5eb0-40cf-9e10-588492424b26
+  exit 0
+$ staging invite <throwaway client address> client_user 0e774f7a-5eb0-40cf-9e10-588492424b26
+onboarding [staging]: p***@example.invalid (14ce1c0a-1919-43ba-84f3-f374d33f8721) holds client_user on entity 0e774f7a-5eb0-40cf-9e10-588492424b26; identity created; membership granted; no email was sent: they sign in with a code when they open the app
+  exit 0
+$ staging invite <the same address> client_user 0e774f7a-5eb0-40cf-9e10-588492424b26
+onboarding [staging]: p***@example.invalid (14ce1c0a-1919-43ba-84f3-f374d33f8721) holds client_user on entity 0e774f7a-5eb0-40cf-9e10-588492424b26; existing identity; membership already held; no email was sent: they sign in with a code when they open the app
+  exit 0
+$ staging invite review@myhbcfo.com intake 0e774f7a-5eb0-40cf-9e10-588492424b26   (an identity that already exists)
+onboarding [staging]: r***@myhbcfo.com (cccccccc-0000-4000-8000-0000000000aa) holds intake on entity 0e774f7a-5eb0-40cf-9e10-588492424b26; existing identity; membership granted; no email was sent: they sign in with a code when they open the app
+  exit 0
+$ staging invite someone@gmail.com intake 0e774f7a-5eb0-40cf-9e10-588492424b26   (negative: not a staff address)
+hosted-supabase: staff roles are given only to addresses on: myhbcfo.com, example.invalid
+  exit 1
+$ staging list-access 0e774f7a-5eb0-40cf-9e10-588492424b26
+onboarding [staging]: 2 membership(s) on entity 0e774f7a-5eb0-40cf-9e10-588492424b26
+  client_user p***@example.invalid  14ce1c0a-1919-43ba-84f3-f374d33f8721
+  intake      r***@myhbcfo.com  cccccccc-0000-4000-8000-0000000000aa
+  exit 0
+$ staging revoke-access <throwaway client address> client_user 0e774f7a-5eb0-40cf-9e10-588492424b26
+onboarding [staging]: p***@example.invalid (14ce1c0a-1919-43ba-84f3-f374d33f8721) no longer holds client_user on entity 0e774f7a-5eb0-40cf-9e10-588492424b26
+  exit 0
+$ staging revoke-access review@myhbcfo.com intake 0e774f7a-5eb0-40cf-9e10-588492424b26
+onboarding [staging]: r***@myhbcfo.com (cccccccc-0000-4000-8000-0000000000aa) no longer holds intake on entity 0e774f7a-5eb0-40cf-9e10-588492424b26
+  exit 0
+$ staging list-access 0e774f7a-5eb0-40cf-9e10-588492424b26
+onboarding [staging]: 0 membership(s) on entity 0e774f7a-5eb0-40cf-9e10-588492424b26
+  exit 0
+$ staging onboard-entity (the same names again: negative)
+onboarding: the entity was not onboarded (entity_exists)
+hosted-supabase: onboard-entity on staging failed
+  exit 1
+$ production list-entities
+onboarding [production]: 0 environment(s), 0 client(s), 0 entit(ies)
+  exit 0
+$ production onboard-entity ...   (negative: no ref)
+hosted-supabase: onboard-entity changes production: repeat its project ref to go on (--confirm nceencyvxfhkffbjqlea)
+  exit 1

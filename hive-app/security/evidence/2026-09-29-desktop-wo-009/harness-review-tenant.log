@@ -1,0 +1,29 @@
+ok - review tenant: seeded and registered on demand
+ok - review tenant: the code is set as the review identity’s password while no window is open
+ok - review tenant: the review identity is refused while no window is open (400)
+ok - server role: opens a review window
+ok - review tenant: the code is set inside the window
+ok - review tenant: a wrong code is refused (400)
+ok - server role: without the hook a wrong code is not counted; the rate limit and the code’s length bound it (fallback mode)
+ok - server role: the status carries the sweep state
+ok - review tenant: the review identity signs in with the code inside the window
+ok - review tenant: the JWT names the canonical review identity
+ok - review tenant: reads exactly the review case and none of the seeded clients’ cases
+ok - review tenant: reads the two review requests
+ok - review tenant: sees only the review environment
+ok - review tenant: a seeded client is given a password for the negative
+ok - review tenant: anyone but the review identity is refused the password grant even with a valid password (400)
+ok - server role: the sweep expires the window whose close time has passed ({"as_of":"2026-09-29T23:36:49.111+00:00","expired":1,"scrubbed":1})
+ok - review tenant: the code is refused once the window expired (400)
+ok - review tenant: the session issued inside the window cannot be refreshed after expiry (400)
+ok - server role: opens a second window
+ok - review tenant: the code is set again inside the second window
+ok - review tenant: the review identity signs in inside the second window
+ok - server role: closes the window
+ok - review tenant: the code is refused once the window is closed (400)
+ok - review tenant: the session issued inside the second window cannot be refreshed after the close (400)
+ok - review tenant: every step is on the audit trail, in the review environment’s scope, with both close reasons
+ok - review tenant: retired (window closed, code replaced, identity unregistered, membership removed)
+ok - review tenant: nothing signs in after retirement (400)
+e2e-local-auth: 400 passed, 0 failed
+exit 0

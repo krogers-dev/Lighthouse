@@ -1,0 +1,62 @@
+appId: com.myhbcfo.hive.development
+name: Storage quarantine blocks protected UI; scrub is the only recovery
+# Pre-steps on the runner:
+#   1. The installed development build was exported with
+#      EXPO_PUBLIC_QA_HOOKS=1 (QA build). This enables the dev-only
+#      storage-corruption deep link (hivedev:///?qa=corrupt-storage, parsed
+#      by exact scheme/host/path), which release configuration forbids
+#      (config:check) and bundle inspection proves absent from
+#      non-development exports (bundle:inspect:candidate).
+#   2. The app is signed in (sign-in.yaml).
+# The hook corrupts the stored session manifest and then renders a
+# QA-only acknowledgment; the flow WAITS for that acknowledgment before
+# stopping the app, so the corruption write cannot be cut short.
+---
+- launchApp
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session lands on the chooser rather than the last workspace.
+# Bounded wait, not a bare assertion: a dev build fetches its bundle on a
+# cold start (find 31), and the denied runner met exactly that race on the
+# 2026-09-06 desktop run (find 41).
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- openLink: hivedev:///?qa=corrupt-storage
+# Wait for the completion acknowledgment before killing the app.
+- extendedWaitUntil:
+    visible:
+      id: 'qa-corrupt-ack'
+    timeout: 10000
+- stopApp
+- launchApp
+# No protected UI and no generic retry: only the scrub action exists.
+- assertNotVisible:
+    id: 'dashboard-workspace'
+- assertVisible:
+    id: 'quarantine-screen'
+- assertVisible: 'Sign-in on this device needs a reset'
+- assertNotVisible: 'Retry'
+# At 200% text this control can sit below the fold, and tap-by-id does not
+# scroll (find 42, 2026-09-06 desktop run): bring it into view first. This
+# completes at once when the control is already visible.
+- scrollUntilVisible:
+    element:
+      text: 'Reset sign-in on this device'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn: 'Reset sign-in on this device'
+# Verified scrub lands on signed-out with the scrubbed notice; sign-in works.
+# The Notice primitive PREFIXES an info notice with "Note: " — that
+# prefix is deliberate (status is never colour-only), so it is part of
+# what the screen actually renders and therefore part of what a
+# full-match text assertion has to say. Periods escaped: Maestro matches
+# text as a regex (find 35).
+- assertVisible: 'Note: Sign-in on this device was reset\. Sign in again to continue\.'
+- assertVisible: 'Email'

@@ -1,0 +1,36 @@
+privacy-reconcile: row-based classification check
+seed-review-tenant: ignore-duplicates
+# pass 4
+# fail 0
+privacy:reconcile OK — 24 dependencies, 112 source files, the manifest, the permissions, and the export answer match docs/release/privacy-disclosures.json
+reset-totp: reviewer.rae@example.invalid is factor-clean (0 deleted, readback verified zero)
+reset-totp: preparer.pat@example.invalid is factor-clean (0 deleted, readback verified zero)
+reset-totp: mixed.same@example.invalid is factor-clean (0 deleted, readback verified zero)
+reset-totp: approver.avery@example.invalid is factor-clean (0 deleted, readback verified zero)
+reset-totp: intake.beth@example.invalid is factor-clean (0 deleted, readback verified zero)
+answer-reset: a1Question is OPEN again with no answer (version 6)
+case-reset: a1 is back to its seeded status with no package (version 12)
+ledger-sync: Account acct-synthetic-operating@3 -> 4e4621b8-2ec0-4a53-9e1c-bd60ac73897e (recorded)
+ledger-sync: JournalEntry je-synthetic-2025-close@2 -> fb7d0108-39aa-4ee8-b91d-a4ee82caebbe (recorded)
+ledger-sync: Report report-synthetic-pl-2025@1 -> 5c321049-646e-4b0e-8aa9-d576ea12e428 (recorded)
+ledger-sync: a1 carries 3 reference(s) read by HiveSyntheticLedger
+service-state: open (reason none, minimum app version 0.0.0, status version 5)
+deletion-tools: client.owner@example.invalid holds no open deletion request; nothing to withdraw
+seed-review-tenant: review environment in place (1 client, 1 entity, 1 case, 2 requests); identity verified; registered as the review identity
+review-window: open until 2026-09-29T17:42:18.684242+00:00; the review code was generated into the file HIVE_REVIEW_CODE_FILE names and set for review.reader@example.invalid (never printed)
+review-window: closed at 2026-09-29T16:42:35.595656+00:00; the review identity's password replaced with an unknown value
+seed-review-tenant: retired (no open window; password replaced with an unknown value; identity unregistered; membership removed)
+PASS tests/live/review-tenant-live.test.ts
+PASS tests/live/screens-live.test.tsx
+PASS tests/live/app-live-bridge.test.ts
+PASS tests/live/answers-live.test.ts
+PASS tests/live/review-live.test.ts
+PASS tests/live/release-controls-live.test.ts
+PASS tests/live/documents-live.test.ts
+Test Suites: 7 passed, 7 total
+Tests:       13 passed, 13 total
+Snapshots:   0 total
+Time:        12.515 s, estimated 13 s
+Ran all test suites.
+local-supabase: live bridge on the CLI stack passed (13 of 13)
+bridge exit 0

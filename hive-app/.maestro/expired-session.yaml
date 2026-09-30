@@ -1,0 +1,68 @@
+appId: com.myhbcfo.hive.development
+name: Expired/revoked session fails closed into a fresh sign-in
+# Pre-steps on the runner:
+#   1. The installed development build was exported with
+#      EXPO_PUBLIC_QA_HOOKS=1 (QA build). This enables the dev-only
+#      session-expiry deep link (hivedev:///?qa=expire-session, parsed by
+#      exact scheme/host/path), which release configuration forbids
+#      (config:check) and bundle inspection proves absent from
+#      non-development exports (bundle:inspect:candidate).
+#   2. The app is signed in with a workspace selectable (sign-in.yaml).
+#
+# Why a QA hook and not a server-side revoke (find 20, corrected by the
+# 2026-09-06 review): the stored access token stays usable until its own
+# exp, an hour out, so deleting auth.sessions changes nothing for that
+# hour; and the auth library refreshes a lapsed stored session at boot, so
+# merely expiring the token would be undone by a valid refresh token. The
+# hook rewrites the STORED session through the versioned storage adapter
+# (still verifies, no quarantine) with expires_at in the past AND an inert
+# refresh token: the boot refresh is definitively rejected, the gateway
+# maps that to SessionExpiredError, and the app takes the expiry branch —
+# local cleanup, then the "session ended" notice. This is the real
+# revoked-session shape, reproduced deterministically.
+# The hook renders a QA-only acknowledgment; the flow WAITS for it before
+# stopping the app, so the expiry write cannot be cut short.
+# Find 39: opening the link resumes the activity, and the controller
+# restarts the auth library's foreground refresh on every resume; its
+# first tick reads the stored session, and had the expired envelope
+# already been written, the RUNNING app would have consumed it (refresh
+# rejected, session removed, signed out with the reason) — so the relaunch
+# this flow tests would find no session and show no notice, exactly what
+# the 2026-09-06 desktop run saw. The hook therefore lets the resume cycle
+# finish, stops the foreground refresh, and only then writes; the
+# force-stop below follows the acknowledgment before anything else can
+# read the expired envelope.
+---
+- launchApp
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session lands on the chooser rather than the last workspace.
+# Bounded wait, not a bare assertion: a dev build fetches its bundle on a
+# cold start (find 31), and the denied runner met exactly that race on the
+# 2026-09-06 desktop run (find 41).
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- openLink: hivedev:///?qa=expire-session
+# Wait for the completion acknowledgment before killing the app.
+- extendedWaitUntil:
+    visible:
+      id: 'qa-expired-ack'
+    timeout: 10000
+- stopApp
+- launchApp
+# The relaunch must show no protected content and the expired notice.
+- assertNotVisible:
+    id: 'dashboard-workspace'
+- assertVisible:
+    id: 'signed-out-reason'
+# The Notice primitive PREFIXES an info notice with "Note: " — that
+# prefix is deliberate (status is never colour-only), so it is part of
+# what the screen actually renders and therefore part of what a
+# full-match text assertion has to say. Periods escaped: Maestro matches
+# text as a regex (find 35).
+- assertVisible: 'Note: Your session ended\. Sign in again to continue\.'
+- assertVisible: 'Email'

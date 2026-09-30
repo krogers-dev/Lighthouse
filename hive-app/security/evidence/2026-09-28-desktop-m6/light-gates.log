@@ -1,0 +1,32 @@
+== verify:toolchain
+verify:toolchain OK
+exit 0
+== maestro:validate
+maestro:validate OK
+exit 0
+== config:check (development)
+config:check OK for profile development
+exit 0
+== config:check --profile release (expected HOLD findings)
+FAIL release profile carries the development iOS bundle identifier
+FAIL release profile carries the development Android application id
+FAIL release profile carries the development display name
+FAIL release configuration uses a loopback URL
+FAIL release configuration must use https
+FAIL profile release has no approved origins in the manifest (HOLD)
+FAIL release configuration is missing EXPO_PUBLIC_SUPPORT_EMAIL (HOLD: Kody supplies the support address)
+FAIL release configuration uses a reserved or testing domain for EXPO_PUBLIC_DELETION_INFO_URL
+config:check FAILED for profile release
+exit 1
+== eas:guard
+eas:guard OK — one profile ('ios-simulator'), simulator-only, no submit lane, root .easignore covers both .gitignore files
+exit 0
+== db:types:check
+db-types: committed types match the schema
+exit 0
+== privacy:reconcile
+privacy:reconcile OK — 24 dependencies, 112 source files, the manifest, the permissions, and the export answer match docs/release/privacy-disclosures.json
+exit 0
+== audit:gate
+audit:gate OK (high/critical advisories all covered by ratified, unexpired waivers; no prohibited assets)
+exit 0

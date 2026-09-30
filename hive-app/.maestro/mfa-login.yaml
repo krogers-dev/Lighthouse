@@ -1,0 +1,60 @@
+appId: com.myhbcfo.hive.development
+name: Subsequent staff login verifies against the existing factor (no second QR)
+# Pre-steps (performed by scripts/maestro-enroll-runner.mjs):
+#   1. mfa-enroll.yaml has run for reviewer.rae@example.invalid in the
+#      SAME totp-helper session (the secret lives only in that loopback
+#      process's memory) and the app was signed out. The factor is NOT
+#      revoked between enrollment and this login — revocation is the last
+#      step of the sequence, after this flow proves the existing factor
+#      verifies.
+#   2. The email code is read from Mailpit MID-FLOW by otp-fetch.js.
+# No secret enters this flow through any channel: the script asks the
+# helper for the current code by synthetic account label only.
+---
+- launchApp
+- tapOn:
+    id: 'sign-in-email'
+- inputText: 'reviewer.rae@example.invalid'
+- runScript: otp-snapshot.js
+- tapOn:
+    id: 'sign-in-submit'
+- assertVisible: 'Enter your sign-in code'
+- runScript: otp-fetch.js
+- tapOn:
+    id: 'otp-code'
+- inputText: ${output.otpCode}
+- tapOn:
+    id: 'otp-submit'
+# Verify mode only: an already-enrolled account must never see a second QR.
+- assertNotVisible:
+    id: 'mfa-enroll-qr'
+- assertVisible:
+    id: 'mfa-code'
+- runScript: totp-code.js
+- tapOn:
+    id: 'mfa-code'
+- inputText: ${output.totpCode}
+# Bring the verify control into view rather than dismissing the keyboard.
+# With the keyboard up it covered the control (find 30); hideKeyboard is an
+# unconditional BACK on Android and exited the auth stack (find 37); and
+# tapping the field's label to blur it stopped working once the 2026 design
+# made this screen taller, the label having left the visible hierarchy under
+# the keyboard (find 47, 2026-09-07 desktop run). Scrolling to the control is
+# deterministic and completes at once when it is already visible.
+- scrollUntilVisible:
+    element:
+      id: 'mfa-submit'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'mfa-submit'
+# TOTP verify is a server round trip (challenge, verify, then the scoped
+# read), so the dashboard is not instantaneous: assert with a bounded
+# wait rather than racing it (find 31).
+- extendedWaitUntil:
+    visible:
+      id: 'dashboard-workspace'
+    timeout: 20000

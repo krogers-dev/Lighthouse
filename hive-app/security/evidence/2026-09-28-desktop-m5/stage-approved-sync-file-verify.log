@@ -1,0 +1,16 @@
+case-reset: a1 is back to its seeded status with no package (version 21)
+case-stage: a1 frozen as package 1 (READY_FOR_REVIEW)
+case-stage: a1 review started (IN_REVIEW)
+case-stage: a1 passed review (APPROVAL_PENDING)
+case-stage: a1 approved, bound to the exact package (APPROVED)
+ledger-sync: Account acct-synthetic-operating@3 -> 191b9581-18ce-4b22-b28b-95def20c9443 (recorded)
+ledger-sync: JournalEntry je-synthetic-2025-close@2 -> b597c9c9-4f2b-4d3f-8d65-8f2f9d4ee574 (recorded)
+ledger-sync: Report report-synthetic-pl-2025@1 -> 8f2943b2-f1da-4711-9356-8201e2bdf88f (recorded)
+ledger-sync: a1 carries 3 reference(s) read by HiveSyntheticLedger
+filing-stage: drv-synthetic-0001 -> receipt 7d5701c0-1a11-4bbc-9d90-916a1842863b (RECORDED)
+filing-stage: drv-synthetic-wrong -> receipt cd1853ac-73ef-44ae-987d-f582b03b9095 (RECORDED)
+filing-stage: a1 receipts recorded by intake at AAL2; run verify-filings to settle them
+filing-verify: 7d5701c0-1a11-4bbc-9d90-916a1842863b -> VERIFIED (object found)
+filing-verify: cd1853ac-73ef-44ae-987d-f582b03b9095 -> MISMATCH (object found)
+filing-verify: 2 receipt(s) checked by HiveSyntheticDrive; nothing written to any record
+stage exit 0

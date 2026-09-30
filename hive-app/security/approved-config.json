@@ -1,0 +1,21 @@
+{
+  "$comment": "Independent reviewed manifest of approved public configuration (RETURN-4 P1-4). The gates verify environment values AGAINST this manifest instead of trusting the same variables that built the bundle. Origins are compared exactly (scheme, hostname, port) after parsing — never by string prefix. The development profile approves only the local loopback stack origin and requires the current publishable key shape; candidate is the authorized synthetic lane carrying the development configuration by design; release approvals are absent on purpose (HOLD) and a custom Supabase domain may be added only as an explicit exact origin here after review.",
+  "profiles": {
+    "development": {
+      "approvedOrigins": ["http://127.0.0.1:54321", "http://10.0.2.2:54321"],
+      "clientKeyPolicy": "publishable-shape",
+      "notes": "Local loopback Supabase stack only; synthetic data only. 10.0.2.2 is the Android emulator's alias for the HOST's loopback: the same stack, named as the emulator must name it, not a second destination. Cleartext to it is permitted by plugins/with-android-debug-loopback.js in DEBUG builds only. Candidate and release are deliberately not given this origin."
+    },
+    "candidate": {
+      "approvedOrigins": ["http://127.0.0.1:54321"],
+      "clientKeyPolicy": "publishable-shape",
+      "notes": "Authorized SYNTHETIC candidate lane: production-mode export with development configuration; never a functional production build."
+    },
+    "release": {
+      "approvedOrigins": ["https://nceencyvxfhkffbjqlea.supabase.co"],
+      "clientKeyPolicy": "exact",
+      "clientKey": "sb_publishable_lhyWkEiMj9cQkVXFkl9dBw_H_x1K9O_",
+      "notes": "Approved 2026-09-29 under Kody's general grant and his \"Help here\" for the production project: the hosted PRODUCTION project hive-production (ref nceencyvxfhkffbjqlea, us-east-2, Honeybee Accounting organization, Free plan until Kody upgrades it) is the release-profile origin; its publishable key is public by design. The staging project (zhdvmllscjyepwucbtzq) is the review and rehearsal environment and is reached by the development build with its origin in the process environment, never by a release build. A custom domain is added only as its own exact origin here after review."
+    }
+  }
+}

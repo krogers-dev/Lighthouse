@@ -1,0 +1,53 @@
+appId: com.myhbcfo.hive.development
+name: Activity shows roles and dates only; Help works without the server
+tags:
+  - milestone1
+# Pre-steps: seeded stack up, signed in as client.owner@example.invalid
+# with the Harbor Light Bakery workspace selected (sign-in.yaml).
+---
+- launchApp:
+    clearState: false
+# ScopeKey is memory-only by design (docs/data-classification.md), so a
+# resumed session lands on the chooser rather than the last workspace.
+# Re-selecting here is also what proves the session survived the relaunch.
+# Bounded wait, not a bare assertion: a dev build fetches its bundle on a
+# cold start (find 31), and the denied runner met exactly that race on the
+# 2026-09-06 desktop run (find 41).
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+- tapOn:
+    id: 'nav-activity'
+- assertVisible:
+    id: 'activity-screen'
+- assertVisible:
+    id: 'activity-list'
+- assertVisible: 'Request opened'
+- assertVisible: 'Status changed'
+# Activity names ROLES, never people: the seeded synthetic account names
+# must not appear on this screen.
+- assertNotVisible: 'client.owner@example.invalid'
+- assertNotVisible: 'reviewer.rae@example.invalid'
+# Help is static content shipped with the app, so it renders with the
+# network off — which is exactly when someone reaches for it.
+- setAirplaneMode: enabled
+- tapOn:
+    id: 'nav-help'
+- assertVisible:
+    id: 'help-screen'
+- assertVisible:
+    id: 'help-section-what-hive-shows'
+# Help's content is taller than the viewport, so the version line — the last
+# element on the screen — is below the fold. assertVisible sees the viewport,
+# not the document, so it has to be scrolled to (find 17). Scrolling with the
+# network off also proves the static content is genuinely local.
+- scrollUntilVisible:
+    element:
+      id: 'help-version'
+- assertVisible:
+    id: 'help-version'
+- setAirplaneMode: disabled

@@ -1,0 +1,32 @@
+﻿Running on Pixel_8
+ > Flow A client asks for their account to be deleted through one confirmation, sees the open request, and withdraws it
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that "Choose a workspace" is visible... COMPLETED
+Tap on "Harbor Light Bakery LLC \(Synthetic\), Client access"... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Tap on id: nav-account... COMPLETED
+Assert that id: settings-screen is visible... COMPLETED
+Scrolling DOWN until id: settings-deletion-section is visible with speed 40, visibility percentage 50%, timeout 20000 ms, with centering disabled... COMPLETED
+Assert that "Delete your account" is visible... COMPLETED
+Scrolling DOWN until id: settings-deletion-request is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: settings-deletion-request... COMPLETED
+Assert that id: settings-deletion-confirm-notice is visible... COMPLETED
+Assert that "Warning: Request account deletion\?" is visible... COMPLETED
+Scrolling DOWN until id: settings-deletion-confirm is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: settings-deletion-confirm... COMPLETED
+Assert that id: settings-deletion-done is visible... COMPLETED
+Assert that "Done: Deletion requested" is visible... COMPLETED
+Scrolling DOWN until id: settings-deletion-ok is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: settings-deletion-ok... COMPLETED
+Assert that id: settings-deletion-requested is visible... COMPLETED
+Scrolling DOWN until id: settings-deletion-withdraw is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: settings-deletion-withdraw... COMPLETED
+Assert that id: settings-deletion-confirm-notice is visible... COMPLETED
+Assert that "Warning: Withdraw the deletion request\?" is visible... COMPLETED
+Scrolling DOWN until id: settings-deletion-confirm is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: settings-deletion-confirm... COMPLETED
+Assert that id: settings-deletion-done is visible... COMPLETED
+Assert that "Done: Request withdrawn" is visible... COMPLETED
+Scrolling DOWN until id: settings-deletion-ok is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: settings-deletion-ok... COMPLETED
+Assert that id: settings-deletion-request is visible... COMPLETED

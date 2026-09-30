@@ -1,0 +1,127 @@
+appId: com.myhbcfo.hive.development
+name: A client adds a document to an open request through the checked, quarantined transfer
+tags:
+  - milestone2
+# Pre-steps: the seeded DOCKER stack up (the storage service exists only
+# there), a QA build (EXPO_PUBLIC_QA_HOOKS=1), and the app signed in as
+# client.owner@example.invalid (sign-in.yaml). The platform file picker is
+# system UI Maestro cannot drive reliably, so the QA build's synthetic
+# document source is armed by its exact deep link for ONE pick; the read,
+# the digest, the transfer, and the discard are the production paths.
+# What this proves on glass: the seeded documents show their true status;
+# the one write control exists for a client user on an open request; the
+# picked file is checked on the phone before anything is sent; the
+# transfer lands in quarantine; and the request then shows the document
+# as received, being checked. Reset the arm between runs is not needed:
+# the pick consumes it.
+---
+- launchApp:
+    clearState: false
+# ScopeKey is memory-only by design, so a resumed session lands on the
+# chooser. Bounded wait: a dev build fetches its bundle on a cold start.
+- extendedWaitUntil:
+    visible:
+      text: 'Choose a workspace'
+    timeout: 30000
+- tapOn: 'Harbor Light Bakery LLC \(Synthetic\), Client access'
+- assertVisible:
+    id: 'dashboard-workspace'
+# Arm the synthetic source first: opening the link resumes the app at its
+# root, so arming happens before the walk to the request, not after.
+- openLink: hivedev:///?qa=synthetic-document
+- extendedWaitUntil:
+    visible:
+      id: 'qa-synthetic-document-ack'
+    timeout: 10000
+- tapOn:
+    id: 'nav-requests'
+- assertVisible:
+    id: 'requests-list'
+- tapOn: 'Bank statement for the closing month \(Synthetic\)'
+- assertVisible:
+    id: 'request-detail-ready'
+# The seeded documents on this request, each with its true status. The
+# documents section sits below the request's table, so at any text size
+# the rows are below the fold and assertVisible (viewport only, find 17)
+# cannot see them: scroll each into view instead (first desktop run,
+# 2026-09-28).
+- scrollUntilVisible:
+    element:
+      text: 'bank-statement-2026-07 \(Synthetic\).pdf'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- scrollUntilVisible:
+    element:
+      text: 'receipt-photo \(Synthetic\).jpeg'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- scrollUntilVisible:
+    element:
+      id: 'request-detail-add-document'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'request-detail-add-document'
+- assertVisible:
+    id: 'add-document-request-title'
+- tapOn:
+    id: 'add-document-choose'
+# Checked on the phone: name, type, size, and the statement that nothing
+# has been sent yet.
+- extendedWaitUntil:
+    visible:
+      id: 'add-document-checked'
+    timeout: 20000
+- assertVisible: 'hive-qa-document \(Synthetic\).pdf'
+- scrollUntilVisible:
+    element:
+      id: 'add-document-send'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'add-document-send'
+# Reserve, transfer, confirm: the received state appears once the server
+# has verified the object at the declared size.
+- extendedWaitUntil:
+    visible:
+      id: 'add-document-received'
+    timeout: 60000
+- scrollUntilVisible:
+    element:
+      id: 'add-document-back'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'add-document-back'
+# Back on the request, the document is listed (newest first, so it heads
+# the documents section) as received, being checked. Below the fold, so
+# scroll to it; the status badge sits directly under the name.
+- extendedWaitUntil:
+    visible:
+      id: 'request-detail-ready'
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      text: 'hive-qa-document \(Synthetic\).pdf'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: true
+- assertVisible: 'hive-qa-document \(Synthetic\).pdf'
+- assertVisible: 'Received, being checked'

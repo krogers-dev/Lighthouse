@@ -1,0 +1,18 @@
+seed-review-tenant: review environment in place (1 client, 1 entity, 1 case, 2 requests); identity verified; registered as the review identity
+review-window: open until 2026-09-29T17:50:00.242274+00:00; the review code was generated into the file HIVE_REVIEW_CODE_FILE names and set for review.reader@example.invalid (never printed)
+review-window: OPEN until 2026-09-29T17:50:00.242274+00:00 (0 of 10 failed attempts; 1 review identity)
+--- review-sign-in.yaml ---
+Assert that id: otp-code is visible... COMPLETED
+Tap on id: otp-code... COMPLETED
+Input text ${REVIEW_CODE}... COMPLETED
+Tap on id: otp-submit... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Assert that "Review Bakery LLC \(Synthetic\)" is visible... COMPLETED
+Assert that "2025 books close for review \(Synthetic\)" is visible... COMPLETED
+Assert that "Harbor Light Bakery LLC \(Synthetic\)" is not visible... COMPLETED
+review sign-in flow exit code: 0
+review-window: OPEN until 2026-09-29T17:50:00.242274+00:00 (0 of 10 failed attempts; 1 review identity)
+review-window: closed at 2026-09-29T16:50:47.540071+00:00; the review identity's password replaced with an unknown value
+seed-review-tenant: retired (no open window; password replaced with an unknown value; identity unregistered; membership removed)
+the code does not appear in the flow log
+210535 review-workspace.png

@@ -1,0 +1,29 @@
+﻿Running on Pixel_8
+ > Flow A client adds a document to an open request through the checked, quarantined transfer
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that "Choose a workspace" is visible... COMPLETED
+Tap on "Harbor Light Bakery LLC \(Synthetic\), Client access"... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Open hivedev:///?qa=synthetic-document... COMPLETED
+Assert that id: qa-synthetic-document-ack is visible... COMPLETED
+Tap on id: nav-requests... COMPLETED
+Assert that id: requests-list is visible... COMPLETED
+Tap on "Bank statement for the closing month \(Synthetic\)"... COMPLETED
+Assert that id: request-detail-ready is visible... COMPLETED
+Scrolling DOWN until "bank-statement-2026-07 \(Synthetic\).pdf" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Scrolling DOWN until "receipt-photo \(Synthetic\).jpeg" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Scrolling DOWN until id: request-detail-add-document is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: request-detail-add-document... COMPLETED
+Assert that id: add-document-request-title is visible... COMPLETED
+Tap on id: add-document-choose... COMPLETED
+Assert that id: add-document-checked is visible... COMPLETED
+Assert that "hive-qa-document \(Synthetic\).pdf" is visible... COMPLETED
+Scrolling DOWN until id: add-document-send is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: add-document-send... COMPLETED
+Assert that id: add-document-received is visible... COMPLETED
+Scrolling DOWN until id: add-document-back is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: add-document-back... COMPLETED
+Assert that id: request-detail-ready is visible... COMPLETED
+Scrolling DOWN until "hive-qa-document \(Synthetic\).pdf" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering enabled... COMPLETED
+Assert that "hive-qa-document \(Synthetic\).pdf" is visible... COMPLETED
+Assert that "Received, being checked" is visible... COMPLETED

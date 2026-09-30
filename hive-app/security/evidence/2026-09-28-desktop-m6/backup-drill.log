@@ -1,0 +1,22 @@
+backup-drill: environments               source    1  restored    1
+backup-drill: clients                    source    2  restored    2
+backup-drill: entities                   source    4  restored    4
+backup-drill: memberships                source   15  restored   15
+backup-drill: cases                      source    4  restored    4
+backup-drill: case_attention_items       source    3  restored    3
+backup-drill: case_next_actions          source    3  restored    3
+backup-drill: requests                   source    5  restored    5
+backup-drill: activity_events            source   16  restored   16
+backup-drill: document_uploads           source    7  restored    7
+backup-drill: request_answers            source    1  restored    1
+backup-drill: request_answer_citations   source    1  restored    1
+backup-drill: case_review_packages       source    1  restored    1
+backup-drill: case_reviews               source    1  restored    1
+backup-drill: case_approvals             source    1  restored    1
+backup-drill: ledger_references          source    3  restored    3
+backup-drill: filing_receipts            source    1  restored    1
+backup-drill: audit_receipts             source   46  restored   46
+backup-drill: service_status             source    1  restored    1
+backup-drill: service_status_changes     source    3  restored    3
+backup-drill: account_deletion_requests  source    3  restored    3
+backup-drill: OK — 21 tables restored with identical counts in 3s (pg_restore exit 1)

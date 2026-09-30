@@ -1,0 +1,110 @@
+﻿
+> hive-app@0.1.0 maestro:enroll
+> node scripts/maestro-enroll-runner.mjs --then case-sources.yaml
+
+totp-helper listening on http://127.0.0.1:8477 (loopback only; synthetic QA identities only; secrets memory-only)
+reset-totp: reviewer.rae@example.invalid is factor-clean (0 deleted, readback verified zero)
+maestro:enroll: factor revoked and verified clean (pre-run reset)
+maestro:enroll: running mfa-enroll.yaml (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-cCxMg5; watchdog 600000ms)
+Running on Pixel_8
+ > Flow First staff login enrolls TOTP (QR + setup key), wrong code recovers, correct code reaches AAL2
+Launch app "com.myhbcfo.hive.development" with clear state... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Tap on id: sign-in-email... COMPLETED
+Input text reviewer.rae@example.invalid... COMPLETED
+Run otp-snapshot.js... COMPLETED
+Tap on id: sign-in-submit... COMPLETED
+Assert that "Enter your sign-in code" is visible... COMPLETED
+Run otp-fetch.js... COMPLETED
+Tap on id: otp-code... COMPLETED
+Input text ${output.otpCode}... COMPLETED
+Tap on id: otp-submit... COMPLETED
+Assert that "Set up your authenticator" is visible... COMPLETED
+Assert that id: mfa-enroll-qr is visible... COMPLETED
+Assert that id: mfa-enroll-secret is visible... COMPLETED
+Copy text from element with id: mfa-enroll-secret... COMPLETED
+Run totp-capture.js...totp-helper: captured factor for reviewer.rae@example.invalid (secret held in memory only)
+ COMPLETED
+Copy text from element with "Set up your authenticator"... COMPLETED
+Tap on id: mfa-code... COMPLETED
+Input text ${output.totpWrongCode}... COMPLETED
+Scrolling DOWN until id: mfa-submit is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: mfa-submit... COMPLETED
+Assert that id: mfa-notice is visible... COMPLETED
+Assert that id: mfa-enroll-qr is visible... COMPLETED
+Tap on id: mfa-code... COMPLETED
+Erase text... COMPLETED
+Run totp-code.js... COMPLETED
+Input text ${output.totpCode}... COMPLETED
+Scrolling DOWN until id: mfa-submit is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: mfa-submit... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+maestro:enroll: mfa-enroll.yaml artifacts discarded unread — the enrollment screen shows the QR and setup key, so nothing from it is retained
+maestro:enroll: running staff-sign-out.yaml (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-cCxMg5; watchdog 600000ms)
+Running on Pixel_8
+ > Flow Staff sign-out between enrollment and the subsequent login
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Tap on id: nav-account... COMPLETED
+Assert that id: settings-screen is visible... COMPLETED
+Scrolling DOWN until id: settings-sign-out is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: settings-sign-out... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Stop com.myhbcfo.hive.development... COMPLETED
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Assert that id: dashboard-workspace is not visible... COMPLETED
+maestro:enroll: running mfa-login.yaml (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-cCxMg5; watchdog 600000ms)
+Running on Pixel_8
+ > Flow Subsequent staff login verifies against the existing factor (no second QR)
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Tap on id: sign-in-email... COMPLETED
+Input text reviewer.rae@example.invalid... COMPLETED
+Run otp-snapshot.js... COMPLETED
+Tap on id: sign-in-submit... COMPLETED
+Assert that "Enter your sign-in code" is visible... COMPLETED
+Run otp-fetch.js... COMPLETED
+Tap on id: otp-code... COMPLETED
+Input text ${output.otpCode}... COMPLETED
+Tap on id: otp-submit... COMPLETED
+Assert that id: mfa-enroll-qr is not visible... COMPLETED
+Assert that id: mfa-code is visible... COMPLETED
+Run totp-code.js... COMPLETED
+Tap on id: mfa-code... COMPLETED
+Input text ${output.totpCode}... COMPLETED
+Scrolling DOWN until id: mfa-submit is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: mfa-submit... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+maestro:enroll: running case-sources.yaml (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-cCxMg5; watchdog 600000ms)
+Running on Pixel_8
+ > Flow A reviewer opens the approved case from Home and reads its sources and its permanent record
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Assert that "2025 books close \(Synthetic\)" is visible... COMPLETED
+Tap on "2025 books close \(Synthetic\)"... COMPLETED
+Assert that id: case-review-ready is visible... COMPLETED
+Assert that "Approved" is visible... COMPLETED
+Scrolling DOWN until id: case-review-sources is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering enabled... COMPLETED
+Assert that "Operating account \(Synthetic\)" is visible... COMPLETED
+Assert that "Year-end close entry \(Synthetic\)" is visible... COMPLETED
+Assert that "Journal entry � version 2 � as of .*" is visible... COMPLETED
+Assert that "Digest .* � read by HiveSyntheticLedger" is visible... COMPLETED
+Scrolling DOWN until id: case-review-record is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering enabled... COMPLETED
+Assert that "bank-statement-2026-07 \(Synthetic\)\.pdf" is visible... COMPLETED
+Assert that "Verified in the record" is visible... COMPLETED
+Assert that "statement-2025-11 \(Synthetic\)\.pdf" is visible... COMPLETED
+Assert that "Did not match the record" is visible... COMPLETED
+Assert that "Checked .* by HiveSyntheticDrive, found .*" is visible... COMPLETED
+Scrolling DOWN until id: case-review-no-action is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Assert that "Nothing for you to do on this case right now." is visible... COMPLETED
+reset-totp: reviewer.rae@example.invalid is factor-clean (1 deleted, readback verified zero)
+maestro:enroll: factor revoked and verified clean (post-run revocation)
+maestro:enroll: totp-helper terminated (in-memory secret discarded)
+Running on Pixel_8
+ > Flow Overwrite the device clipboard with harmless text
+Launch app "com.myhbcfo.hive.development" with clear state... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Copy text from element with "HIVE"... COMPLETED
+maestro:enroll: device clipboard overwritten (success)
+maestro:enroll: artifact tree scrubbed (C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-cCxMg5 removed and verified gone)
+maestro:enroll OK — reset -> enroll -> sign-out -> login on the SAME factor -> revoke completed sequentially; helper terminated, clipboard scrubbed, artifacts confined and removed

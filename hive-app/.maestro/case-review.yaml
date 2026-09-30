@@ -1,0 +1,135 @@
+appId: com.myhbcfo.hive.development
+name: A conflict-free reviewer opens a frozen case from Home, starts the review, and records PASS
+tags:
+  - milestone4
+# RUN THIS THROUGH THE RUNNER, as the extra step after the staff login:
+#   npm run maestro:enroll -- --then case-review.yaml
+# Pre-steps: the seeded stack up; the seeded case READY_FOR_REVIEW with
+# its package frozen by the preparer
+#   node scripts/local-supabase.mjs reset-case a1
+#   node scripts/local-supabase.mjs stage-case a1 ready-for-review
+# The runner has just signed reviewer.rae@example.invalid in at AAL2
+# (mfa-login.yaml), which lands on Home. What this proves on glass: a
+# staff Home row opens the case; the review shows the frozen package
+# with its digest and contents; the reviewer's ONE action is to start
+# the review, through a confirmation that says review is read-only; the
+# case then shows as in review with the verdict form; PASS with a note
+# goes through a confirmation that says a recorded verdict cannot be
+# changed; and the case then shows as awaiting approval with the verdict
+# on record. Nothing here edits evidence. Reset between runs with
+# reset-case a1 and stage again.
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'dashboard-workspace'
+    timeout: 30000
+- assertVisible: '2025 books close \(Synthetic\)'
+- tapOn: '2025 books close \(Synthetic\)'
+- extendedWaitUntil:
+    visible:
+      id: 'case-review-ready'
+    timeout: 20000
+- assertVisible: 'Ready for review'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-package'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- assertVisible: 'Review package 1'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-action-start-review'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'case-review-action-start-review'
+- extendedWaitUntil:
+    visible:
+      id: 'case-review-confirm-notice'
+    timeout: 10000
+- assertVisible: 'The case shows as in review until you record a verdict. Review is read-only.'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-confirm'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'case-review-confirm'
+# The transition settles, the case reloads, and the flow starts fresh on
+# the new version: in review, with the verdict form.
+- extendedWaitUntil:
+    visible:
+      text: 'In review'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'case-review-verdict-pass'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'case-review-verdict-pass'
+- assertVisible: 'Pass \(chosen\)'
+- tapOn:
+    id: 'case-review-note'
+- inputText: 'Complete and consistent. (Synthetic)'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-action-record-verdict'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'case-review-action-record-verdict'
+- extendedWaitUntil:
+    visible:
+      id: 'case-review-confirm-verdict'
+    timeout: 10000
+- assertVisible: 'Verdict: Pass'
+- scrollUntilVisible:
+    element:
+      id: 'case-review-confirm'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false
+- tapOn:
+    id: 'case-review-confirm'
+- extendedWaitUntil:
+    visible:
+      text: 'Awaiting approval'
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: 'case-review-verdicts'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: true
+- assertVisible: 'Complete and consistent. \(Synthetic\)'
+# The action section sits below the verdicts: scroll, never a viewport-only
+# assertion (find 17).
+- scrollUntilVisible:
+    element:
+      id: 'case-review-no-action'
+    direction: DOWN
+    timeout: 20000
+    speed: 40
+    visibilityPercentage: 100
+    centerElement: false

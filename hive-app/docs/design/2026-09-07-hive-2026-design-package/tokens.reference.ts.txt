@@ -1,0 +1,94 @@
+/** HIVE 2026 design reference, 2026-09-07.
+ * PROPOSED mapping for the existing native semantic interface. Not a drop-in
+ * replacement: merge deliberately into hive-app/src/ui/tokens.ts and preserve
+ * all current exported types/helpers. See README and Claude-Start-Here.md.
+ * Authority: Honeybee Brand Kit v3.0 + approved August 25 HIVE product mark.
+ */
+export const palette = {
+  softBlack: '#111310', deepBlack: '#0B0C0A',
+  warmPaper: '#F3F2EA', warmCanvas: '#E7E6DD',
+  honeyGold: '#E8C655', softHoney: '#F2DA82',
+  sage: '#A6ADA0', softMoss: '#D7D9CF',
+  honeyInk: '#684F00', mutedCopy: '#5B5E55',
+  error: '#9D3E25', success: '#365B2B',
+} as const;
+const p = palette;
+
+// All 24 current SemanticColors keys are retained. The app's body canvas is
+// paper on phone, framed by warmCanvas on tablet. Chrome is always dark.
+export const lightColors = {
+  background: p.warmPaper, surface: p.warmPaper,
+  border: p.mutedCopy, divider: p.softMoss,
+  textPrimary: p.softBlack, textSecondary: p.mutedCopy,
+  textDisabled: p.mutedCopy, accent: p.honeyInk,
+  primaryActionBackground: p.softBlack, primaryActionText: p.warmPaper,
+  secondaryActionBorder: p.mutedCopy, secondaryActionText: p.softBlack,
+  focusRing: p.honeyInk,
+  panelInfoBackground: p.warmCanvas, panelInfoText: p.softBlack,
+  panelStableBackground: p.softMoss, panelStableText: p.softBlack,
+  panelAttentionBackground: p.softHoney, panelAttentionText: p.honeyInk,
+  dangerText: p.error,
+  dangerPanelBackground: p.error, dangerPanelText: p.warmPaper,
+  successText: p.success, warningText: p.honeyInk,
+} as const;
+
+export const darkColors = {
+  background: p.softBlack, surface: p.softBlack,
+  border: p.sage, divider: p.mutedCopy,
+  textPrimary: p.warmPaper, textSecondary: p.sage,
+  textDisabled: p.sage, accent: p.honeyGold,
+  primaryActionBackground: p.honeyGold, primaryActionText: p.softBlack,
+  secondaryActionBorder: p.sage, secondaryActionText: p.warmPaper,
+  focusRing: p.softHoney,
+  panelInfoBackground: p.deepBlack, panelInfoText: p.warmPaper,
+  panelStableBackground: p.mutedCopy, panelStableText: p.warmPaper,
+  panelAttentionBackground: p.softHoney, panelAttentionText: p.honeyInk,
+  // Normal-size error text on dark remains readable. Explicit Error/Blocked
+  // wording and icon carry meaning. Error panels use the functional red pair.
+  dangerText: p.warmPaper,
+  dangerPanelBackground: p.error, dangerPanelText: p.warmPaper,
+  successText: p.warmPaper, warningText: p.softHoney,
+} as const;
+
+export const themes = { light: lightColors, dark: darkColors } as const;
+
+// New presentation-only semantic roles for the fixed dark header/nav.
+// Keep these out of entity data and never allow client branding to override.
+export const appChrome = {
+  background: p.deepBlack, text: p.warmPaper, secondaryText: p.sage,
+  selectedBackground: p.honeyGold, selectedText: p.softBlack,
+  focusRing: p.softHoney, tabletCanvas: p.warmCanvas,
+} as const;
+
+export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
+export const radii = { sm: 6, md: 10, lg: 16 } as const;
+export const layout = {
+  screenGutter: 24, compactGutter: 16, fieldRadius: 0,
+  buttonRadius: 999, controlMinHeight: 52, targetMinSize: 48,
+  sectionGap: 32, iconSize: 24,
+} as const;
+
+// Load each bundled static face with these explicit aliases. AppText AND the
+// underlying TextField native input must consume fontFamily. Do not synthesize
+// a heavier face. Platform behavior must be tested on iOS and Android.
+export const fontFamily = {
+  regular: 'Manrope400', medium: 'Manrope500', semibold: 'Manrope600',
+  bold: 'Manrope700', extraBold: 'Manrope800',
+} as const;
+export const typeScale = {
+  title: { fontSize: 32, lineHeight: 38, fontFamily: fontFamily.bold, fontWeight: '700' },
+  heading: { fontSize: 22, lineHeight: 28, fontFamily: fontFamily.bold, fontWeight: '700' },
+  body: { fontSize: 16, lineHeight: 24, fontFamily: fontFamily.regular, fontWeight: '400' },
+  label: { fontSize: 16, lineHeight: 20, fontFamily: fontFamily.bold, fontWeight: '700' },
+  caption: { fontSize: 14, lineHeight: 20, fontFamily: fontFamily.medium, fontWeight: '500' },
+} as const;
+export const inputType = { fontSize: 16, lineHeight: 24, fontFamily: fontFamily.medium };
+export const motion = {
+  pressFeedbackMs: 80, stateFadeMs: 150,
+  durationsUnderReducedMotion: { pressFeedbackMs: 0, stateFadeMs: 0 },
+} as const;
+
+// Preserve qualifiesAsLargeText, ThemeName, TypeVariant, touchTarget and other
+// incumbent exports when merging. Do not make type/contrast tests pass by
+// removing checks. Replace the obsolete system-font-only assertion with
+// evidence for font loading, weight selection, fallback and large text.

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.expo/
+coverage/
+package-lock.json
+supabase/.temp/
+assets/
+# Generated (byte-compared by db:types:check) — never hand- or tool-formatted.
+src/data/supabase/database.types.ts
+# Captured evidence stays byte-exact as captured.
+security/evidence/
+# GoTrue mail template: functional config artifact, kept as authored.
+supabase/templates/
+# Received design handoff documents are kept byte-for-byte (their hashes are the provenance record).
+docs/design/2026-09-07-hive-2026-design-package/

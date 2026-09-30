@@ -1,0 +1,11 @@
+service-state: open (reason none, minimum app version 0.0.0, status version 7)
+deletion-tools: client.owner@example.invalid holds no open deletion request; nothing to withdraw
+--- sign-in.yaml (recovery after resume) ---
+sign-in exit code: 0
+--- account-deletion.yaml ---
+deletion flow exit code: 0
+--- deletion completion drill (nomember.norman) ---
+deletion-tools: nomember.norman@example.invalid asked for deletion, request 73658d47-b4d5-4b0a-83ab-f12b5fb85df6 (REQUESTED)
+deletion-tools: request 73658d47-b4d5-4b0a-83ab-f12b5fb85df6 COMPLETED, 0 membership(s) removed
+deletion-tools: nomember.norman@example.invalid removed; request kept as record (user null, subject pseudonymous); 0 audit receipt(s) and 0 document record(s) stand. Run `seed` to restore the synthetic identity.
+seed-local: 1 created, 8 verified existing, 15 memberships in place, 5 documents in place, 1 source link(s) in place, all ids canonical

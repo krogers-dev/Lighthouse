@@ -1,0 +1,40 @@
+﻿Running on Pixel_8
+ > Flow A client answers an open question with a saved draft, a cited document, and one explicit submission
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that "Choose a workspace" is visible... COMPLETED
+Tap on "Harbor Light Bakery LLC \(Synthetic\), Client access"... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Tap on id: nav-requests... COMPLETED
+Assert that id: requests-list is visible... COMPLETED
+Tap on "Confirm the November statement balance \(Synthetic\)"... COMPLETED
+Assert that id: request-detail-ready is visible... COMPLETED
+Scrolling DOWN until id: request-detail-subject is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Assert that "statement-2025-11 \(Synthetic\).pdf" is visible... COMPLETED
+Scrolling DOWN until id: request-detail-answer is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Assert that "No answer yet." is visible... COMPLETED
+Tap on id: request-detail-answer... COMPLETED
+Assert that id: respond-request-title is visible... COMPLETED
+Tap on id: respond-text... COMPLETED
+Input text Yes, the closing balance matches our records. (Synthetic)... COMPLETED
+Scrolling DOWN until "november-balance-photo \(Synthetic\).png" is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering enabled... COMPLETED
+Tap on "november-balance-photo \(Synthetic\).png"... COMPLETED
+Assert that "Checked. Referred to in your answer" is visible... COMPLETED
+Scrolling DOWN until id: respond-save is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: respond-save... COMPLETED
+Assert that id: respond-saved is visible... COMPLETED
+Assert that "Your draft is kept with the request. Nothing has been submitted." is visible... COMPLETED
+Scrolling DOWN until id: respond-submit is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: respond-submit... COMPLETED
+Assert that id: respond-confirm-notice is visible... COMPLETED
+Assert that "Once submitted it cannot be changed, and Honeybee will see it. The request will show as answered." is visible... COMPLETED
+Scrolling DOWN until id: respond-confirm is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: respond-confirm... COMPLETED
+Assert that id: respond-submitted is visible... COMPLETED
+Scrolling DOWN until id: respond-back is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: respond-back... COMPLETED
+Assert that id: request-detail-ready is visible... COMPLETED
+Assert that "Answered" is visible... COMPLETED
+Scrolling DOWN until id: request-detail-answer-submitted is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering enabled... COMPLETED
+Assert that "Yes, the closing balance matches our records. \(Synthetic\)" is visible... COMPLETED
+Assert that "Refers to: november-balance-photo \(Synthetic\).png" is visible... COMPLETED
+Assert that id: request-detail-answer is not visible... COMPLETED

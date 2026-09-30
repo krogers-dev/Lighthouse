@@ -1,0 +1,27 @@
+== verify:toolchain
+verify:toolchain OK
+exit 0
+== maestro:validate
+maestro:validate OK
+exit 0
+== config:check
+config:check OK for profile development
+exit 0
+== eas:guard
+eas:guard OK — one profile ('ios-simulator'), simulator-only, no submit lane, root .easignore covers both .gitignore files
+exit 0
+== db:types:check
+db-types: committed types match the schema
+exit 0
+== privacy:reconcile
+privacy:reconcile FAILED
+exit 1
+== audit:gate
+audit:gate OK (high/critical advisories all covered by ratified, unexpired waivers; no prohibited assets)
+exit 0
+== secrets:scan
+secrets:scan OK
+exit 0
+== prettier --check
+All matched files use Prettier code style!
+exit 0

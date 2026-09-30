@@ -1,0 +1,17 @@
+﻿Running on Pixel_8
+ > Flow Invite-only OTP sign-in reaches the scoped dashboard
+Launch app "com.myhbcfo.hive.development" with clear state... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Tap on id: sign-in-email... COMPLETED
+Input text client.owner@example.invalid... COMPLETED
+Run otp-snapshot.js... COMPLETED
+Tap on id: sign-in-submit... COMPLETED
+Assert that "Enter your sign-in code" is visible... COMPLETED
+Run otp-fetch.js... COMPLETED
+Tap on id: otp-code... COMPLETED
+Input text ${output.otpCode}... COMPLETED
+Tap on id: otp-submit... COMPLETED
+Assert that "Choose a workspace" is visible... COMPLETED
+Tap on "Harbor Light Bakery LLC \(Synthetic\), Client access"... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED

@@ -1,0 +1,12 @@
+== production holds no one and nothing (read-only)
+ users | sessions | environments | clients | memberships | cases | review_identities | review_windows | audit_receipts 
+-------+----------+--------------+---------+-------------+-------+-------------------+----------------+----------------
+     0 |        0 |            0 |       0 |           0 |     0 |                 0 |              0 |              0
+(1 row)
+
+== the schedule
+         jobname          | schedule  | active 
+--------------------------+-----------+--------
+ hive-review-window-sweep | * * * * * | t
+(1 row)
+

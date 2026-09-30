@@ -1,0 +1,132 @@
+﻿
+> hive-app@0.1.0 maestro:enroll
+> node scripts/maestro-enroll-runner.mjs --then case-sources.yaml
+
+totp-helper listening on http://127.0.0.1:8477 (loopback only; synthetic QA identities only; secrets memory-only)
+reset-totp: reviewer.rae@example.invalid is factor-clean (1 deleted, readback verified zero)
+maestro:enroll: factor revoked and verified clean (pre-run reset)
+maestro:enroll: running mfa-enroll.yaml (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-8AQwNj; watchdog 600000ms)
+Running on Pixel_8
+ > Flow First staff login enrolls TOTP (QR + setup key), wrong code recovers, correct code reaches AAL2
+Launch app "com.myhbcfo.hive.development" with clear state... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Tap on id: sign-in-email... COMPLETED
+Input text reviewer.rae@example.invalid... COMPLETED
+Run otp-snapshot.js... COMPLETED
+Tap on id: sign-in-submit... COMPLETED
+Assert that "Enter your sign-in code" is visible... COMPLETED
+Run otp-fetch.js... COMPLETED
+Tap on id: otp-code... COMPLETED
+Input text ${output.otpCode}... COMPLETED
+Tap on id: otp-submit... COMPLETED
+Assert that "Set up your authenticator" is visible... COMPLETED
+Assert that id: mfa-enroll-qr is visible... COMPLETED
+Assert that id: mfa-enroll-secret is visible... COMPLETED
+Copy text from element with id: mfa-enroll-secret... COMPLETED
+Run totp-capture.js...totp-helper: captured factor for reviewer.rae@example.invalid (secret held in memory only)
+ COMPLETED
+Copy text from element with "Set up your authenticator"... COMPLETED
+Tap on id: mfa-code... COMPLETED
+Input text ${output.totpWrongCode}... COMPLETED
+Scrolling DOWN until id: mfa-submit is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: mfa-submit... COMPLETED
+Assert that id: mfa-notice is visible... COMPLETED
+Assert that id: mfa-enroll-qr is visible... COMPLETED
+Tap on id: mfa-code... COMPLETED
+Erase text... COMPLETED
+Run totp-code.js... COMPLETED
+Input text ${output.totpCode}... COMPLETED
+Scrolling DOWN until id: mfa-submit is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: mfa-submit... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+maestro:enroll: mfa-enroll.yaml artifacts discarded unread — the enrollment screen shows the QR and setup key, so nothing from it is retained
+maestro:enroll: running staff-sign-out.yaml (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-8AQwNj; watchdog 600000ms)
+Running on Pixel_8
+ > Flow Staff sign-out between enrollment and the subsequent login
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+Tap on id: nav-account... COMPLETED
+Assert that id: settings-screen is visible... COMPLETED
+Scrolling DOWN until id: settings-sign-out is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: settings-sign-out... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Stop com.myhbcfo.hive.development... COMPLETED
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that id: sign-in-email is visible... COMPLETED
+Assert that id: dashboard-workspace is not visible... COMPLETED
+maestro:enroll: running mfa-login.yaml (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-8AQwNj; watchdog 600000ms)
+Running on Pixel_8
+ > Flow Subsequent staff login verifies against the existing factor (no second QR)
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Tap on id: sign-in-email... COMPLETED
+Input text reviewer.rae@example.invalid... COMPLETED
+Run otp-snapshot.js... COMPLETED
+Tap on id: sign-in-submit... COMPLETED
+Assert that "Enter your sign-in code" is visible... COMPLETED
+Run otp-fetch.js... COMPLETED
+Tap on id: otp-code... COMPLETED
+Input text ${output.otpCode}... COMPLETED
+Tap on id: otp-submit... COMPLETED
+Assert that id: mfa-enroll-qr is not visible... COMPLETED
+Assert that id: mfa-code is visible... COMPLETED
+Run totp-code.js... COMPLETED
+Tap on id: mfa-code... COMPLETED
+Input text ${output.totpCode}... COMPLETED
+Scrolling DOWN until id: mfa-submit is visible with speed 40, visibility percentage 100%, timeout 20000 ms, with centering disabled... COMPLETED
+Tap on id: mfa-submit... COMPLETED
+Assert that id: dashboard-workspace is visible... COMPLETED
+maestro:enroll: running case-sources.yaml (sequential; artifacts confined to C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-8AQwNj; watchdog 600000ms)
+Running on Pixel_8
+ > Flow A reviewer opens the approved case from Home and reads its sources and its permanent record
+Launch app "com.myhbcfo.hive.development"... COMPLETED
+Assert that id: dashboard-workspace is visible... FAILED
+
+Assertion is false: id: dashboard-workspace is visible
+
+Assertion 'id: dashboard-workspace is visible' failed. Check the UI hierarchy in debug artifacts to verify the element state and properties.
+
+Possible causes:
+- Element selector may be incorrect - check if there are similar elements with slightly different names/properties.
+- Element may be temporarily unavailable due to loading state
+- This could be a real regression that needs to be addressed
+
+==== Debug output (logs & screenshots) ====
+
+C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-8AQwNj\artifacts\2026-09-28_181111
+maestro:enroll FAILED — case-sources.yaml exited 1
+maestro:enroll: totp-helper terminated (in-memory secret discarded)
+
+cmd: Can't find service: package
+
+
+The stack trace was:
+maestro.android.AndroidOperationFailedException: cmd: Can't find service: package
+
+	at maestro.android.AndroidDeviceConnectionModelKt.orThrowOnFailure(AndroidDeviceConnectionModel.kt:138)
+	at maestro.drivers.AndroidDriver.install(AndroidDriver.kt:1337)
+	at maestro.drivers.AndroidDriver.installMaestroDriverApp$lambda$88(AndroidDriver.kt:1270)
+	at maestro.utils.Metrics.measured(Metrics.kt:48)
+	at maestro.drivers.AndroidDriver.installMaestroDriverApp(AndroidDriver.kt:1255)
+	at maestro.drivers.AndroidDriver.installMaestroApks(AndroidDriver.kt:1301)
+	at maestro.drivers.AndroidDriver.open(AndroidDriver.kt:110)
+	at maestro.Maestro$Companion.android(Maestro.kt:800)
+	at maestro.cli.session.MaestroSessionManager.createAndroid(MaestroSessionManager.kt:347)
+	at maestro.cli.session.MaestroSessionManager.createMaestro(MaestroSessionManager.kt:210)
+	at maestro.cli.session.MaestroSessionManager.newSession(MaestroSessionManager.kt:108)
+	at maestro.cli.session.MaestroSessionManager.newSession$default(MaestroSessionManager.kt:66)
+	at maestro.cli.command.TestCommand.runShardSuite(TestCommand.kt:477)
+	at maestro.cli.command.TestCommand.access$runShardSuite(TestCommand.kt:81)
+	at maestro.cli.command.TestCommand$handleSessions$1$results$1$1.invokeSuspend(TestCommand.kt:438)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:34)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:100)
+	at kotlinx.coroutines.internal.LimitedDispatcher$Worker.run(LimitedDispatcher.kt:124)
+	at kotlinx.coroutines.scheduling.TaskImpl.run(Tasks.kt:89)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler.runSafely(CoroutineScheduler.kt:586)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.executeTask(CoroutineScheduler.kt:820)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.runWorker(CoroutineScheduler.kt:717)
+	at kotlinx.coroutines.scheduling.CoroutineScheduler$Worker.run(CoroutineScheduler.kt:704)
+
+maestro:enroll: CLIPBOARD SCRUB FAILED (process exit) — overwrite the device clipboard manually before releasing the device
+reset-totp: reviewer.rae@example.invalid is factor-clean (1 deleted, readback verified zero)
+maestro:enroll: factor revoked and verified clean (process exit)
+maestro:enroll: artifact tree scrubbed (C:\Users\kodyr\AppData\Local\Temp\hive-maestro-enroll-8AQwNj removed and verified gone)

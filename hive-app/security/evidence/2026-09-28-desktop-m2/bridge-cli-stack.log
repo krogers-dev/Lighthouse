@@ -1,0 +1,7 @@
+PASS tests/live/screens-live.test.tsx
+PASS tests/live/app-live-bridge.test.ts
+PASS tests/live/documents-live.test.ts
+Test Suites: 3 passed, 3 total
+Tests:       8 passed, 8 total
+local-supabase: live bridge on the CLI stack passed (8 of 8)
+bridge exit 0

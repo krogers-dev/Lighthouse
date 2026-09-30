@@ -1,0 +1,50 @@
+appId: com.myhbcfo.hive.development
+name: The store review identity signs in with the review code and sees only the review workspace
+tags:
+  - milestone6
+# REVIEW_CODE has no default here on purpose: a flow-level env value wins
+# over the command line, so the placeholder would be what gets typed
+# (first desktop run). The code arrives only as `-e REVIEW_CODE=<digits>`.
+# Pre-steps: the seeded stack up, the review tenant seeded and a review
+# window open with the code in the file HIVE_REVIEW_CODE_FILE names:
+#   node scripts/local-supabase.mjs seed-review
+#   node scripts/local-supabase.mjs open-review-window 1
+# Run with the code passed as a Maestro variable, never written into a
+# flow or a log:
+#   maestro test -e REVIEW_CODE=<the code> .maestro/review-sign-in.yaml
+# Afterwards:
+#   node scripts/local-supabase.mjs close-review-window
+#   node scripts/local-supabase.mjs retire-review
+# What this proves on glass: a reviewer enters the review email and the
+# review code on the ordinary sign-in and code screens (nothing in the
+# app is different for them), lands in the review workspace, and sees the
+# review case and nothing of any other client. The server admits exactly
+# this identity, only inside the window.
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'sign-in-email'
+    timeout: 30000
+- tapOn:
+    id: 'sign-in-email'
+- inputText: 'review.reader@example.invalid'
+- tapOn:
+    id: 'sign-in-submit'
+- extendedWaitUntil:
+    visible:
+      id: 'otp-code'
+    timeout: 20000
+- tapOn:
+    id: 'otp-code'
+- inputText: ${REVIEW_CODE}
+- tapOn:
+    id: 'otp-submit'
+- extendedWaitUntil:
+    visible:
+      id: 'dashboard-workspace'
+    timeout: 30000
+- assertVisible: 'Review Bakery LLC \(Synthetic\)'
+- assertVisible: '2025 books close for review \(Synthetic\)'
+- assertNotVisible: 'Harbor Light Bakery LLC \(Synthetic\)'

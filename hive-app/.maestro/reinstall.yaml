@@ -1,0 +1,34 @@
+appId: com.myhbcfo.hive.development
+name: Reinstall purges stale secure data before auth starts
+# Android lane: clearState wipes app data (marker AND Keystore-backed
+# storage) — the flow proves a data-cleared install boots to a clean
+# sign-in with no residue.
+# iOS lane (manual): sign in, uninstall, reinstall the development build —
+# the Keychain may retain session items but the install marker is gone, so
+# boot must scrub them BEFORE any auth evaluation and land signed out; the
+# same assertions below apply.
+---
+- launchApp:
+    clearState: true
+# The boot must actually LAND before any negative below means anything: on
+# a blank first frame — which a data-cleared install shows while it starts —
+# both assertNotVisible checks pass vacuously, so this flow's entire point
+# could succeed because the app had not booted yet (find 32). Waiting for
+# the signed-out screen first is what makes the two negatives evidence.
+- extendedWaitUntil:
+    visible:
+      id: 'sign-in-email'
+    timeout: 30000
+- assertNotVisible:
+    id: 'dashboard-workspace'
+- assertNotVisible:
+    id: 'quarantine-screen'
+- assertVisible:
+    id: 'sign-in-email'
+# The purged install signs in cleanly (no quarantine, no stale identity).
+- tapOn:
+    id: 'sign-in-email'
+- inputText: 'client.owner@example.invalid'
+- tapOn:
+    id: 'sign-in-submit'
+- assertVisible: 'Enter your sign-in code'
