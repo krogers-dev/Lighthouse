@@ -1,10 +1,10 @@
 {
   "$comment": "Binding record for the archived raw npm audit report (RETURN-4 P2-6). The raw report in npm-audit-current.json is byte-for-byte as npm produced it; audit-gate.mjs hashes that file for the rawAuditSha256 ratification binding, so any future approval is bound to THIS evidence. Regenerate both files together whenever package-lock.json changes.",
-  "capturedAt": "2026-09-06T12:19:21.140Z",
+  "capturedAt": "2026-09-30T16:41:53.673Z",
   "command": "npm audit --json",
   "rawReportPath": "security/evidence/npm-audit-current.json",
-  "rawReportSha256": "eda0dee04d8459d2e9a02fb72dba1640112cd4eb95f335b932ea3c6eda97cf96",
-  "lockfileSha256": "0d96bebfee6d10220ddb2c84b92e0d1b08caa3eb21f1b1466999cb51934b3884",
+  "rawReportSha256": "75caafa2d16761caf4a29562e77a4ee36671d6e98779ae7a5e3df2f0ed017d69",
+  "lockfileSha256": "420466652d46f4b8b4b2fce48e9ccba4c361ab0fa863335beb4d7c9722d18fdd",
   "toolVersions": {
     "node": "v22.23.2",
     "npm": "10.9.8"
@@ -12,23 +12,24 @@
   "npmExitStatus": 1,
   "counts": {
     "auditReportVersion": 2,
-    "affectedPackageNodes": 14,
-    "distinctAdvisorySources": 2,
+    "affectedPackageNodes": 15,
+    "distinctAdvisorySources": 3,
     "nodesBySeverity": {
-      "moderate": 14
+      "moderate": 15
     },
     "metadataVulnerabilities": {
       "info": 0,
       "low": 0,
-      "moderate": 14,
+      "moderate": 15,
       "high": 0,
       "critical": 0,
-      "total": 14
+      "total": 15
     }
   },
   "advisories": [
+    "https://github.com/advisories/GHSA-hrr3-gc8f-f4qj",
     "https://github.com/advisories/GHSA-vcc3-ghjq-m6fr",
     "https://github.com/advisories/GHSA-w5hq-g745-h8pq"
   ],
-  "disposition": "Both distinct advisories (decode-uri-component GHSA-vcc3-ghjq-m6fr, uuid GHSA-w5hq-g745-h8pq) are moderate, below the audit:gate high threshold, in the Expo build chain only (not the app bundle). No waivers are on file: the two proposed image-size waivers were removed 2026-09-06 when the SDK 57 patch refresh dropped image-size from the tree (their recorded removal condition). Nothing is ratified."
+  "disposition": "Three distinct advisories, all moderate and below the audit:gate high threshold; no waiver is on file and nothing is ratified. fast-uri (GHSA-hrr3-gc8f-f4qj) reaches the tree through secretlint: tooling only. uuid (GHSA-w5hq-g745-h8pq) reaches it through the prebuild config plugins: build chain only. decode-uri-component (GHSA-vcc3-ghjq-m6fr, denial of service by exponential decoding of malformed percent-encoded input; its one later release, 0.5.0, is not reachable within query-string 7's range) reaches it through query-string in expo-router's own runtime code, so it IS in the app bundle, and the earlier record's 'build chain only' for it is corrected here. As read in expo-router 57.0.19 on 2026-09-30: the router parses the query of a link opened from outside the app with the platform's URLSearchParams in its own fork of getStateFromPath and calls query-string only to write a query (stringify), so the affected decoding is not on the inbound path; the one call that decodes sits in the vendored react-navigation copy the router's linking configuration replaces. That reading is recorded as such, not as a test. Regenerated 2026-09-30 after a lockfile-only update of brace-expansion (1.1.18 to 1.1.21 and 5.0.9 to 5.0.12, four nodes, no manifest change): the gate began failing that day on two high advisories the database gained on 2026-09-28 and 29 (GHSA-qhr7-859c-m2p7, GHSA-6j4f-fj2g-mc7p) in that transitive tooling dependency, and the maintainers' releases of 2026-09-14 resolve both together with the moderate GHSA-q2hr-2g5m-vwhr."
 }

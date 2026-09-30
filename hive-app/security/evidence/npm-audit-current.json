@@ -243,6 +243,35 @@
         "isSemVerMajor": true
       }
     },
+    "fast-uri": {
+      "name": "fast-uri",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1240091,
+          "name": "fast-uri",
+          "dependency": "fast-uri",
+          "title": "fast-uri vulnerable to inconsistent host case normalization via percent-encoded octets",
+          "url": "https://github.com/advisories/GHSA-hrr3-gc8f-f4qj",
+          "severity": "moderate",
+          "cwe": [
+            "CWE-178"
+          ],
+          "cvss": {
+            "score": 4.8,
+            "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N"
+          },
+          "range": ">=3.0.0 <3.1.8"
+        }
+      ],
+      "effects": [],
+      "range": "3.0.0 - 3.1.7",
+      "nodes": [
+        "node_modules/fast-uri"
+      ],
+      "fixAvailable": true
+    },
     "query-string": {
       "name": "query-string",
       "severity": "moderate",
@@ -324,18 +353,18 @@
     "vulnerabilities": {
       "info": 0,
       "low": 0,
-      "moderate": 14,
+      "moderate": 15,
       "high": 0,
       "critical": 0,
-      "total": 14
+      "total": 15
     },
     "dependencies": {
-      "prod": 825,
+      "prod": 826,
       "dev": 395,
       "optional": 47,
       "peer": 15,
       "peerOptional": 0,
-      "total": 1245
+      "total": 1246
     }
   }
 }
