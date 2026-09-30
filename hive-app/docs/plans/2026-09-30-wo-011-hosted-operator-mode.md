@@ -6,7 +6,8 @@ for the review tooling, with the project's secret key held in memory only,
 proven on staging first"), under his standing instruction to run and his
 general grant. Proven on staging. Production was only read: it holds no
 user and no row, and the review tenant is seeded there at Kody's word,
-not before. Every decision is provisional in `security/APPROVALS.md`.**
+not before. Every decision is recorded in `security/APPROVALS.md`; Kody
+ratified them the same day ("ratified") at candidate `a06b454`.**
 
 **Owner:** Kody (acceptance, security, custody). **Wording:** Stacie.
 
@@ -94,7 +95,7 @@ the counterpart of `local-supabase.mjs`:
 | T9. Anyone with the desktop can run the mode                   | Custody is the CLI login on the operator's machine, recorded in the runbook; a second operator needs a login of their own on the organization     |
 | T10. Long-lived legacy keys stay valid on the hosted projects  | Found and recorded, not changed: both projects still issue the legacy tokens, which nothing in HIVE uses; disabling them is Kody's dashboard step |
 
-## 5. Decisions recorded (provisional, Kody's to ratify)
+## 5. Decisions recorded (ratified by Kody, 2026-09-30)
 
 | Decision                                  | As built                                                                                                                                                     |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |

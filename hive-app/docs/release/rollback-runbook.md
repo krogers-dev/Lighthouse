@@ -58,7 +58,7 @@ node scripts/hosted-supabase.mjs production resume-service --confirm nceencyvxfh
 Staging takes the same commands without `--confirm`. A pause or a resume
 keeps the minimum app version the service already holds; to raise it
 (lever 2), set `HIVE_SERVICE_MIN_VERSION` for that one command. Who may
-run them, provisionally (2026-09-30, Kody's to ratify): Kody, or a
+run them (decided 2026-09-30 and ratified by Kody the same day): Kody, or a
 session he has instructed, from his desktop under his Supabase CLI login;
 the project's secret key is read for one command and kept nowhere.
 Drilled on staging on 2026-09-30
@@ -103,9 +103,8 @@ them is the digest in `document_uploads`).
 
 - The store consoles (Apple App Store Connect, Google Play Console) and
   the accounts that act in them.
-- Who may pause a hosted project: recorded provisionally on 2026-09-30
-  (above), and Kody's to ratify. A pause of production itself stays his
-  call each time.
+- A pause of production itself: who may run the switch is decided and
+  ratified (above), and each pause of production stays Kody's call.
 - Managed backups and point-in-time recovery on a hosted project.
 - Any OTA lane: none exists and none is planned before signing, rollout,
   rollback, and approval are tested (the brief).

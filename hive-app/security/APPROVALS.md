@@ -306,11 +306,12 @@ own PASS, as PRODUCT.md has always said.
 ### The hosted operator mode (WO-011, 2026-09-30)
 
 **Built as the next task named in the report of that morning, under
-Kody's standing instruction and his general grant. PROVISIONAL: every row
-below waits for his one line ("I ratify the WO-011 decisions", or "change
-X to Y"). Staging was changed and left retired; production was only
-read. One row is not a decision but a door: production is seeded only at
-his word.**
+Kody's standing instruction and his general grant. Ratified 2026-09-30 by
+Kody, in writing ("ratified"), at candidate `a06b454`. Staging was changed
+and left retired; production was only read. One row is a door as well as
+a decision: the ratification admits the review tenant on production, and
+the seeding itself still waits for his "seed production", which he has
+not yet said.**
 
 | Decision                                                        | As built                                                                                                                                                                                                                                                                                | Where it lives                                                                     |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |

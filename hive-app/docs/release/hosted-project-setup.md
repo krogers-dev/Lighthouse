@@ -169,8 +169,8 @@ offered to a real recipient:
 - **Production never carries a seed.** Its staff and client identities are
   created by invitation through the Auth Admin API, by Kody, one at a
   time, with their memberships; the seed tooling is loopback-only by
-  design and stays so. One exception, decided provisionally on 2026-09-30
-  (WO-011): the store review tenant, which a reviewer can only reach on
+  design and stays so. One exception, decided on 2026-09-30 and ratified
+  by Kody the same day (WO-011): the store review tenant, which a reviewer can only reach on
   production. It is one synthetic environment with one review identity,
   seeded through the hosted operator mode at Kody's word ("seed
   production"), isolated from every client by the same row-level security.
@@ -230,7 +230,7 @@ configuration in `.env.local` is untouched.
 
 - Who may run `set_service_state` with the hosted service key, and from
   which machine, is written down before the project takes any user.
-  **Written 2026-09-30, provisional (WO-011):** the switch is run from
+  **Written 2026-09-30 and ratified by Kody the same day (WO-011):** the switch is run from
   Kody's desktop through `scripts/hosted-supabase.mjs`
   (`service-status`, `pause-service [maintenance|incident]`,
   `resume-service`), by Kody or by a session he has instructed. The
