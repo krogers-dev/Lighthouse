@@ -237,8 +237,18 @@ destination (`docs/release/signing-and-submission.md`). Records:
    (the review identity signs in on the ordinary screens and sees only
    the review workspace), then `close-review-window` and `retire-review`;
    `sweep-review-window` runs by hand what the schedule runs every minute
-   (WO-009), and `review-window-status` shows the sweep state.
-   The harness and the bridge run the same lifecycle themselves.
+   (WO-009), and `review-window-status` shows the sweep state;
+   `check-review-sign-in` signs in with the code in the file as the app
+   does and signs out again. The harness and the bridge run the same
+   lifecycle themselves.
+7. The same commands against a hosted project (WO-011):
+   `node scripts/hosted-supabase.mjs staging review-window-status`, and
+   `staging prove-review` for the whole black-box path. The runner
+   reaches only the two projects in `security/hosted-targets.json`, reads
+   the secret key from the Supabase CLI login for one command, and needs
+   `--confirm <project-ref>` for any change on production, where the
+   proof never runs. The kill switch goes the same way
+   (`service-status`, `pause-service`, `resume-service`).
 
 ### Milestones 3, 4, and 5 on the desktop
 

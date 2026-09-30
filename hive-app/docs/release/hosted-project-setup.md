@@ -169,7 +169,11 @@ offered to a real recipient:
 - **Production never carries a seed.** Its staff and client identities are
   created by invitation through the Auth Admin API, by Kody, one at a
   time, with their memberships; the seed tooling is loopback-only by
-  design and stays so.
+  design and stays so. One exception, decided provisionally on 2026-09-30
+  (WO-011): the store review tenant, which a reviewer can only reach on
+  production. It is one synthetic environment with one review identity,
+  seeded through the hosted operator mode at Kody's word ("seed
+  production"), isolated from every client by the same row-level security.
 - Live data stays HOLD until Kody names it.
 
 ## 6. The review tenant
@@ -181,9 +185,13 @@ identity does not exist. Kody chose the fallback, built as WO-009 the same day
 (`docs/plans/2026-09-29-wo-009-review-tenant-fallback.md`): the migration
 `20260929120014` is on both hosted projects with its every-minute sweep,
 so the review sign-in holds on every plan; the hook returns the day a plan
-permits it. Seeding the review tenant on staging, opening a window per
-submission, and the review notes stay the operator steps of the operator
-document.
+permits it. Seeding the review tenant, opening a window per submission,
+and the review notes are operator steps, run through the hosted operator
+mode (WO-011, `scripts/hosted-supabase.mjs`; the commands are in
+`review-tenant.md`). It was proven on staging on 2026-09-30: the
+black-box path (33 checks), the operator's own sequence with the real
+code, and the suites with the tenant present; staging was left retired
+(`security/evidence/2026-09-30-hosted-operator/`).
 
 ## 7. The public contacts and pages (Kody)
 
@@ -222,6 +230,24 @@ configuration in `.env.local` is untouched.
 
 - Who may run `set_service_state` with the hosted service key, and from
   which machine, is written down before the project takes any user.
+  **Written 2026-09-30, provisional (WO-011):** the switch is run from
+  Kody's desktop through `scripts/hosted-supabase.mjs`
+  (`service-status`, `pause-service [maintenance|incident]`,
+  `resume-service`), by Kody or by a session he has instructed. The
+  custody is his Supabase CLI login on that machine: the project's secret
+  key is read for one command and kept nowhere. A second operator needs a
+  login of their own on the organization, which is his to grant. A pause
+  or a resume on production needs the project ref repeated. Drilled on
+  staging the same day: paused, read as the app reads it, resumed.
+- **Found 2026-09-30, not changed:** both hosted projects still issue the
+  legacy `anon` and `service_role` tokens next to the new publishable and
+  secret keys. Nothing in HIVE uses the legacy pair: the app holds the
+  publishable key, the operator mode requires the new secret key, and the
+  CLI uses its own login and the database password. The legacy
+  `service_role` token is a long-lived secret that cannot be rotated on
+  its own. Recommended: disable the legacy keys on each project in the
+  dashboard (API keys page), staging first; a dashboard setting, so
+  Kody's click.
 - The Free plan has no managed backups and pauses a project after a week
   without traffic; `drill-backup` (pg_dump/pg_restore) remains the only
   restore path on it. The production project needs at least the Pro plan

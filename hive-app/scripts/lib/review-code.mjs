@@ -14,6 +14,20 @@ export function generateReviewCode() {
   return code;
 }
 
+/** Reads the code from the file and never creates one: for the check
+ * that the code an operator is about to hand over really opens the door. */
+export function loadReviewCode(file) {
+  if (!file) throw new Error('HIVE_REVIEW_CODE_FILE names no file');
+  if (!existsSync(file)) {
+    throw new Error('no review code file there: open a review window first');
+  }
+  const code = readFileSync(file, 'utf8').trim();
+  if (!REVIEW_CODE_PATTERN.test(code)) {
+    throw new Error('the review code file must hold twelve to twenty digits');
+  }
+  return code;
+}
+
 /** Reads the code from the file, or generates one into it (mode 0600). */
 export function loadOrCreateReviewCode(file, generate = generateReviewCode) {
   if (!file) throw new Error('HIVE_REVIEW_CODE_FILE names no file');

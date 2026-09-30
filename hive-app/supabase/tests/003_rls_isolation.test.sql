@@ -148,7 +148,10 @@ select pg_temp.become_superuser() \gset
 -- service_role (server) still operates: bypassrls and privileged writer.
 -- ---------------------------------------------------------------------------
 select set_config('role', 'service_role', true) \gset
-select is((select count(*)::int from public.cases), 4,
+-- Counted in the seeded environment: a hosted rehearsal project also holds
+-- the review tenant's one case (WO-011), which is not this suite's.
+select is((select count(*)::int from public.cases
+            where environment_id = '11111111-0000-4000-8000-000000000001'), 4,
   'service_role sees all rows for server-side work');                 -- 28
 select lives_ok(
   $$select app_private.append_audit(

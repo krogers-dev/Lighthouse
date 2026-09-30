@@ -11,6 +11,16 @@ begin;
 set local search_path = public, extensions;
 select plan(30);
 
+-- A hosted rehearsal project may already hold the review tenant (WO-011):
+-- its identity registered, its receipts written, even a window open. This
+-- suite registers its own identity and opens its own windows, so it starts
+-- from none, inside the transaction that is rolled back at the end, and it
+-- counts receipts in its own scope only.
+delete from app_private.review_identities;
+update app_private.review_windows
+   set closed_at = now(), close_reason = 'closed'
+ where closed_at is null;
+
 create function pg_temp.user_id_for(p_email text)
 returns uuid language sql stable security definer as $$
   select id from auth.users where lower(email) = lower(p_email)
@@ -51,7 +61,8 @@ returns jsonb language sql as $$
 $$;
 create function pg_temp.audit_count(p_action text)
 returns integer language sql security definer as $$
-  select count(*)::int from public.audit_receipts where action = p_action
+  select count(*)::int from public.audit_receipts
+   where action = p_action and environment_id = '11111111-0000-4000-8000-000000000001'
 $$;
 
 -- ---------------------------------------------------------------------------

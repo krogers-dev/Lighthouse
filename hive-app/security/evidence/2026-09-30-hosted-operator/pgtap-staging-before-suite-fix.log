@@ -1,0 +1,52 @@
+/dev/Lighthouse/hive-app/supabase/tests/001_constraints.test.sql ..................... ok
+/dev/Lighthouse/hive-app/supabase/tests/002_grants.test.sql .......................... ok
+/dev/Lighthouse/hive-app/supabase/tests/003_rls_isolation.test.sql ................... 
+# Failed test 28: "service_role sees all rows for server-side work"
+#         have: 5
+#         want: 4
+# Looks like you failed 1 test of 29
+Failed 1/29 subtests 
+/dev/Lighthouse/hive-app/supabase/tests/004_staff_aal2.test.sql ...................... ok
+/dev/Lighthouse/hive-app/supabase/tests/005_mixed_role_aal2.test.sql ................. ok
+/dev/Lighthouse/hive-app/supabase/tests/006_restrictive_gate.test.sql ................ 
+# Failed test 7: "at aal2 the synthetic bypass policy is what widens reach — the denial was the restrictive layer"
+#         have: 5
+#         want: 4
+# Looks like you failed 1 test of 11
+Failed 1/11 subtests 
+/dev/Lighthouse/hive-app/supabase/tests/007_milestone1_read_surfaces.test.sql ........ ok
+/dev/Lighthouse/hive-app/supabase/tests/008_milestone2_document_uploads.test.sql ..... ok
+/dev/Lighthouse/hive-app/supabase/tests/009_milestone3_review_and_response.test.sql .. ok
+/dev/Lighthouse/hive-app/supabase/tests/010_milestone4_review_and_approval.test.sql .. ok
+/dev/Lighthouse/hive-app/supabase/tests/011_milestone5_source_adapters.test.sql ...... ok
+/dev/Lighthouse/hive-app/supabase/tests/012_milestone6_release_controls.test.sql ..... ok
+/dev/Lighthouse/hive-app/supabase/tests/013_review_tenant.test.sql ................... 
+# Failed test 10: "with one audit receipt in its scope"
+#         have: 2
+#         want: 1
+# Looks like you failed 1 test of 30
+Failed 1/30 subtests 
+/dev/Lighthouse/hive-app/supabase/tests/014_review_tenant_fallback.test.sql .......... 
+# Failed test 14: "with a receipt that says why"
+#         have: 2
+#         want: 1
+# Failed test 23: "with a receipt that says it expired"
+#         have: 2
+#         want: 1
+# Looks like you failed 2 tests of 24
+Failed 2/24 subtests 
+
+Test Summary Report
+-------------------
+/dev/Lighthouse/hive-app/supabase/tests/003_rls_isolation.test.sql                 (Wstat: 0 Tests: 29 Failed: 1)
+  Failed test:  28
+/dev/Lighthouse/hive-app/supabase/tests/006_restrictive_gate.test.sql              (Wstat: 0 Tests: 11 Failed: 1)
+  Failed test:  7
+/dev/Lighthouse/hive-app/supabase/tests/013_review_tenant.test.sql                 (Wstat: 0 Tests: 30 Failed: 1)
+  Failed test:  10
+/dev/Lighthouse/hive-app/supabase/tests/014_review_tenant_fallback.test.sql        (Wstat: 0 Tests: 24 Failed: 2)
+  Failed tests:  14, 23
+Files=14, Tests=511, 63 wallclock secs ( 0.13 usr  0.04 sys +  0.14 cusr  0.11 csys =  0.42 CPU)
+Result: FAIL
+Connecting to remote database...
+error running container: exit 1

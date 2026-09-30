@@ -39,6 +39,7 @@
     "audit:gate": "node scripts/audit-gate.mjs",
     "secrets:scan": "node scripts/secret-scan.mjs",
     "supabase:local": "node scripts/local-supabase.mjs",
+    "supabase:hosted": "node scripts/hosted-supabase.mjs",
     "db:types": "node scripts/db-types.mjs generate",
     "db:types:check": "node scripts/db-types.mjs check",
     "config:check": "node scripts/candidate-config-check.mjs",

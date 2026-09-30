@@ -1,0 +1,29 @@
+$ local service-status
+service-state: open (reason none, minimum app version 0.0.0, status version 4)
+  exit 0
+$ local pause-service maintenance
+service-state: paused (reason maintenance, minimum app version 0.0.0, status version 5)
+  exit 0
+$ local resume-service
+service-state: open (reason none, minimum app version 0.0.0, status version 6)
+  exit 0
+$ staging service-status
+service-state [staging]: open (reason none, minimum app version 0.0.0, status version 1)
+  exit 0
+$ staging pause-service maintenance
+service-state [staging]: paused (reason maintenance, minimum app version 0.0.0, status version 2)
+  exit 0
+as the app (publishable key): 200 {"state":"paused","version":2,"changed_at":"2026-09-30T16:32:40.845606+00:00","reason_code":"maintenance","min_app_version":"0.0.0"}
+$ staging resume-service
+service-state [staging]: open (reason none, minimum app version 0.0.0, status version 3)
+  exit 0
+as the app (publishable key): 200 {"state":"open","version":3,"changed_at":"2026-09-30T16:32:45.232876+00:00","reason_code":"none","min_app_version":"0.0.0"}
+$ staging service-status
+service-state [staging]: open (reason none, minimum app version 0.0.0, status version 3)
+  exit 0
+$ production service-status
+service-state [production]: open (reason none, minimum app version 0.0.0, status version 1)
+  exit 0
+$ production pause-service incident   (negative: no ref)
+hosted-supabase: pause-service changes production: repeat its project ref to go on (--confirm nceencyvxfhkffbjqlea)
+  exit 1

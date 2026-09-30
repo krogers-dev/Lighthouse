@@ -71,8 +71,10 @@ the production project. So the review tenant of WO-008 and WO-009 (one
 synthetic environment, one client, one case, one review identity on a
 Honeybee-controlled mailbox) is seeded on **production**, isolated from
 every real client by the same row-level security that isolates clients
-from each other, and a window is opened for each submission. The seed and
-window tooling is loopback-only today by design; a hosted operator mode,
-which takes the project's secret key in memory from Kody's CLI session and
-never writes it, is the next piece to build, and the review mailbox
-(`review@myhbcfo.com` as an alias is enough) is Kody's one-minute step.
+from each other, and a window is opened for each submission. The tooling
+for it exists since 2026-09-30 (WO-011): the hosted operator mode reads
+the project's secret key from Kody's CLI login for one command and never
+writes it, and it was proven on staging. What remains is Kody's: the
+review mailbox (`review@myhbcfo.com` as an alias is enough), and his word
+to seed production. The commands for a submission, and where the code is
+kept, are in `review-tenant.md`.

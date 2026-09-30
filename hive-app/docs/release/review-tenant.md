@@ -50,8 +50,10 @@ Option A, with these bounds written into the decision:
   and the code's length stand in.
 - `open-review-window [hours]` sets the code from the file
   `HIVE_REVIEW_CODE_FILE` names (outside the repository; generated if
-  absent, never printed); `close-review-window` replaces it;
-  `retire-review` ends all access.
+  absent, never printed); `check-review-sign-in` signs in with that code
+  as the app does and reads what the session sees, then signs out;
+  `close-review-window` replaces the code; `retire-review` ends all
+  access.
 - The reviewer enters the review email and the review code on the
   ordinary sign-in and code screens; nothing in the app is different for
   them.
@@ -61,7 +63,52 @@ Option A, with these bounds written into the decision:
   (decided 2026-09-29: the fallback, in which the window tooling and a
   scheduled sweep govern the review password, built as WO-009); then give
   the identity a controlled mailbox, open a window per submission, and
-  put the email and the code in the review notes for that window.
+  put the email and the code in the review notes for that window. The
+  tools reach a hosted project through the operator mode of WO-011, below.
+
+## On a hosted project (WO-011, 2026-09-30)
+
+The same tools run against staging or production through
+`scripts/hosted-supabase.mjs`
+(`docs/plans/2026-09-30-wo-011-hosted-operator-mode.md`). It reaches the
+two projects in `security/hosted-targets.json` and nothing else, reads
+the project's secret key from the Supabase CLI under the operator's own
+login for one command, and keeps it nowhere. The review identity there is
+`review@myhbcfo.com`, which must exist as a mailbox or an alias before
+anyone types it into the app, because the app then emails a code to it.
+A change on production needs its project ref repeated. Proven on staging
+on 2026-09-30 (`security/evidence/2026-09-30-hosted-operator/`);
+production is seeded at Kody's word.
+
+For a submission, in order:
+
+```bash
+node scripts/hosted-supabase.mjs production seed-review --confirm nceencyvxfhkffbjqlea
+```
+
+```bash
+node scripts/hosted-supabase.mjs production open-review-window 168 --confirm nceencyvxfhkffbjqlea
+```
+
+```bash
+node scripts/hosted-supabase.mjs production check-review-sign-in --confirm nceencyvxfhkffbjqlea
+```
+
+The code is in `%USERPROFILE%\HIVE-approvals\review-code-production.txt`
+and nowhere else; it and the review address go into the review notes. A
+window lasts at most seven days. If a review runs longer, open a new
+window once the first has ended: the file's code is set again, so the
+notes stay right. Deleting the file before an open rotates the code.
+When the review ends:
+
+```bash
+node scripts/hosted-supabase.mjs production close-review-window --confirm nceencyvxfhkffbjqlea
+```
+
+`retire-review` ends all access between releases, and
+`review-window-status` reads the state at any time without the ref.
+Staging takes the same commands without `--confirm`, and `prove-review`
+there runs the whole black-box path.
 
 ## The demo video
 

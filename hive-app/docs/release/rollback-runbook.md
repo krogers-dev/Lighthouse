@@ -20,7 +20,7 @@ restore from backup is the last resort and is drilled below.
 
 ## Pause and resume, exactly
 
-Local stack (the only lane that exists today):
+Local stack:
 
 ```bash
 node scripts/local-supabase.mjs pause-service incident
@@ -40,10 +40,29 @@ appended to `service_status_changes`; the same key never writes twice.
 The app reads `public.service_status_read()` at boot and on every return
 to the foreground, with the public key and nothing identifying anyone.
 
-On a hosted project the same two calls run against that project's
-origin with its service bearer, from an operator machine, never from the
-app. Who may run them, and from where, is a decision for Kody before any
-hosted project exists.
+On a hosted project the same calls run through the hosted operator mode
+(WO-011), from the operator's machine, never from the app:
+
+```bash
+node scripts/hosted-supabase.mjs production pause-service incident --confirm nceencyvxfhkffbjqlea
+```
+
+```bash
+node scripts/hosted-supabase.mjs production service-status
+```
+
+```bash
+node scripts/hosted-supabase.mjs production resume-service --confirm nceencyvxfhkffbjqlea
+```
+
+Staging takes the same commands without `--confirm`. A pause or a resume
+keeps the minimum app version the service already holds; to raise it
+(lever 2), set `HIVE_SERVICE_MIN_VERSION` for that one command. Who may
+run them, provisionally (2026-09-30, Kody's to ratify): Kody, or a
+session he has instructed, from his desktop under his Supabase CLI login;
+the project's secret key is read for one command and kept nowhere.
+Drilled on staging on 2026-09-30
+(`security/evidence/2026-09-30-hosted-operator/operator-kill-switch.log`).
 
 ## Backup and restore, drilled
 
@@ -84,7 +103,9 @@ them is the digest in `document_uploads`).
 
 - The store consoles (Apple App Store Connect, Google Play Console) and
   the accounts that act in them.
-- The hosted project's origin, service bearer custody, and who may pause.
+- Who may pause a hosted project: recorded provisionally on 2026-09-30
+  (above), and Kody's to ratify. A pause of production itself stays his
+  call each time.
 - Managed backups and point-in-time recovery on a hosted project.
 - Any OTA lane: none exists and none is planned before signing, rollout,
   rollback, and approval are tested (the brief).

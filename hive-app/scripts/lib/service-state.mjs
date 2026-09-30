@@ -1,22 +1,51 @@
 /** The service kill switch from the operator's side (WO-007): read the
  * public status, and flip it through the server-role interface
- * (public.set_service_state) with an idempotency key. Loopback only; the
- * privileged bearer arrives in memory and is never printed. The result
- * names the state, the reason code, the minimum app version, and the
- * status version; nothing else exists to print. */
+ * (public.set_service_state) with an idempotency key. The privileged key
+ * arrives in memory and is never printed. The result names the state, the
+ * reason code, the minimum app version, and the status version; nothing
+ * else exists to print.
+ *
+ * Loopback only, unless the caller names the hosted origin it was approved
+ * for (WO-011): then the URL must be that origin exactly, which the caller
+ * took from security/hosted-targets.json through the operator context. */
 
 const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost', '::1', '[::1]'];
 export const SERVICE_STATES = ['open', 'paused'];
 export const SERVICE_REASONS = ['none', 'maintenance', 'incident'];
+const VERSION = /^\d+\.\d+\.\d+$/;
 
-function guard({ url, serviceKey }) {
+function guard({ url, serviceKey, approvedOrigin }) {
   if (!url || !serviceKey) return ['url and bearer are required'];
-  if (!LOOPBACK_HOSTS.includes(new URL(url).hostname)) return ['refusing a non-loopback URL'];
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return ['the URL is not a URL'];
+  }
+  if (approvedOrigin !== undefined) {
+    const exact =
+      parsed.origin === approvedOrigin &&
+      parsed.protocol === 'https:' &&
+      (parsed.pathname === '/' || parsed.pathname === '') &&
+      parsed.search === '' &&
+      parsed.username === '';
+    return exact ? [] : ['the URL is not the approved origin of the hosted target'];
+  }
+  if (!LOOPBACK_HOSTS.includes(parsed.hostname)) return ['refusing a non-loopback URL'];
   return [];
 }
 
+/** The minimum app version a pause or a resume sends: the one the
+ * operator named, else the one the service already holds, so that flipping
+ * the switch never lowers a floor an incident raised. */
+export function keptMinAppVersion(named, currentStatus) {
+  if (typeof named === 'string' && named !== '') return named;
+  const current = currentStatus?.min_app_version;
+  return typeof current === 'string' && VERSION.test(current) ? current : '0.0.0';
+}
+
 async function rpc({ url, serviceKey, gatewayKey, fetchImpl }, name, args) {
-  const response = await fetchImpl(`${url}/rest/v1/rpc/${name}`, {
+  const response = await fetchImpl(`${new URL(url).origin}/rest/v1/rpc/${name}`, {
     method: 'POST',
     headers: {
       apikey: gatewayKey,
@@ -39,9 +68,10 @@ export async function readServiceState({
   url,
   serviceKey,
   gatewayKey = serviceKey,
+  approvedOrigin,
   fetchImpl = globalThis.fetch,
 }) {
-  const problems = guard({ url, serviceKey });
+  const problems = guard({ url, serviceKey, approvedOrigin });
   if (problems.length > 0) return { ok: false, problems };
   const result = await rpc({ url, serviceKey, gatewayKey, fetchImpl }, 'service_status_read', {});
   if (!result.ok || typeof result.body?.state !== 'string') {
@@ -54,20 +84,20 @@ export async function setServiceState({
   url,
   serviceKey,
   gatewayKey = serviceKey,
+  approvedOrigin,
   state,
   reasonCode = state === 'open' ? 'none' : 'maintenance',
   minAppVersion = '0.0.0',
   idempotencyKey = crypto.randomUUID(),
   fetchImpl = globalThis.fetch,
 }) {
-  const problems = guard({ url, serviceKey });
+  const problems = guard({ url, serviceKey, approvedOrigin });
   if (!SERVICE_STATES.includes(state))
     problems.push(`state must be one of: ${SERVICE_STATES.join(', ')}`);
   if (!SERVICE_REASONS.includes(reasonCode)) {
     problems.push(`reason must be one of: ${SERVICE_REASONS.join(', ')}`);
   }
-  if (!/^\d+\.\d+\.\d+$/.test(minAppVersion))
-    problems.push('minimum app version must be three numbers');
+  if (!VERSION.test(minAppVersion)) problems.push('minimum app version must be three numbers');
   if (problems.length > 0) return { ok: false, problems };
   const result = await rpc({ url, serviceKey, gatewayKey, fetchImpl }, 'set_service_state', {
     p_state: state,

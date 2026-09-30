@@ -303,6 +303,53 @@ own PASS, as PRODUCT.md has always said.
 | 1. Instant updates on the phone        | Second. The database's realtime channel and notifications, with a notification policy and a privacy-disclosure change, because a notification leaves the system. **Kody, later the same evening: "I want this."**                                                                                                                                                                                                                                                                     | after the adapters are live                                     |
 | 3. Live financial numbers in the app   | **Reopened by Kody the same evening: "I want this too, but am willing to wait until after we go live. Maybe through an update?"** Recorded as a post-launch work order, delivered as an app update: the recommended shape is read-through from the ledger at request time, shown and not stored, so HIVE's stored data class does not change; either way the disclosures, the store answers, the policy's effective date, and the security review are redone before that update ships | after go-live, as its own work order and app update             |
 
+### The hosted operator mode (WO-011, 2026-09-30)
+
+**Built as the next task named in the report of that morning, under
+Kody's standing instruction and his general grant. PROVISIONAL: every row
+below waits for his one line ("I ratify the WO-011 decisions", or "change
+X to Y"). Staging was changed and left retired; production was only
+read. One row is not a decision but a door: production is seeded only at
+his word.**
+
+| Decision                                                        | As built                                                                                                                                                                                                                                                                                | Where it lives                                                                     |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Two hosted targets, by manifest                                 | `security/hosted-targets.json` names staging and production by ref, origin, and review address; the tooling refuses every other origin, compared exactly after parsing, in the runner and again in each tool                                                                            | the manifest; `scripts/lib/hosted-targets.mjs`; `scripts/lib/operator-context.mjs` |
+| The key is read per command and never stored                    | the project's new secret key comes from the Supabase CLI under the operator's login, stays in memory, goes to one child process, and is stripped from anything shown; the legacy service-role token is refused by shape                                                                 | `scripts/hosted-supabase.mjs`; the key tests                                       |
+| Custody                                                         | the operator is Kody, or a session he has instructed, on his desktop under his CLI login; a second operator needs a login of their own on the organization, his to grant                                                                                                                | `docs/release/hosted-project-setup.md` §8; `docs/release/rollback-runbook.md`      |
+| Production changes need the ref repeated                        | `--confirm <project-ref>` for every change on production, checked twice; reading needs nothing; the manifest cannot relax it                                                                                                                                                            | the confirmation tests; the CLI negatives                                          |
+| The proof runs on staging only                                  | `prove-review` is refused on production in code and refuses to start while a window is open                                                                                                                                                                                             | `scripts/hosted-review-proof.mjs`                                                  |
+| The review address                                              | `review@myhbcfo.com` on both hosted projects; the synthetic address stays local                                                                                                                                                                                                         | the manifest                                                                       |
+| The review code on a hosted project                             | one file per target in the approvals folder, refused inside the repository, never printed; deleting it rotates the code at the next open                                                                                                                                                | `reviewCodeFileFor`; `scripts/review-window.mjs`                                   |
+| `check-review-sign-in`                                          | a new command in both lanes: signs in with the code in the file as the app does, reads what the session sees, signs out; a change, so production needs the ref                                                                                                                          | `scripts/review-window.mjs`                                                        |
+| The kill switch through the same mode                           | `service-status`, `pause-service [maintenance\|incident]`, `resume-service` against a hosted project; a pause or a resume keeps the minimum app version the service holds unless another is named                                                                                       | `scripts/service-state.mjs`; `scripts/lib/service-state.mjs`                       |
+| Production carries the review tenant and nothing else synthetic | amends "production never carries a seed" for that one tenant; **not done: it waits for Kody's "seed production"**                                                                                                                                                                       | `docs/release/hosted-project-setup.md` §5                                          |
+| Staging left retired                                            | after the proof and the rehearsal: the review rows inert, the identity with no membership and not registered, no window; the rehearsal code file in the approvals folder                                                                                                                | the evidence README                                                                |
+| The suites made independent of this state                       | 003 and 006 count cases in the seeded environment; 012 counts the switch's version and history from where they stand; 013 and 014 start from no review state inside their rolled-back run and count receipts in their own scope; no assertion was removed or weakened in what it proves | `supabase/tests/`                                                                  |
+
+**Recorded with it, 2026-09-30:**
+
+- **A dependency update the audit gate required.** The gate began failing
+  that day on two high advisories in `brace-expansion`, a transitive
+  dependency of the lint and build tooling. The lockfile alone was updated
+  to the maintainers' releases of 2026-09-14 (four nodes, no manifest
+  change); the gate exits 0 with no waiver, and the archived audit report
+  and its binding record were regenerated. No approval was needed or
+  claimed: nothing is waived.
+- **A correction to the audit record.** `decode-uri-component` is in the
+  app bundle through `expo-router`, not in the build chain only as the
+  record of 2026-09-06 said; as read in the pinned router, the affected
+  decoding is not on the path of a link opened from outside. Moderate,
+  below the gate, in `SECURITY.md`'s residual risks.
+- **Two findings that are Kody's to act on when he chooses:** the hosted
+  projects still issue the legacy keys, which nothing uses (disable them
+  in the dashboard, staging first); and the Google Cloud organization
+  refuses any service-account key in project `hive`, so the Drive
+  adapter's key needs a project-level exception he makes as its
+  administrator (the adapters plan, section 6).
+- **The duplicate service account**, deleted at his request ("can you do
+  #4 for me?"): `security/evidence/2026-09-30-cloud-doors/`.
+
 ## Current state
 
 **Ratified.** On 2026-09-07 Kody ratified the four history exceptions in

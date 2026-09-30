@@ -116,6 +116,10 @@ select is(has_function_privilege('anon', 'public.request_account_deletion(uuid)'
 -- ---------------------------------------------------------------------------
 select count(*)::int as cases_before from public.cases \gset
 select count(*)::int as receipts_before from public.audit_receipts \gset
+-- A hosted rehearsal project's switch may already have been used (WO-011):
+-- the version and the history are counted from where they stand.
+select version as version_before from public.service_status where id = 1 \gset
+select count(*)::int as changes_before from public.service_status_changes \gset
 
 select pg_temp.become_anon();
 select is((public.service_status_read() ->> 'state'), 'open',
@@ -128,11 +132,12 @@ select pg_temp.become_service_role();
 select gen_random_uuid() as pause_key \gset
 select pg_temp.set_state('paused', 'incident', '0.0.0', :'pause_key') as paused \gset
 select is(:'paused'::jsonb ->> 'state', 'paused', 'the server role pauses the service');  -- 14
-select is((:'paused'::jsonb ->> 'version')::int, 2, 'the status version moved to 2');    -- 15
+select is((:'paused'::jsonb ->> 'version')::int, :version_before + 1,
+  'the status version moved up by one');                                     -- 15
 select is((pg_temp.set_state('paused', 'incident', '0.0.0', :'pause_key') ->> 'replayed')::boolean, true,
   'the same key replays the same change');                                   -- 16
-select is((select count(*)::int from public.service_status_changes), 1,
-  'and the history holds exactly one change');                               -- 17
+select is((select count(*)::int from public.service_status_changes), :changes_before + 1,
+  'and the history gained exactly one change');                              -- 17
 
 select pg_temp.become_anon();
 select is((public.service_status_read() ->> 'state'), 'paused',

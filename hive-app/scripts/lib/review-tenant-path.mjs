@@ -18,6 +18,13 @@
  * ctx.hookMode says whether GoTrue's password-verification hook is
  * enabled on this stack (HIVE_REVIEW_HOOK=on); the fallback holds either
  * way, and the counting assertion flips with it.
+ *
+ * ctx.reviewEmail is the review identity's address on this stack (the
+ * synthetic one locally, Honeybee's review mailbox on a hosted project).
+ * ctx.otherIdentity is the identity the "anyone else" negative is run
+ * against: the seeded client owner locally, and on a hosted project a
+ * throwaway the proof creates and deletes (WO-011), since a hosted
+ * project holds no seeded identity GoTrue can load.
  */
 import { REVIEW_TENANT } from './review-tenant.mjs';
 
@@ -33,6 +40,12 @@ export async function assertReviewTenantPath(ctx) {
     seedReview,
     retireReview,
     hookMode = false,
+    reviewEmail = REVIEW_TENANT.identity.email,
+    otherIdentity = {
+      id: 'cccccccc-0000-4000-8000-000000000001',
+      email: 'client.owner@example.invalid',
+      label: 'a seeded client',
+    },
   } = ctx;
   const t = REVIEW_TENANT;
   const server = {
@@ -83,7 +96,7 @@ export async function assertReviewTenantPath(ctx) {
     (await setPassword(t.identity.id, code)) === 200,
     'review tenant: the code is set as the review identity’s password while no window is open',
   );
-  const closedAttempt = await passwordGrant(t.identity.email, code);
+  const closedAttempt = await passwordGrant(reviewEmail, code);
   check(
     refused(closedAttempt),
     `review tenant: the review identity is refused while no window is open (${closedAttempt.status})`,
@@ -107,7 +120,7 @@ export async function assertReviewTenantPath(ctx) {
     (await setPassword(t.identity.id, code)) === 200,
     'review tenant: the code is set inside the window',
   );
-  const wrong = await passwordGrant(t.identity.email, `${code}-wrong`);
+  const wrong = await passwordGrant(reviewEmail, `${code}-wrong`);
   check(refused(wrong), `review tenant: a wrong code is refused (${wrong.status})`);
   const status = await serverCall('/rest/v1/rpc/review_window_status', {});
   if (hookMode) {
@@ -125,7 +138,7 @@ export async function assertReviewTenantPath(ctx) {
     status.status === 200 && typeof status.body?.sweep === 'object' && status.body.sweep !== null,
     'server role: the status carries the sweep state',
   );
-  const signedIn = await passwordGrant(t.identity.email, code);
+  const signedIn = await passwordGrant(reviewEmail, code);
   if (
     !check(
       signedIn.status === 200 && typeof signedIn.body?.access_token === 'string',
@@ -162,14 +175,13 @@ export async function assertReviewTenantPath(ctx) {
     'review tenant: sees only the review environment',
   );
 
-  // A seeded client with a password of its own is not the review identity.
-  const ownerId = 'cccccccc-0000-4000-8000-000000000001';
+  // Anyone else with a password of their own is not the review identity.
   const ownerCode = `owner-code-${uuidV4()}`;
   check(
-    (await setPassword(ownerId, ownerCode)) === 200,
-    'review tenant: a seeded client is given a password for the negative',
+    (await setPassword(otherIdentity.id, ownerCode)) === 200,
+    `review tenant: ${otherIdentity.label} is given a password for the negative`,
   );
-  const ownerAttempt = await passwordGrant('client.owner@example.invalid', ownerCode);
+  const ownerAttempt = await passwordGrant(otherIdentity.email, ownerCode);
   check(
     refused(ownerAttempt),
     `review tenant: anyone but the review identity is refused the password grant even with a valid password (${ownerAttempt.status})`,
@@ -183,7 +195,7 @@ export async function assertReviewTenantPath(ctx) {
     swept.status === 200 && swept.body?.expired === 1,
     `server role: the sweep expires the window whose close time has passed (${JSON.stringify(swept.body)})`,
   );
-  const afterExpiry = await passwordGrant(t.identity.email, code);
+  const afterExpiry = await passwordGrant(reviewEmail, code);
   check(
     refused(afterExpiry),
     `review tenant: the code is refused once the window expired (${afterExpiry.status})`,
@@ -204,7 +216,7 @@ export async function assertReviewTenantPath(ctx) {
     (await setPassword(t.identity.id, code)) === 200,
     'review tenant: the code is set again inside the second window',
   );
-  const secondSignIn = await passwordGrant(t.identity.email, code);
+  const secondSignIn = await passwordGrant(reviewEmail, code);
   check(
     secondSignIn.status === 200 && typeof secondSignIn.body?.refresh_token === 'string',
     'review tenant: the review identity signs in inside the second window',
@@ -213,7 +225,7 @@ export async function assertReviewTenantPath(ctx) {
     p_idempotency_key: uuidV4(),
   });
   check(closed.status === 200, 'server role: closes the window');
-  const afterClose = await passwordGrant(t.identity.email, code);
+  const afterClose = await passwordGrant(reviewEmail, code);
   check(
     refused(afterClose),
     `review tenant: the code is refused once the window is closed (${afterClose.status})`,
@@ -250,7 +262,7 @@ export async function assertReviewTenantPath(ctx) {
     retired,
     'review tenant: retired (window closed, code replaced, identity unregistered, membership removed)',
   );
-  const afterRetire = await passwordGrant(t.identity.email, code);
+  const afterRetire = await passwordGrant(reviewEmail, code);
   check(
     refused(afterRetire),
     `review tenant: nothing signs in after retirement (${afterRetire.status})`,

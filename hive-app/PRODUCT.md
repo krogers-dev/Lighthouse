@@ -137,6 +137,15 @@ only on its Teams plan: the server keeps the same rules by a trigger, a
 scheduled sweep, and server-side revocation, and the hook returns the day
 a plan permits it (`docs/plans/2026-09-29-wo-009-review-tenant-fallback.md`).
 
+**Operating a hosted project (WO-011, 2026-09-30).** The review tenant's
+tools and the kill switch run against staging and production from the
+operator's machine: the project's secret key is read for one command and
+kept nowhere, a change on production needs its project ref repeated, and
+the black-box proof runs on staging only
+(`docs/plans/2026-09-30-wo-011-hosted-operator-mode.md`). Production
+receives the review tenant, the one synthetic thing it will ever hold, at
+Kody's word.
+
 **Live client information (direction of 2026-09-29, Kody: "I support what
 you recommend").** After the store release candidate and the review-tenant
 fallback: first the real read-only QuickBooks Online and Google Drive

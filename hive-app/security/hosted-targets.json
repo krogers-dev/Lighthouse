@@ -1,0 +1,22 @@
+{
+  "$comment": "Reviewed manifest of the hosted projects the operator tooling may reach (WO-011). Nothing here is a secret: a project ref and its origin are public identifiers, and the review address goes into the store's review notes. The tooling compares origins exactly after parsing and refuses every hosted origin that is not listed here. The privileged key is never stored anywhere: it is read from the Supabase CLI under the operator's own login, into memory, for one command. Two rules are the code's and cannot be relaxed from this file: a change on production needs the project ref repeated on the command line, and the black-box proof never runs on production.",
+  "reviewEmailDomain": "myhbcfo.com",
+  "targets": {
+    "staging": {
+      "projectRef": "zhdvmllscjyepwucbtzq",
+      "origin": "https://zhdvmllscjyepwucbtzq.supabase.co",
+      "reviewEmail": "review@myhbcfo.com",
+      "confirmChanges": false,
+      "allowProof": true,
+      "notes": "hive-staging: the rehearsal environment. It carries the SQL-only lane's synthetic seed, so the proof's exact-reach negatives have other clients to be refused."
+    },
+    "production": {
+      "projectRef": "nceencyvxfhkffbjqlea",
+      "origin": "https://nceencyvxfhkffbjqlea.supabase.co",
+      "reviewEmail": "review@myhbcfo.com",
+      "confirmChanges": true,
+      "allowProof": false,
+      "notes": "hive-production: the project the release build talks to, and therefore the one a store reviewer reaches. The review tenant is the only synthetic data it ever carries, seeded at Kody's word."
+    }
+  }
+}

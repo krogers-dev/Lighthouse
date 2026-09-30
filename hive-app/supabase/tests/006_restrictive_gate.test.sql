@@ -81,7 +81,10 @@ select is((select count(*)::int from public.cases), 0,
 select pg_temp.become_superuser() \gset
 
 select pg_temp.impersonate_email('mixed.same@example.invalid', 'aal2') \gset
-select is((select count(*)::int from public.cases), 4,
+-- Counted in the seeded environment: a hosted rehearsal project also holds
+-- the review tenant's one case (WO-011), which the allow-all policy shows too.
+select is((select count(*)::int from public.cases
+            where environment_id = '11111111-0000-4000-8000-000000000001'), 4,
   'at aal2 the synthetic bypass policy is what widens reach — the denial was the restrictive layer'); -- 7
 select pg_temp.become_superuser() \gset
 

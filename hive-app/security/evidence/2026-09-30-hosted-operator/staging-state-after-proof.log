@@ -1,0 +1,46 @@
+== review identity (auth.users)
+                  id                  |       email        | confirmed | has_hash | hash_is_the_recorded_scrambled_one | sessions | memberships | registered 
+--------------------------------------+--------------------+-----------+----------+------------------------------------+----------+-------------+------------
+ cccccccc-0000-4000-8000-0000000000aa | review@myhbcfo.com | t         | t        | t                                  |        0 |           0 |          0
+(1 row)
+
+== users in all, and any left from the proof
+ users | proof_leftovers 
+-------+-----------------
+    11 |               0
+(1 row)
+
+== review windows
+ close_reason | windows | still_open 
+--------------+---------+------------
+ closed       |       1 |          0
+ expired      |       1 |          0
+(2 rows)
+
+== review audit receipts in the review environment
+            action            | count 
+------------------------------+-------
+ review.identity_registered   |     1
+ review.identity_unregistered |     1
+ review.window_closed         |     2
+ review.window_opened         |     2
+(4 rows)
+
+== review environment rows
+ environments | clients | entities | cases | requests 
+--------------+---------+----------+-------+----------
+            1 |       1 |        1 |     1 |        2
+(1 row)
+
+== any usable password anywhere (a hash that is not the recorded scrambled one)
+ unrecorded_hashes 
+-------------------
+                 0
+(1 row)
+
+== the schedule
+         jobname          | schedule  | active 
+--------------------------+-----------+--------
+ hive-review-window-sweep | * * * * * | t
+(1 row)
+
